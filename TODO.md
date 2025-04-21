@@ -2,12 +2,13 @@
 
 ## Core Infrastructure
 
-- [ ] Set up Rust project structure with Cargo
-- [ ] Create basic command-line interface structure
-- [ ] Implement core storage model for content directories
+- [x] Set up Rust project structure with Cargo
+- [x] Create basic command-line interface structure
+- [x] Implement core storage model for content directories
+- [x] Create file format parsers for lists
+- [x] Implement anchor generation and tracking
 - [ ] Design CRDT implementation for list synchronization
-- [ ] Create file format parsers for lists, notes, and posts
-- [ ] Implement anchor generation and tracking
+- [ ] Create file format parsers for notes and posts
 - [ ] Set up Git-based three-way merge for notes/posts
 
 ## Server Components
@@ -22,13 +23,14 @@
 
 ## CLI Implementation (`lst`)
 
-- [ ] Implement `lst ls` command
-- [ ] Implement `lst add <list> <text>` command
-- [ ] Implement `lst done <list> <anchor>` command 
-- [ ] Implement `lst pipe <list>` command
+- [x] Implement `lst ls` command
+- [x] Implement `lst add <list> <text>` command
+- [x] Implement `lst done <list> <target>` command with fuzzy matching
+- [x] Implement `lst pipe <list>` command
+- [x] Add `--json` output option for all commands
 - [ ] Implement note commands (`note new`, `note open`)
 - [ ] Implement post commands (`post new`, `post list`, `post publish`)
-- [ ] Add `--json` output option for all commands
+- [ ] Implement image commands (`img add`, `img paste`, `img list`, `img rm`)
 
 ## Client Applications
 
@@ -48,6 +50,14 @@
   - [ ] Create AGNO agent for natural language processing
   - [ ] Implement JSON action interface
 
+## Next Immediate Tasks
+
+1. Implement configuration loading from `~/.config/lst/lst.toml`
+2. Implement note commands
+3. Improve error handling and user feedback
+4. Add tests for core functionality
+5. Implement image support with Git LFS
+
 ## DevOps
 
 - [ ] Create systemd service file for server
@@ -60,6 +70,7 @@
 
 ## Documentation
 
+- [x] Create initial SPEC.md
 - [ ] Write installation guide
 - [ ] Create user documentation
 - [ ] Document API endpoints

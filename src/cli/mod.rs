@@ -1,0 +1,153 @@
+pub mod commands;
+
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[clap(name = "lst", about = "Personal lists & notes app")]
+#[clap(version, author)]
+pub struct Cli {
+    #[clap(subcommand)]
+    pub command: Commands,
+    
+    /// Output in JSON format
+    #[clap(long, global = true)]
+    pub json: bool,
+}
+
+#[derive(Subcommand)]
+pub enum Commands {
+    /// List all lists or show contents of a specific list
+    #[clap(name = "ls")]
+    ListLists {
+        /// Name of the list to show (optional)
+        list: Option<String>,
+    },
+    
+    /// Add an item to a list
+    #[clap(name = "add")]
+    Add {
+        /// Name of the list
+        list: String,
+        
+        /// Text of the item to add
+        text: String,
+    },
+    
+    /// Mark an item as done
+    #[clap(name = "done")]
+    Done {
+        /// Name of the list
+        list: String,
+        
+        /// Target item to mark as done (anchor, text, or index)
+        target: String,
+    },
+    
+    /// Read items from stdin and add them to a list
+    #[clap(name = "pipe")]
+    Pipe {
+        /// Name of the list
+        list: String,
+    },
+    
+    /// Commands for managing notes
+    #[clap(subcommand, name = "note")]
+    Note(NoteCommands),
+    
+    /// Commands for managing posts
+    #[clap(subcommand, name = "post")]
+    Post(PostCommands),
+    
+    /// Commands for managing images
+    #[clap(subcommand, name = "img")]
+    Image(ImageCommands),
+}
+
+#[derive(Subcommand)]
+pub enum NoteCommands {
+    /// Create a new note
+    #[clap(name = "new")]
+    New {
+        /// Title of the note
+        title: String,
+    },
+    
+    /// Open a note in the default editor
+    #[clap(name = "open")]
+    Open {
+        /// Title of the note
+        title: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum PostCommands {
+    /// Create a new blog post
+    #[clap(name = "new")]
+    New {
+        /// Title of the post
+        title: String,
+    },
+    
+    /// List all posts
+    #[clap(name = "list")]
+    List,
+    
+    /// Publish a post (set draft to false)
+    #[clap(name = "publish")]
+    Publish {
+        /// Slug of the post to publish
+        slug: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ImageCommands {
+    /// Add an image to a document
+    #[clap(name = "add")]
+    Add {
+        /// Path to the image file
+        file: String,
+        
+        /// Document to add the image to
+        #[clap(long)]
+        to: String,
+        
+        /// Caption for the image
+        #[clap(long)]
+        caption: Option<String>,
+    },
+    
+    /// Paste image from clipboard
+    #[clap(name = "paste")]
+    Paste {
+        /// Document to add the image to
+        #[clap(long)]
+        to: Option<String>,
+        
+        /// Caption for the image
+        #[clap(long)]
+        caption: Option<String>,
+        
+        /// Output for clipboard
+        #[clap(long)]
+        clipboard: bool,
+    },
+    
+    /// List images in a document
+    #[clap(name = "list")]
+    List {
+        /// Document to list images from
+        document: String,
+    },
+    
+    /// Remove an image reference from a document
+    #[clap(name = "rm")]
+    Remove {
+        /// Document containing the image
+        document: String,
+        
+        /// Hash of the image to remove
+        hash: String,
+    },
+}
