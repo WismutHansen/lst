@@ -6,6 +6,37 @@ pub mod markdown;
 
 /// Get the base content directory path
 pub fn get_content_dir() -> Result<PathBuf> {
+    // First check the config
+    let config = crate::config::Config::load()?;
+    
+    // If content_dir is specified in config, use that
+    if let Some(dir) = config.paths.content_dir {
+        // Expand '~' to the user's home directory
+        let dir_str = dir.to_string_lossy();
+        let expanded = if let Some(home) = dirs::home_dir() {
+            // Strip leading '~/' or '~'
+            let without_tilde = if let Some(s) = dir_str.strip_prefix("~/") {
+                s
+            } else if let Some(s) = dir_str.strip_prefix('~') {
+                s
+            } else {
+                &dir_str
+            };
+            // Remove any leading path separator
+            let without_sep = without_tilde.trim_start_matches(std::path::MAIN_SEPARATOR);
+            home.join(without_sep)
+        } else {
+            // Fallback: use the path as-is
+            PathBuf::from(&*dir_str)
+        };
+        if !expanded.exists() {
+            fs::create_dir_all(&expanded)
+                .with_context(|| format!("Failed to create content directory: {}", expanded.display()))?;
+        }
+        return Ok(expanded);
+    }
+    
+    // Default to content/ in current directory
     let current_dir = std::env::current_dir()
         .context("Failed to get current directory")?;
     
@@ -53,6 +84,37 @@ pub fn get_posts_dir() -> Result<PathBuf> {
 
 /// Get the media directory path
 pub fn get_media_dir() -> Result<PathBuf> {
+    // First check the config
+    let config = crate::config::Config::load()?;
+    
+    // If media_dir is specified in config, use that
+    if let Some(dir) = config.paths.media_dir {
+        // Expand '~' to the user's home directory
+        let dir_str = dir.to_string_lossy();
+        let expanded = if let Some(home) = dirs::home_dir() {
+            // Strip leading '~/' or '~'
+            let without_tilde = if let Some(s) = dir_str.strip_prefix("~/") {
+                s
+            } else if let Some(s) = dir_str.strip_prefix('~') {
+                s
+            } else {
+                &dir_str
+            };
+            // Remove any leading path separator
+            let without_sep = without_tilde.trim_start_matches(std::path::MAIN_SEPARATOR);
+            home.join(without_sep)
+        } else {
+            // Fallback: use the path as-is
+            PathBuf::from(&*dir_str)
+        };
+        if !expanded.exists() {
+            fs::create_dir_all(&expanded)
+                .with_context(|| format!("Failed to create media directory: {}", expanded.display()))?;
+        }
+        return Ok(expanded);
+    }
+    
+    // Default to media/ in content directory
     let media_dir = get_content_dir()?.join("media");
     if !media_dir.exists() {
         fs::create_dir_all(&media_dir)

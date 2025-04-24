@@ -1,0 +1,31 @@
+# Example lst configuration file
+# This file should be placed at ~/.config/lst/lst.toml
+
+[server]
+# URL of the sync server API (required for syncing)
+url = "https://lists.example.com/api"
+
+# Authentication token (obtained via magic link flow)
+auth_token = "your-auth-token"
+
+[ui]
+# Order in which to try different methods when resolving item targets
+# Valid values: "anchor", "exact", "fuzzy", "index", "interactive"
+resolution_order = ["anchor", "exact", "fuzzy", "index", "interactive"]
+
+[fuzzy]
+# Similarity threshold for fuzzy matching (0.0 to 1.0)
+# Higher values require closer matches
+threshold = 0.75
+
+# Maximum number of suggestions to show in interactive mode
+max_suggestions = 7
+
+[paths]
+# Base directory for all content (lists, notes, posts, media)
+# Default: "./content" in current working directory
+content_dir = "~/Documents/lst"
+
+# Override the media directory location
+# Default: "$content_dir/media"
+media_dir = "~/Documents/lst/media"

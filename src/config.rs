@@ -40,6 +40,7 @@ pub struct FuzzyConfig {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PathsConfig {
+    pub content_dir: Option<PathBuf>,
     pub media_dir: Option<PathBuf>,
 }
 
@@ -54,7 +55,7 @@ impl Default for Config {
                 threshold: default_threshold(),
                 max_suggestions: default_max_suggestions(),
             },
-            paths: PathsConfig { media_dir: None },
+            paths: PathsConfig { content_dir: None, media_dir: None },
         }
     }
 }
@@ -78,7 +79,10 @@ impl Default for FuzzyConfig {
 
 impl Default for PathsConfig {
     fn default() -> Self {
-        Self { media_dir: None }
+        Self { 
+            content_dir: None,
+            media_dir: None 
+        }
     }
 }
 
