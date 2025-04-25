@@ -34,11 +34,11 @@ fn main() -> Result<()> {
         },
         Commands::Note(note_cmd) => {
             match note_cmd {
-                NoteCommands::New { title: _ } => {
-                    eprintln!("Note commands not implemented yet");
+                NoteCommands::New { title } => {
+                    cli::commands::note_new(title)?;
                 },
-                NoteCommands::Open { title: _ } => {
-                    eprintln!("Note commands not implemented yet");
+                NoteCommands::Open { title } => {
+                    cli::commands::note_open(title)?;
                 },
             }
         },

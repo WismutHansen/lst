@@ -120,7 +120,6 @@ impl Config {
         let home_dir = dirs::home_dir()
             .context("Could not determine home directory")?;
         let config_dir = home_dir.join(".config").join("lst");
-
         let config_path = config_dir.join("lst.toml");
         
         if !config_path.exists() {

@@ -4,6 +4,9 @@ use std::io::{self, BufRead};
 use serde_json;
 
 use crate::storage;
+use std::path::Path;
+use std::process::Command;
+use anyhow::Context;
 use crate::models::ItemStatus;
 
 /// Handle the 'ls' command to list all lists
@@ -25,6 +28,36 @@ pub fn list_lists(json: bool) -> Result<()> {
         println!("  {}", list);
     }
     
+    Ok(())
+}
+
+/// Create a new note: initializes file and opens in editor
+pub fn note_new(title: &str) -> Result<()> {
+    // Create the note file (with frontmatter)
+    let path = storage::notes::create_note(title)
+        .context("Failed to create note")?;
+    // Open in editor
+    open_editor(&path)
+}
+
+/// Open an existing note in the editor
+pub fn note_open(title: &str) -> Result<()> {
+    // Determine the note file path
+    let path = storage::notes::load_note(title)
+        .context("Failed to load note")?;
+    open_editor(&path)
+}
+
+/// Spawn the user's editor (from $EDITOR or default 'vi') on the given path
+fn open_editor(path: &Path) -> Result<()> {
+    let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
+    let status = Command::new(editor)
+        .arg(path)
+        .status()
+        .context("Failed to launch editor")?;
+    if !status.success() {
+        anyhow::bail!("Editor exited with non-zero status");
+    }
     Ok(())
 }
 

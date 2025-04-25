@@ -3,31 +3,33 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub mod markdown;
+/// Notes storage (creates and opens individual markdown files under notes/)
+pub mod notes;
 
 /// Get the base content directory path
 pub fn get_content_dir() -> Result<PathBuf> {
     // First check the config
     let config = crate::config::Config::load()?;
     
-    // If content_dir is specified in config, use that
+    // If content_dir is specified in config, use that (supports absolute, relative, or '~' paths)
     if let Some(dir) = config.paths.content_dir {
-        // Expand '~' to the user's home directory
         let dir_str = dir.to_string_lossy();
-        let expanded = if let Some(home) = dirs::home_dir() {
-            // Strip leading '~/' or '~'
-            let without_tilde = if let Some(s) = dir_str.strip_prefix("~/") {
-                s
-            } else if let Some(s) = dir_str.strip_prefix('~') {
-                s
+        // Only expand leading '~' to home directory; otherwise use as given
+        let expanded: PathBuf = if dir_str.starts_with("~") {
+            // Tilde expansion
+            if let Some(home) = dirs::home_dir() {
+                // Remove '~' and any leading separator, then join to home
+                let without_tilde = dir_str
+                    .trim_start_matches('~')
+                    .trim_start_matches(std::path::MAIN_SEPARATOR);
+                home.join(without_tilde)
             } else {
-                &dir_str
-            };
-            // Remove any leading path separator
-            let without_sep = without_tilde.trim_start_matches(std::path::MAIN_SEPARATOR);
-            home.join(without_sep)
+                // Fallback to literal path
+                PathBuf::from(&*dir_str)
+            }
         } else {
-            // Fallback: use the path as-is
-            PathBuf::from(&*dir_str)
+            // Use the path as-is (absolute or relative)
+            dir
         };
         if !expanded.exists() {
             fs::create_dir_all(&expanded)
@@ -87,25 +89,21 @@ pub fn get_media_dir() -> Result<PathBuf> {
     // First check the config
     let config = crate::config::Config::load()?;
     
-    // If media_dir is specified in config, use that
+    // If media_dir is specified in config, use that (supports absolute, relative, or '~' paths)
     if let Some(dir) = config.paths.media_dir {
-        // Expand '~' to the user's home directory
         let dir_str = dir.to_string_lossy();
-        let expanded = if let Some(home) = dirs::home_dir() {
-            // Strip leading '~/' or '~'
-            let without_tilde = if let Some(s) = dir_str.strip_prefix("~/") {
-                s
-            } else if let Some(s) = dir_str.strip_prefix('~') {
-                s
+        // Only expand leading '~' to home directory; otherwise use as given
+        let expanded: PathBuf = if dir_str.starts_with("~") {
+            if let Some(home) = dirs::home_dir() {
+                let without_tilde = dir_str
+                    .trim_start_matches('~')
+                    .trim_start_matches(std::path::MAIN_SEPARATOR);
+                home.join(without_tilde)
             } else {
-                &dir_str
-            };
-            // Remove any leading path separator
-            let without_sep = without_tilde.trim_start_matches(std::path::MAIN_SEPARATOR);
-            home.join(without_sep)
+                PathBuf::from(&*dir_str)
+            }
         } else {
-            // Fallback: use the path as-is
-            PathBuf::from(&*dir_str)
+            dir
         };
         if !expanded.exists() {
             fs::create_dir_all(&expanded)
