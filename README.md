@@ -43,7 +43,7 @@ lst done <list_name> "#2"  # By index (the second item)
 cat items.txt | lst pipe <list_name>
 ```
 
-### Notes & Posts (Coming Soon)
+### Notes
 
 ```bash
 # Create a new note
@@ -51,7 +51,10 @@ lst note new "<title>"
 
 # Open a note in your editor
 lst note open "<title>"
-
+```
+  
+### Posts (Coming Soon)
+```bash
 # Create a new blog post
 lst post new "<title>"
 

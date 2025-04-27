@@ -28,7 +28,7 @@
 - [x] Implement `lst done <list> <target>` command with fuzzy matching
 - [x] Implement `lst pipe <list>` command
 - [x] Add `--json` output option for all commands
-- [ ] Implement note commands (`note new`, `note open`)
+ - [x] Implement note commands (`note new`, `note open`)
 - [ ] Implement post commands (`post new`, `post list`, `post publish`)
 - [ ] Implement image commands (`img add`, `img paste`, `img list`, `img rm`)
 
@@ -52,11 +52,11 @@
 
 ## Next Immediate Tasks
 
-1. Implement configuration loading from `~/.config/lst/lst.toml`
-2. Implement note commands
-3. Improve error handling and user feedback
-4. Add tests for core functionality
-5. Implement image support with Git LFS
+ - [x] Implement configuration loading from `~/.config/lst/lst.toml`
+ - [x] Implement note commands
+ - [ ] Improve error handling and user feedback
+ - [ ] Add tests for core functionality
+ - [ ] Implement image support with Git LFS
 
 ## DevOps
 

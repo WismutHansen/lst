@@ -1,4 +1,4 @@
-# lst - personal lists & notes App – Specification v0.2
+# lst - personal lists & notes App – Specification v0.3
 
 ## 1 · Scope & Guiding Principles
 
