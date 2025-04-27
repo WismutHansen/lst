@@ -28,7 +28,7 @@
 - [x] Implement `lst done <list> <target>` command with fuzzy matching
 - [x] Implement `lst pipe <list>` command
 - [x] Add `--json` output option for all commands
- - [x] Implement note commands (`note new`, `note open`)
+- [x] Implement note commands (`note new`, `note add`, `note open`)
 - [ ] Implement post commands (`post new`, `post list`, `post publish`)
 - [ ] Implement image commands (`img add`, `img paste`, `img list`, `img rm`)
 

@@ -1,4 +1,4 @@
-# lst - personal lists & notes App – Specification v0.3
+# lst - personal lists & notes App – Specification v0.4
 
 ## 1 · Scope & Guiding Principles
 
@@ -109,6 +109,7 @@ Core – lists
 
 Notes
   lst note new <title>
+  lst note add <title> <text>
   lst note open <title>
 
 Posts
@@ -256,5 +257,7 @@ Environment override: `LST_CONFIG=/path/to/custom.toml`
 
 ## Version History
 
-- **v0.2** (2025-04-20): Added media support, client configuration, fuzzy item targeting
-- **v0.1** (2025-04-20): Initial specification
++ **v0.4** (2025-04-27): Added `lst note add` command for appending text to notes
++ **v0.3** (2025-04-27): Removed `post` commands and spec entries for posts
++ **v0.2** (2025-04-25): Added notes commands (`lst note new` & `lst note open`)
++ **v0.1** (2025-04-20): Initial specification

@@ -50,3 +50,23 @@ pub fn load_note(title: &str) -> Result<PathBuf> {
     }
     Ok(path)
 }
+/// Append text to a note (with a newline between old and new text).
+/// Creates the note if it does not exist.
+pub fn append_to_note(title: &str, text: &str) -> Result<PathBuf> {
+    let path = get_note_path(title)?;
+    if !path.exists() {
+        // Create a new note with frontmatter
+        create_note(title)?;
+    }
+    // Append text with preceding blank line
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open(&path)
+        .with_context(|| format!("Failed to open note file for append: {}", path.display()))?;
+    // Write a blank line, the text, and a newline
+    use std::io::Write;
+    writeln!(file, "\n{}", text)
+        .with_context(|| format!("Failed to write to note file: {}", path.display()))?;
+    Ok(path)
+}

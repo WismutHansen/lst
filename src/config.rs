@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use dirs;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -55,7 +54,10 @@ impl Default for Config {
                 threshold: default_threshold(),
                 max_suggestions: default_max_suggestions(),
             },
-            paths: PathsConfig { content_dir: None, media_dir: None },
+            paths: PathsConfig {
+                content_dir: None,
+                media_dir: None,
+            },
         }
     }
 }
@@ -79,9 +81,9 @@ impl Default for FuzzyConfig {
 
 impl Default for PathsConfig {
     fn default() -> Self {
-        Self { 
+        Self {
             content_dir: None,
-            media_dir: None 
+            media_dir: None,
         }
     }
 }
@@ -115,55 +117,50 @@ impl Config {
         if let Ok(custom_path) = std::env::var("LST_CONFIG") {
             return Self::load_from(&PathBuf::from(custom_path));
         }
-        
+
         // Always use ~/.config/lst/ regardless of platform
-        let home_dir = dirs::home_dir()
-            .context("Could not determine home directory")?;
+        let home_dir = dirs::home_dir().context("Could not determine home directory")?;
         let config_dir = home_dir.join(".config").join("lst");
         let config_path = config_dir.join("lst.toml");
-        
+
         if !config_path.exists() {
             // Create default config if it doesn't exist
             fs::create_dir_all(&config_dir).context("Failed to create config directory")?;
             let default_config = Self::default();
             let toml_str = toml::to_string_pretty(&default_config)
                 .context("Failed to serialize default config")?;
-            fs::write(&config_path, toml_str)
-                .context("Failed to write default config file")?;
+            fs::write(&config_path, toml_str).context("Failed to write default config file")?;
             return Ok(default_config);
         }
-        
+
         Self::load_from(&config_path)
     }
-    
+
     /// Load configuration from a specific path
     pub fn load_from(path: &Path) -> Result<Self> {
         let content = fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file: {}", path.display()))?;
-            
+
         let config: Self = toml::from_str(&content)
             .with_context(|| format!("Failed to parse config file: {}", path.display()))?;
-            
+
         Ok(config)
     }
-    
+
     /// Save configuration to the default location
     pub fn save(&self) -> Result<()> {
         // Always use ~/.config/lst/ regardless of platform
-        let home_dir = dirs::home_dir()
-            .context("Could not determine home directory")?;
+        let home_dir = dirs::home_dir().context("Could not determine home directory")?;
         let config_dir = home_dir.join(".config").join("lst");
-            
-        fs::create_dir_all(&config_dir)
-            .context("Failed to create config directory")?;
-            
+
+        fs::create_dir_all(&config_dir).context("Failed to create config directory")?;
+
         let config_path = config_dir.join("lst.toml");
-        let toml_str = toml::to_string_pretty(self)
-            .context("Failed to serialize config")?;
-            
-        fs::write(&config_path, toml_str)
-            .context("Failed to write config file")?;
-            
+        let toml_str = toml::to_string_pretty(self).context("Failed to serialize config")?;
+
+        fs::write(&config_path, toml_str).context("Failed to write config file")?;
+
         Ok(())
     }
 }
+

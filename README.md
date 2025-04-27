@@ -49,6 +49,9 @@ cat items.txt | lst pipe <list_name>
 # Create a new note
 lst note new "<title>"
 
+# Append text to a note (creates note if missing)
+lst note add "<title>" "<text>"
+
 # Open a note in your editor
 lst note open "<title>"
 ```
