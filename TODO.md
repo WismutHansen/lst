@@ -13,8 +13,8 @@
 
 ## Server Components
 
-- [ ] Build Axum API server
-- [ ] Implement authentication with magic links
+- [x] Build Axum API server
+- [x] Implement authentication via human-friendly and QR passwordless login tokens (inspired by Atuin)
 - [ ] Set up SMTP email delivery with lettre
 - [ ] Create CRDT + Git storage backend
 - [ ] Build Zola static site generation pipeline

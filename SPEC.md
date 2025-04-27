@@ -42,6 +42,26 @@ graph TD
 
 ---
 
+## Authentication & Login
+
+### Passwordless, Human-Friendly Token Auth
+
+- Users authenticate by requesting a login code to their email address.
+    - API call: `POST /auth/request` with their email.
+    - Server generates a **human-readable, short-lived token** (e.g. `PLUM-FIRE-BIRD-7182`).
+    - Server also generates a **QR code** that encodes a login URL (e.g. `lst-login://host/auth/verify?token=TOKEN&email=EMAIL`).
+        - The domain/server is included, enabling true one-step login on mobile.
+    - The token, QR (as base64 PNG), and login URL are returned in the API response.
+- User enters or scans this code in their client (CLI, GUI, or mobile app).
+    - API call: `POST /auth/verify` with email and token, or follows the encoded URL if scanned.
+    - If the token is valid and unexpired, the server returns a JWT/session for further API use.
+- All tokens are one-time and expire after ~15 minutes.
+- No server-stored plaintext passwords; user authentication is ephemeral by design.
+
+**This login flow is inspired by [Atuin](https://github.com/atuinsh/atuin): QR code onboarding encodes a login URL so users can scan and securely add a new device in a single step. Manual token entry is always supported as fallback.**
+
+---
+
 ## 3 · Storage Model
 
 ```
