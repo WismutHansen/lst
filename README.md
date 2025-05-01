@@ -173,3 +173,20 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+  
+## Performance
+
+The `lst` CLI is implemented in Rust, and debug builds (e.g., those under `target/debug`) can exhibit noticeable startup latency.
+For the fastest experience, use the optimized release build:
+```bash
+# Install the release binary to your Cargo bin directory
+cargo install --path .
+```
+This builds with release optimizations and should start up in just a few milliseconds.
+
+If you prefer to build locally without installing, you can:
+```bash
+# Build and run the release binary
+cargo build --release
+./target/release/lst ls <list_name>
+```

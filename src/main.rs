@@ -11,8 +11,7 @@ fn main() -> Result<()> {
     // Parse command line arguments
     let cli = Cli::parse();
 
-    // Load configuration
-    let _config = config::Config::load()?;
+    // Configuration is now loaded on first use via a global cache
 
     // Process commands
     match &cli.command {

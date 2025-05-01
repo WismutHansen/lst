@@ -1,18 +1,20 @@
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
+use crate::config::get_config;
 
 pub mod markdown;
 /// Notes storage (creates and opens individual markdown files under notes/)
 pub mod notes;
 
 /// Get the base content directory path
+/// Get the base content directory path, using the global cached configuration
 pub fn get_content_dir() -> Result<PathBuf> {
-    // First check the config
-    let config = crate::config::Config::load()?;
+    // First check the config (cached)
+    let config = get_config();
     
     // If content_dir is specified in config, use that (supports absolute, relative, or '~' paths)
-    if let Some(dir) = config.paths.content_dir {
+    if let Some(dir) = config.paths.content_dir.clone() {
         let dir_str = dir.to_string_lossy();
         // Only expand leading '~' to home directory; otherwise use as given
         let expanded: PathBuf = if dir_str.starts_with("~") {
@@ -86,11 +88,11 @@ pub fn get_posts_dir() -> Result<PathBuf> {
 
 /// Get the media directory path
 pub fn get_media_dir() -> Result<PathBuf> {
-    // First check the config
-    let config = crate::config::Config::load()?;
+    // First check the config (cached)
+    let config = get_config();
     
     // If media_dir is specified in config, use that (supports absolute, relative, or '~' paths)
-    if let Some(dir) = config.paths.media_dir {
+    if let Some(dir) = config.paths.media_dir.clone() {
         let dir_str = dir.to_string_lossy();
         // Only expand leading '~' to home directory; otherwise use as given
         let expanded: PathBuf = if dir_str.starts_with("~") {

@@ -118,19 +118,16 @@ impl Config {
             return Self::load_from(&PathBuf::from(custom_path));
         }
         // Always use ~/.config/lst/ regardless of platform
-        let home_dir = dirs::home_dir()
-            .context("Could not determine home directory")?;
+        let home_dir = dirs::home_dir().context("Could not determine home directory")?;
         let config_dir = home_dir.join(".config").join("lst");
         let config_path = config_dir.join("lst.toml");
         if !config_path.exists() {
             // Create default config if it doesn't exist
-            fs::create_dir_all(&config_dir)
-                .context("Failed to create config directory")?;
+            fs::create_dir_all(&config_dir).context("Failed to create config directory")?;
             let default_config = Self::default();
             let toml_str = toml::to_string_pretty(&default_config)
                 .context("Failed to serialize default config")?;
-            fs::write(&config_path, toml_str)
-                .context("Failed to write default config file")?;
+            fs::write(&config_path, toml_str).context("Failed to write default config file")?;
             return Ok(default_config);
         }
         Self::load_from(&config_path)
@@ -150,17 +147,22 @@ impl Config {
     /// Save configuration to the default location
     pub fn save(&self) -> Result<()> {
         // Always use ~/.config/lst/ regardless of platform
-        let home_dir = dirs::home_dir()
-            .context("Could not determine home directory")?;
+        let home_dir = dirs::home_dir().context("Could not determine home directory")?;
         let config_dir = home_dir.join(".config").join("lst");
-        fs::create_dir_all(&config_dir)
-            .context("Failed to create config directory")?;
+        fs::create_dir_all(&config_dir).context("Failed to create config directory")?;
         let config_path = config_dir.join("lst.toml");
-        let toml_str = toml::to_string_pretty(self)
-            .context("Failed to serialize config")?;
-        fs::write(&config_path, toml_str)
-            .context("Failed to write config file")?;
+        let toml_str = toml::to_string_pretty(self).context("Failed to serialize config")?;
+        fs::write(&config_path, toml_str).context("Failed to write config file")?;
         Ok(())
     }
 }
 
+// Global cached configuration: loaded once on first access
+lazy_static::lazy_static! {
+    static ref GLOBAL_CONFIG: Config = Config::load().expect("Failed to load config");
+}
+
+/// Get the global cached configuration
+pub fn get_config() -> &'static Config {
+    &GLOBAL_CONFIG
+}
