@@ -1,7 +1,7 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
-use std::fs;
 use std::path::PathBuf;
+use std::{fs, io};
 
 /// Simple slugify: lowercase, replace non-alphanumeric with '-', trim hyphens
 fn slugify(title: &str) -> String {
@@ -26,6 +26,20 @@ pub fn get_note_path(title: &str) -> Result<PathBuf> {
     let notes_dir = super::get_notes_dir()?;
     let filename = format!("{}.md", slugify(title));
     Ok(notes_dir.join(filename))
+}
+
+/// Delete a note with the given title (`slug.md`).
+pub fn delete_note(title: &str) -> Result<()> {
+    let path = get_note_path(title).context("building note path failed")?;
+
+    if !path.exists() {
+        // Return a structured error instead of silently creating a new file.
+        anyhow::bail!("note `{}` does not exist", title);
+    }
+
+    fs::remove_file(&path).with_context(|| format!("could not delete {}", path.display()))?;
+
+    Ok(())
 }
 
 /// Create a new note file with frontmatter and return its path

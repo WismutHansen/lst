@@ -92,6 +92,17 @@ pub enum NoteCommands {
         /// Title of the note
         title: String,
     },
+
+    /// Delete a note
+    #[clap(name = "rm")]
+    Remove {
+        /// Name of the list
+        title: String,
+    },
+
+    /// List all notes
+    #[clap(name = "ls")]
+    ListNotes {},
 }
 
 #[derive(Subcommand)]
@@ -157,4 +168,3 @@ pub enum DlCmd {
         item: String,
     },
 }
-

@@ -1,7 +1,7 @@
+use crate::config::get_config;
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
-use crate::config::get_config;
 
 pub mod markdown;
 /// Notes storage (creates and opens individual markdown files under notes/)
@@ -12,7 +12,7 @@ pub mod notes;
 pub fn get_content_dir() -> Result<PathBuf> {
     // First check the config (cached)
     let config = get_config();
-    
+
     // If content_dir is specified in config, use that (supports absolute, relative, or '~' paths)
     if let Some(dir) = config.paths.content_dir.clone() {
         let dir_str = dir.to_string_lossy();
@@ -34,22 +34,21 @@ pub fn get_content_dir() -> Result<PathBuf> {
             dir
         };
         if !expanded.exists() {
-            fs::create_dir_all(&expanded)
-                .with_context(|| format!("Failed to create content directory: {}", expanded.display()))?;
+            fs::create_dir_all(&expanded).with_context(|| {
+                format!("Failed to create content directory: {}", expanded.display())
+            })?;
         }
         return Ok(expanded);
     }
-    
+
     // Default to content/ in current directory
-    let current_dir = std::env::current_dir()
-        .context("Failed to get current directory")?;
-    
+    let current_dir = std::env::current_dir().context("Failed to get current directory")?;
+
     let content_dir = current_dir.join("content");
     if !content_dir.exists() {
-        fs::create_dir_all(&content_dir)
-            .context("Failed to create content directory")?;
+        fs::create_dir_all(&content_dir).context("Failed to create content directory")?;
     }
-    
+
     Ok(content_dir)
 }
 
@@ -57,10 +56,9 @@ pub fn get_content_dir() -> Result<PathBuf> {
 pub fn get_lists_dir() -> Result<PathBuf> {
     let lists_dir = get_content_dir()?.join("lists");
     if !lists_dir.exists() {
-        fs::create_dir_all(&lists_dir)
-            .context("Failed to create lists directory")?;
+        fs::create_dir_all(&lists_dir).context("Failed to create lists directory")?;
     }
-    
+
     Ok(lists_dir)
 }
 
@@ -68,10 +66,9 @@ pub fn get_lists_dir() -> Result<PathBuf> {
 pub fn get_notes_dir() -> Result<PathBuf> {
     let notes_dir = get_content_dir()?.join("notes");
     if !notes_dir.exists() {
-        fs::create_dir_all(&notes_dir)
-            .context("Failed to create notes directory")?;
+        fs::create_dir_all(&notes_dir).context("Failed to create notes directory")?;
     }
-    
+
     Ok(notes_dir)
 }
 
@@ -79,10 +76,9 @@ pub fn get_notes_dir() -> Result<PathBuf> {
 pub fn get_posts_dir() -> Result<PathBuf> {
     let posts_dir = get_content_dir()?.join("posts");
     if !posts_dir.exists() {
-        fs::create_dir_all(&posts_dir)
-            .context("Failed to create posts directory")?;
+        fs::create_dir_all(&posts_dir).context("Failed to create posts directory")?;
     }
-    
+
     Ok(posts_dir)
 }
 
@@ -90,7 +86,7 @@ pub fn get_posts_dir() -> Result<PathBuf> {
 pub fn get_media_dir() -> Result<PathBuf> {
     // First check the config (cached)
     let config = get_config();
-    
+
     // If media_dir is specified in config, use that (supports absolute, relative, or '~' paths)
     if let Some(dir) = config.paths.media_dir.clone() {
         let dir_str = dir.to_string_lossy();
@@ -108,19 +104,19 @@ pub fn get_media_dir() -> Result<PathBuf> {
             dir
         };
         if !expanded.exists() {
-            fs::create_dir_all(&expanded)
-                .with_context(|| format!("Failed to create media directory: {}", expanded.display()))?;
+            fs::create_dir_all(&expanded).with_context(|| {
+                format!("Failed to create media directory: {}", expanded.display())
+            })?;
         }
         return Ok(expanded);
     }
-    
+
     // Default to media/ in content directory
     let media_dir = get_content_dir()?.join("media");
     if !media_dir.exists() {
-        fs::create_dir_all(&media_dir)
-            .context("Failed to create media directory")?;
+        fs::create_dir_all(&media_dir).context("Failed to create media directory")?;
     }
-    
+
     Ok(media_dir)
 }
 
@@ -128,7 +124,7 @@ pub fn get_media_dir() -> Result<PathBuf> {
 pub fn list_files(dir: &Path, extension: &str) -> Result<Vec<PathBuf>> {
     let entries = fs::read_dir(dir)
         .with_context(|| format!("Failed to read directory: {}", dir.display()))?;
-        
+
     let files = entries
         .filter_map(|entry| {
             let entry = entry.ok()?;
@@ -140,7 +136,7 @@ pub fn list_files(dir: &Path, extension: &str) -> Result<Vec<PathBuf>> {
             }
         })
         .collect();
-        
+
     Ok(files)
 }
 
@@ -148,13 +144,30 @@ pub fn list_files(dir: &Path, extension: &str) -> Result<Vec<PathBuf>> {
 pub fn list_lists() -> Result<Vec<String>> {
     let lists_dir = get_lists_dir()?;
     let files = list_files(&lists_dir, "md")?;
-    
+
     let lists = files
         .iter()
         .filter_map(|path| {
-            path.file_stem().map(|stem| stem.to_string_lossy().to_string())
+            path.file_stem()
+                .map(|stem| stem.to_string_lossy().to_string())
         })
         .collect();
-        
+
     Ok(lists)
+}
+
+/// List all available notes
+pub fn list_notes() -> Result<Vec<String>> {
+    let notes_dir = get_notes_dir()?;
+    let files = list_files(&notes_dir, "md")?;
+
+    let notes = files
+        .iter()
+        .filter_map(|path| {
+            path.file_stem()
+                .map(|stem| stem.to_string_lossy().to_string())
+        })
+        .collect();
+
+    Ok(notes)
 }

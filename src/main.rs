@@ -35,6 +35,10 @@ fn main() -> Result<()> {
             NoteCommands::New { title } => cli::commands::note_new(title)?,
             NoteCommands::Add { title, text } => cli::commands::note_add(title, text)?,
             NoteCommands::Open { title } => cli::commands::note_open(title)?,
+            NoteCommands::Remove { title } => cli::commands::note_delete(title)?,
+            NoteCommands::ListNotes {} => {
+                cli::commands::list_notes(cli.json)?;
+            }
         },
         // Commands::Post(post_cmd) => {
         //     match post_cmd {

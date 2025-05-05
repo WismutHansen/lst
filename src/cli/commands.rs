@@ -3,13 +3,13 @@ use colored::{ColoredString, Colorize};
 use serde_json;
 use std::io::{self, BufRead};
 
-use crate::models::ItemStatus;
+use crate::cli::DlCmd;
 use crate::storage;
+use crate::{models::ItemStatus, storage::notes::delete_note};
 use anyhow::Context;
+use chrono::{Local, Utc};
 use std::path::Path;
 use std::process::Command;
-use chrono::{Local, Utc};
-use crate::cli::DlCmd;
 
 /// Handle the 'ls' command to list all lists
 pub fn list_lists(json: bool) -> Result<()> {
@@ -72,6 +72,28 @@ pub fn daily_note(_json: bool) -> Result<()> {
     open_editor(&path)
 }
 
+/// Handle the 'ls' command to list all lists
+pub fn list_notes(json: bool) -> Result<()> {
+    let notes = storage::list_notes()?;
+
+    if json {
+        println!("{}", serde_json::to_string(&notes)?);
+        return Ok(());
+    }
+
+    if notes.is_empty() {
+        println!("No notes found. Create one with 'lst note new <list>'");
+        return Ok(());
+    }
+
+    println!("Available notes:");
+    for note in notes {
+        println!("  {}", note);
+    }
+
+    Ok(())
+}
+
 /// Create a new note: initializes file and opens in editor
 pub fn note_new(title: &str) -> Result<()> {
     // Create the note file (with frontmatter)
@@ -89,11 +111,20 @@ pub fn note_open(title: &str) -> Result<()> {
 /// Append text to an existing note (or create one), then open in editor
 pub fn note_add(title: &str, text: &str) -> Result<()> {
     // Append to note, creating if missing
-    let path = storage::notes::append_to_note(title, text)
-        .context("Failed to append to note")?;
+    let path = storage::notes::append_to_note(title, text).context("Failed to append to note")?;
     // Inform user of success
-    println!("Appended to note '{}' (file: {})", title.cyan(), path.display());
+    println!(
+        "Appended to note '{}' (file: {})",
+        title.cyan(),
+        path.display()
+    );
     Ok(())
+}
+
+/// Delete a note
+pub fn note_delete(title: &str) -> Result<()> {
+    // Determine the note file path
+    delete_note(title)
 }
 
 /// Spawn the user's editor (from $EDITOR or default 'vi') on the given path
@@ -205,4 +236,3 @@ pub fn display_list(list: &str, json: bool) -> Result<()> {
 
     Ok(())
 }
-
