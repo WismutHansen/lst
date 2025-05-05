@@ -28,7 +28,6 @@ pub enum Commands {
     Add {
         /// Name of the list
         list: String,
-
         /// Text of the item to add
         text: String,
     },
@@ -38,7 +37,6 @@ pub enum Commands {
     Done {
         /// Name of the list
         list: String,
-
         /// Target item to mark as done (anchor, text, or index)
         target: String,
     },
@@ -53,14 +51,21 @@ pub enum Commands {
     /// Commands for managing notes
     #[clap(subcommand, name = "note")]
     Note(NoteCommands),
-    //
-    // /// Commands for managing posts
-    // #[clap(subcommand, name = "post")]
-    // Post(PostCommands),
-    //
+
     /// Commands for managing images
     #[clap(subcommand, name = "img")]
     Image(ImageCommands),
+
+    /// Daily list commands (add, done, or display)
+    #[clap(name = "dl")]
+    Dl {
+        #[clap(subcommand)]
+        cmd: Option<DlCmd>,
+    },
+
+    /// Daily note: create or open today's note
+    #[clap(name = "dn")]
+    Dn,
 }
 
 #[derive(Subcommand)]
@@ -71,6 +76,7 @@ pub enum NoteCommands {
         /// Title of the note
         title: String,
     },
+
     /// Append text to a note (create if it doesn't exist)
     #[clap(name = "add")]
     Add {
@@ -79,6 +85,7 @@ pub enum NoteCommands {
         /// Text to append to the note
         text: String,
     },
+
     /// Open a note in the default editor
     #[clap(name = "open")]
     Open {
@@ -87,27 +94,6 @@ pub enum NoteCommands {
     },
 }
 
-// #[derive(Subcommand)]
-// pub enum PostCommands {
-//     /// Create a new blog post
-//     #[clap(name = "new")]
-//     New {
-//         /// Title of the post
-//         title: String,
-//     },
-//
-//     /// List all posts
-//     #[clap(name = "list")]
-//     List,
-//
-//     /// Publish a post (set draft to false)
-//     #[clap(name = "publish")]
-//     Publish {
-//         /// Slug of the post to publish
-//         slug: String,
-//     },
-// }
-
 #[derive(Subcommand)]
 pub enum ImageCommands {
     /// Add an image to a document
@@ -115,11 +101,9 @@ pub enum ImageCommands {
     Add {
         /// Path to the image file
         file: String,
-
         /// Document to add the image to
         #[clap(long)]
         to: String,
-
         /// Caption for the image
         #[clap(long)]
         caption: Option<String>,
@@ -131,11 +115,9 @@ pub enum ImageCommands {
         /// Document to add the image to
         #[clap(long)]
         to: Option<String>,
-
         /// Caption for the image
         #[clap(long)]
         caption: Option<String>,
-
         /// Output for clipboard
         #[clap(long)]
         clipboard: bool,
@@ -153,9 +135,26 @@ pub enum ImageCommands {
     Remove {
         /// Document containing the image
         document: String,
-
         /// Hash of the image to remove
         hash: String,
+    },
+}
+
+/// Subcommands for daily list
+#[derive(Subcommand)]
+pub enum DlCmd {
+    /// Add item to today's daily list
+    #[clap(name = "add")]
+    Add {
+        /// Text of the item to add
+        item: String,
+    },
+
+    /// Mark an item as done in today's daily list
+    #[clap(name = "done")]
+    Done {
+        /// Target item to mark as done (anchor, text, or index)
+        item: String,
     },
 }
 

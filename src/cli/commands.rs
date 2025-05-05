@@ -8,6 +8,8 @@ use crate::storage;
 use anyhow::Context;
 use std::path::Path;
 use std::process::Command;
+use chrono::{Local, Utc};
+use crate::cli::DlCmd;
 
 /// Handle the 'ls' command to list all lists
 pub fn list_lists(json: bool) -> Result<()> {
@@ -29,6 +31,45 @@ pub fn list_lists(json: bool) -> Result<()> {
     }
 
     Ok(())
+}
+/// Handle daily list commands: create/display/add/done for YYYYMMDD_daily_list
+pub fn daily_list(cmd: Option<&DlCmd>, json: bool) -> Result<()> {
+    let date = Local::now().format("%Y%m%d").to_string();
+    let list_name = format!("{}_daily_list", date);
+    // No subcommand: ensure exists then display
+    match cmd {
+        Some(DlCmd::Add { item }) => {
+            add_item(&list_name, item, json)?;
+        }
+        Some(DlCmd::Done { item }) => {
+            mark_done(&list_name, item, json)?;
+        }
+        None => {
+            // create if missing
+            if storage::markdown::load_list(&list_name).is_err() {
+                storage::markdown::create_list(&list_name)?;
+            }
+            display_list(&list_name, json)?;
+        }
+    }
+    Ok(())
+}
+/// Handle daily note: create or open YYYYMMDD_daily_note.md
+pub fn daily_note(_json: bool) -> Result<()> {
+    let date = Local::now().format("%Y%m%d").to_string();
+    let notes_dir = storage::get_notes_dir()?;
+    let filename = format!("{}_daily_note.md", date);
+    let path = notes_dir.join(&filename);
+    // create if missing
+    if !path.exists() {
+        let now = Utc::now().to_rfc3339();
+        let title = filename.trim_end_matches(".md");
+        let content = format!("---\ntitle: \"{}\"\ncreated: {}\n---\n\n", title, now);
+        std::fs::write(&path, content)
+            .context(format!("Failed to create daily note: {}", path.display()))?;
+    }
+    // open in editor
+    open_editor(&path)
 }
 
 /// Create a new note: initializes file and opens in editor

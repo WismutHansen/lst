@@ -49,6 +49,12 @@ fn main() -> Result<()> {
         //         },
         //     }
         // },
+        Commands::Dl { cmd } => {
+            cli::commands::daily_list(cmd.as_ref(), cli.json)?;
+        }
+        Commands::Dn => {
+            cli::commands::daily_note(cli.json)?;
+        }
         Commands::Image(img_cmd) => match img_cmd {
             ImageCommands::Add {
                 file: _,
