@@ -148,14 +148,30 @@ pub fn add_item(list: &str, text: &str, json: bool) -> Result<()> {
         storage::markdown::create_list(list)?;
     }
 
-    let item = storage::markdown::add_item(list, text)?;
+    // Split by commas and trim whitespace
+    let items: Vec<&str> = text.split(',').map(|s| s.trim()).collect();
+    let mut added_items = Vec::new();
+
+    for item_text in items {
+        if !item_text.is_empty() {
+            let item = storage::markdown::add_item(list, item_text)?;
+            added_items.push(item);
+        }
+    }
 
     if json {
-        println!("{}", serde_json::to_string(&item)?);
+        println!("{}", serde_json::to_string(&added_items)?);
         return Ok(());
     }
 
-    println!("Added to {}: {}", list.cyan(), text);
+    if added_items.len() == 1 {
+        println!("Added to {}: {}", list.cyan(), added_items[0].text);
+    } else {
+        println!("Added {} items to {}:", added_items.len(), list.cyan());
+        for item in added_items {
+            println!("  {}", item.text);
+        }
+    }
 
     Ok(())
 }

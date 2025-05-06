@@ -33,7 +33,9 @@ fn main() -> Result<()> {
         }
         Commands::Note(note_cmd) => match note_cmd {
             NoteCommands::New { title } => cli::commands::note_new(title)?,
-            NoteCommands::Add { title, text } => cli::commands::note_add(title, text)?,
+            NoteCommands::Add { title, text } => {
+                cli::commands::note_add(title, text)?;
+            }
             NoteCommands::Open { title } => cli::commands::note_open(title)?,
             NoteCommands::Remove { title } => cli::commands::note_delete(title)?,
             NoteCommands::ListNotes {} => {

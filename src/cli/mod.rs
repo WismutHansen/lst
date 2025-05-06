@@ -28,7 +28,7 @@ pub enum Commands {
     Add {
         /// Name of the list
         list: String,
-        /// Text of the item to add
+        /// Text of the item(s) to add (comma-separated for multiple items)
         text: String,
     },
 

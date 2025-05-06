@@ -8,7 +8,10 @@ use uuid::Uuid;
 
 pub fn generate_anchor() -> String {
     // Use 5 random alphanumeric characters
-    let anchor = format!("^{}", Alphanumeric.sample_string(&mut rand::thread_rng(), 5));
+    let anchor = format!(
+        "^{}",
+        Alphanumeric.sample_string(&mut rand::thread_rng(), 5)
+    );
     anchor
 }
 
@@ -18,14 +21,14 @@ pub struct ListMetadata {
     /// Unique identifier for the list
     #[serde(default = "Uuid::new_v4")]
     pub id: Uuid,
-    
+
     /// Human-readable title of the list
     pub title: String,
-    
+
     /// List of users who have access to the list
     #[serde(default)]
     pub sharing: Vec<String>,
-    
+
     /// When the list was last updated
     #[serde(default = "Utc::now")]
     pub updated: DateTime<Utc>,
@@ -43,10 +46,10 @@ pub enum ItemStatus {
 pub struct ListItem {
     /// The text content of the item
     pub text: String,
-    
+
     /// The status of the item (todo or done)
     pub status: ItemStatus,
-    
+
     /// Unique anchor identifier for the item
     pub anchor: String,
 }
@@ -57,7 +60,7 @@ pub struct List {
     /// Metadata for the list
     #[serde(flatten)]
     pub metadata: ListMetadata,
-    
+
     /// List items
     #[serde(default)]
     pub items: Vec<ListItem>,
@@ -76,7 +79,7 @@ impl List {
             items: vec![],
         }
     }
-    
+
     /// Add a new item to the list
     pub fn add_item(&mut self, text: String) -> &ListItem {
         let anchor = generate_anchor();
@@ -89,38 +92,43 @@ impl List {
         self.metadata.updated = Utc::now();
         self.items.last().unwrap()
     }
-    
+
     /// Mark an item as done
     pub fn mark_done(&mut self, anchor: &str) -> Result<&ListItem> {
-        let idx = self.find_by_anchor(anchor)
+        let idx = self
+            .find_by_anchor(anchor)
             .with_context(|| format!("Item with anchor '{}' not found", anchor))?;
-            
+
         self.items[idx].status = ItemStatus::Done;
         self.metadata.updated = Utc::now();
         Ok(&self.items[idx])
     }
-    
+
     /// Find an item by its anchor
     pub fn find_by_anchor(&self, anchor: &str) -> Option<usize> {
         self.items.iter().position(|item| item.anchor == anchor)
     }
-    
+
     /// Find an item by exact text match
     pub fn find_by_text(&self, text: &str) -> Option<usize> {
-        self.items.iter().position(|item| item.text.to_lowercase() == text.to_lowercase())
+        self.items
+            .iter()
+            .position(|item| item.text.to_lowercase() == text.to_lowercase())
     }
-    
+
     /// Find an item by index (0-based)
     pub fn get_by_index(&self, index: usize) -> Option<&ListItem> {
         self.items.get(index)
     }
-    
+
     /// Get the file name for this list
     pub fn file_name(&self) -> String {
-        format!("{}.md", self.metadata.title.to_lowercase().replace(' ', "-"))
+        format!(
+            "{}.md",
+            self.metadata.title.to_lowercase().replace(' ', "-")
+        )
     }
 }
-
 
 /// Check if an anchor is valid
 pub fn is_valid_anchor(anchor: &str) -> bool {
@@ -134,7 +142,8 @@ pub fn is_valid_anchor(anchor: &str) -> bool {
 /// Returns a vector of potential matching indices
 pub fn fuzzy_find(items: &[ListItem], query: &str, _threshold: f32) -> Vec<usize> {
     // Simple contains matching for now, can be improved later with a fuzzy matching algorithm
-    items.iter()
+    items
+        .iter()
         .enumerate()
         .filter(|(_, item)| item.text.to_lowercase().contains(&query.to_lowercase()))
         .map(|(i, _)| i)
@@ -152,3 +161,4 @@ pub fn save_list_to_markdown(_list: &List, _path: &Path) -> Result<()> {
     // Placeholder implementation, to be expanded
     Err(anyhow::anyhow!("Not implemented yet"))
 }
+
