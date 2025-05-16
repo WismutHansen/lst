@@ -55,14 +55,15 @@ pub struct ListItem {
 }
 
 /// Represents a complete list with metadata and items
+/// Represents a complete list with metadata and items
 #[derive(Debug, Serialize, Deserialize)]
 pub struct List {
     /// Metadata for the list
     #[serde(flatten)]
     pub metadata: ListMetadata,
 
-    /// List items
-    #[serde(default)]
+    /// List items; stored in markdown body, not in frontmatter
+    #[serde(default, skip_serializing)]
     pub items: Vec<ListItem>,
 }
 
