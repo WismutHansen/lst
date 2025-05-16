@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
 use std::path::PathBuf;
-use std::{fs, io};
+use std::fs;
 
 /// Simple slugify: lowercase, replace non-alphanumeric with '-', trim hyphens
 fn slugify(title: &str) -> String {

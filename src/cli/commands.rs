@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Context, Result};
 use colored::{ColoredString, Colorize};
 use serde_json;
 use std::io::{self, BufRead};
@@ -6,7 +6,6 @@ use std::io::{self, BufRead};
 use crate::cli::DlCmd;
 use crate::storage;
 use crate::{models::ItemStatus, storage::notes::delete_note};
-use anyhow::Context;
 use chrono::{Local, Utc};
 use std::path::Path;
 use std::process::Command;
@@ -96,22 +95,29 @@ pub fn list_notes(json: bool) -> Result<()> {
 
 /// Create a new note: initializes file and opens in editor
 pub fn note_new(title: &str) -> Result<()> {
+    // Normalize title (omit .md)
+    let key = title.trim_end_matches(".md");
     // Create the note file (with frontmatter)
-    let path = storage::notes::create_note(title).context("Failed to create note")?;
+    let path = storage::notes::create_note(key).context("Failed to create note")?;
     // Open in editor
     open_editor(&path)
 }
 
 /// Open an existing note in the editor
 pub fn note_open(title: &str) -> Result<()> {
-    // Determine the note file path
-    let path = storage::notes::load_note(title).context("Failed to load note")?;
+    // Resolve note (allow fuzzy and omit .md)
+    let key = title.trim_end_matches(".md");
+    let note = resolve_note(key)?;
+    let path = storage::notes::load_note(&note).context("Failed to load note")?;
     open_editor(&path)
 }
 /// Append text to an existing note (or create one), then open in editor
 pub fn note_add(title: &str, text: &str) -> Result<()> {
+    // Resolve note key for append (omit .md)
+    let key = title.trim_end_matches(".md");
+    let note = resolve_note(key).unwrap_or_else(|_| key.to_string());
     // Append to note, creating if missing
-    let path = storage::notes::append_to_note(title, text).context("Failed to append to note")?;
+    let path = storage::notes::append_to_note(&note, text).context("Failed to append to note")?;
     // Inform user of success
     println!(
         "Appended to note '{}' (file: {})",
@@ -124,7 +130,10 @@ pub fn note_add(title: &str, text: &str) -> Result<()> {
 /// Delete a note
 pub fn note_delete(title: &str) -> Result<()> {
     // Determine the note file path
-    delete_note(title)
+    // Resolve note to delete
+    let key = title.trim_end_matches(".md");
+    let note = resolve_note(key)?;
+    delete_note(&note)
 }
 
 /// Spawn the user's editor (from $EDITOR or default 'vi') on the given path
@@ -139,13 +148,56 @@ fn open_editor(path: &Path) -> Result<()> {
     }
     Ok(())
 }
+/// Normalize a list identifier: strip .md and fuzzy-match existing, or allow new
+fn normalize_list(input: &str) -> Result<String> {
+    let key = input.trim_end_matches(".md");
+    let lists = storage::list_lists()?;
+    if lists.contains(&key.to_string()) {
+        return Ok(key.to_string());
+    }
+    let matches: Vec<&String> = lists.iter().filter(|l| l.contains(key)).collect();
+    if matches.len() == 1 {
+        return Ok(matches[0].clone());
+    }
+    Ok(key.to_string())
+}
+/// Normalize a note identifier: strip .md and fuzzy-match existing, or allow new
+fn normalize_note(input: &str) -> Result<String> {
+    let key = input.trim_end_matches(".md");
+    let notes = storage::list_notes()?;
+    if notes.contains(&key.to_string()) {
+        return Ok(key.to_string());
+    }
+    let matches: Vec<&String> = notes.iter().filter(|n| n.contains(key)).collect();
+    if !matches.is_empty() {
+        // Fuzzy match: take first matching note
+        return Ok(matches[0].clone());
+    }
+    bail!("No note matching '{}' found", key)
+}
+/// Resolve a note identifier: strip .md and fuzzy-match to exactly one or error
+fn resolve_note(input: &str) -> Result<String> {
+    let key = input.trim_end_matches(".md");
+    let notes = storage::list_notes()?;
+    if notes.contains(&key.to_string()) {
+        return Ok(key.to_string());
+    }
+    let matches: Vec<&String> = notes.iter().filter(|n| n.contains(key)).collect();
+    match matches.len() {
+        1 => Ok(matches[0].clone()),
+        0 => bail!("No note matching '{}' found", input),
+        _ => bail!("Multiple notes match '{}': {:?}", input, matches),
+    }
+}
 
 /// Handle the 'add' command to add an item to a list
 pub fn add_item(list: &str, text: &str, json: bool) -> Result<()> {
     // Try to load the list, create it if it doesn't exist
-    let list_result = storage::markdown::load_list(list);
+    // Resolve list name (omit .md, fuzzy match)
+    let list_name = normalize_list(list)?;
+    let list_result = storage::markdown::load_list(&list_name);
     if list_result.is_err() {
-        storage::markdown::create_list(list)?;
+        storage::markdown::create_list(&list_name)?;
     }
 
     // Split by commas and trim whitespace
@@ -154,7 +206,7 @@ pub fn add_item(list: &str, text: &str, json: bool) -> Result<()> {
 
     for item_text in items {
         if !item_text.is_empty() {
-            let item = storage::markdown::add_item(list, item_text)?;
+        let item = storage::markdown::add_item(&list_name, item_text)?;
             added_items.push(item);
         }
     }
@@ -165,7 +217,7 @@ pub fn add_item(list: &str, text: &str, json: bool) -> Result<()> {
     }
 
     if added_items.len() == 1 {
-        println!("Added to {}: {}", list.cyan(), added_items[0].text);
+        println!("Added to {}: {}", list_name.cyan(), added_items[0].text);
     } else {
         println!("Added {} items to {}:", added_items.len(), list.cyan());
         for item in added_items {
@@ -178,14 +230,15 @@ pub fn add_item(list: &str, text: &str, json: bool) -> Result<()> {
 
 /// Handle the 'done' command to mark an item as done
 pub fn mark_done(list: &str, target: &str, json: bool) -> Result<()> {
-    let item = storage::markdown::mark_done(list, target)?;
+    let list_name = normalize_list(list)?;
+    let item = storage::markdown::mark_done(&list_name, target)?;
 
     if json {
         println!("{}", serde_json::to_string(&item)?);
         return Ok(());
     }
 
-    println!("Marked done in {}: {}", list.cyan(), item.text);
+    println!("Marked done in {}: {}", list_name.cyan(), item.text);
 
     Ok(())
 }
@@ -193,7 +246,8 @@ pub fn mark_done(list: &str, target: &str, json: bool) -> Result<()> {
 /// Handle the 'pipe' command to read items from stdin
 pub fn pipe(list: &str, json: bool) -> Result<()> {
     // Try to load the list, create it if it doesn't exist
-    let list_result = storage::markdown::load_list(list);
+    let list_name = normalize_list(list)?;
+    let list_result = storage::markdown::load_list(&list_name);
     if list_result.is_err() {
         storage::markdown::create_list(list)?;
     }
@@ -204,7 +258,7 @@ pub fn pipe(list: &str, json: bool) -> Result<()> {
     for line in stdin.lock().lines() {
         let line = line?;
         if !line.trim().is_empty() {
-            storage::markdown::add_item(list, &line)?;
+            storage::markdown::add_item(&list_name, &line)?;
             count += 1;
         }
     }
@@ -214,14 +268,15 @@ pub fn pipe(list: &str, json: bool) -> Result<()> {
         return Ok(());
     }
 
-    println!("Added {} items to {}", count, list.cyan());
+    println!("Added {} items to {}", count, list_name.cyan());
 
     Ok(())
 }
 
 /// Handle displaying a list
 pub fn display_list(list: &str, json: bool) -> Result<()> {
-    let list = storage::markdown::load_list(list)?;
+    let list_name = normalize_list(list)?;
+    let list = storage::markdown::load_list(&list_name)?;
 
     if json {
         println!("{}", serde_json::to_string(&list)?);
