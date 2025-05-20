@@ -1,8 +1,9 @@
 mod wordlist;
+mod config;
 
 use axum::{routing::{get, post}, Router, Json};
 use axum::http::StatusCode;
-use std::{collections::HashMap, net::SocketAddr, sync::{Arc, Mutex}};
+use std::{collections::HashMap, net::{SocketAddr, IpAddr}, path::PathBuf, sync::{Arc, Mutex}};
 use serde::{Deserialize, Serialize};
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -10,6 +11,10 @@ use qrcode::QrCode;
 use image::Luma;
 use base64::{engine::general_purpose, Engine as _};
 use jsonwebtoken::{encode, Header, EncodingKey};
+use clap::Parser;
+use lettre::{AsyncSmtpTransport, Tokio1Executor, message::Message};
+use lettre::transport::smtp::authentication::Credentials;
+use config::Settings;
 
 // Global in-memory token store (email -> (token, expiry))
 type TokenMap = Arc<Mutex<HashMap<String, (String, std::time::Instant)>>>;
@@ -28,20 +33,41 @@ struct AuthToken {
     login_url: String,
 }
 
+#[derive(Parser)]
+#[command(name = "lst-server", about = "lst server API")]
+struct Args {
+    /// Path to server configuration TOML file
+    #[arg(long, default_value = "/opt/lst/server.toml")]
+    config: String,
+}
+
 #[tokio::main]
 async fn main() {
     let token_map: TokenMap = Arc::new(Mutex::new(HashMap::new()));
-    let app = Router::new()
-        .route("/health", get(health_handler))
-        .route("/auth/request", post({
-            let token_map = token_map.clone();
-            move |j| auth_request_handler(j, token_map)
-        }))
-        .route("/auth/verify", post({
-            let token_map = token_map.clone();
-            move |j| auth_verify_handler(j, token_map)
-        }));
-    let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
+    let app = Router::new().nest(
+        "/api",
+        Router::new()
+            .route("/health", get(health_handler))
+            .route(
+                "/auth/request",
+                post({
+                    let token_map = token_map.clone();
+                    let settings = settings.clone();
+                    move |j| auth_request_handler(j, token_map.clone(), settings.clone())
+                }),
+            )
+            .route(
+                "/auth/verify",
+                post({
+                    let token_map = token_map.clone();
+                    move |j| auth_verify_handler(j, token_map.clone())
+                }),
+            ),
+    );
+    let addr = SocketAddr::new(
+        settings.server.host.parse::<IpAddr>().unwrap(),
+        settings.server.port,
+    );
     println!("lst-server listening on http://{}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app.into_make_service()).await.unwrap();
@@ -51,21 +77,23 @@ async fn health_handler() -> &'static str {
     "OK"
 }
 
-async fn auth_request_handler(Json(req): Json<AuthRequest>, tokens: TokenMap) -> Json<AuthToken> {
-    // Generate human token
+async fn auth_request_handler(
+    Json(req): Json<AuthRequest>,
+    tokens: TokenMap,
+    settings: Arc<Settings>,
+) -> Result<Json<AuthToken>, (StatusCode, String)> {
     let token = generate_token();
-    // Store token in the map with expiry
     let expiry = std::time::Instant::now() + std::time::Duration::from_secs(TOKEN_VALID_FOR);
     {
         let mut map = tokens.lock().unwrap();
         map.insert(req.email.clone(), (token.clone(), expiry));
     }
-    // Build login url
     let login_url = format!(
         "lst-login://{}/auth/verify?token={}&email={}",
-        req.host, urlencoding::encode(&token), urlencoding::encode(&req.email)
+        req.host,
+        urlencoding::encode(&token),
+        urlencoding::encode(&req.email)
     );
-    // Generate QR code (for URL)
     let code = QrCode::new(login_url.as_bytes()).unwrap();
     let img = code.render::<Luma<u8>>().max_dimensions(300, 300).build();
     let mut buf = std::io::Cursor::new(Vec::new());
@@ -73,22 +101,47 @@ async fn auth_request_handler(Json(req): Json<AuthRequest>, tokens: TokenMap) ->
         use image::codecs::png::PngEncoder;
         use image::ColorType;
         use image::ImageEncoder;
+
         let encoder = PngEncoder::new(&mut buf);
-        let bytes = img.as_raw();
-        encoder.write_image(
-            bytes,
-            img.width(),
-            img.height(),
-            ColorType::L8.into(),
-        ).unwrap();
+        encoder
+            .write_image(img.as_raw(), img.width(), img.height(), ColorType::L8.into())
+            .unwrap();
     }
     let base64_png = general_purpose::STANDARD.encode(buf.get_ref());
+
     
-    Json(AuthToken {
+    if let Some(email_cfg) = &settings.email {
+        let email = Message::builder()
+            .from(email_cfg.sender.parse().map_err(|e| {
+                (StatusCode::INTERNAL_SERVER_ERROR, format!("invalid sender address: {}", e))
+            })?)
+            .to(req.email.parse().map_err(|e| {
+                (StatusCode::INTERNAL_SERVER_ERROR, format!("invalid recipient address: {}", e))
+            })?)
+            .subject("Your lst login link")
+            .body(format!("Click to login: {}\nOr use code: {}", login_url, token))
+            .map_err(|e| {
+                (StatusCode::INTERNAL_SERVER_ERROR, format!("failed to build email: {}", e))
+            })?;
+        let creds = Credentials::new(email_cfg.smtp_user.clone(), email_cfg.smtp_pass.clone());
+        let mailer = AsyncSmtpTransport::<Tokio1Executor>::relay(&email_cfg.smtp_host)
+            .map_err(|e| {
+                (StatusCode::INTERNAL_SERVER_ERROR, format!("failed to create SMTP transport: {}", e))
+            })?
+            .credentials(creds)
+            .build();
+        mailer.send(email).await.map_err(|e| {
+            (StatusCode::INTERNAL_SERVER_ERROR, format!("failed to send email: {}", e))
+        })?;
+    } else {
+        println!("Login link for {}: {}", req.email, login_url);
+    }
+
+    Ok(Json(AuthToken {
         token,
         qr_png_base64: base64_png,
         login_url,
-    })
+    }))
 }
 
 fn generate_token() -> String {
