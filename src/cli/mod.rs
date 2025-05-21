@@ -37,16 +37,25 @@ pub enum Commands {
     Done {
         /// Name of the list
         list: String,
-        /// Target item to mark as done (anchor, text, or index)
+        /// Target item to mark as done (anchor, text, or index; comma-separated for multiple items)
+        target: String,
+    },
+    
+    /// Mark a completed item as not done
+    #[clap(name = "undone")]
+    Undone {
+        /// Name of the list
+        list: String,
+        /// Target item to mark as not done (anchor, text, or index; comma-separated for multiple items)
         target: String,
     },
 
-    /// Delelte item from a list
+    /// Delete item from a list
     #[clap(name = "rm")]
     Rm {
         /// Name of the list
         list: String,
-        /// Target item to mark as done (anchor, text, or index)
+        /// Target item to delete (anchor, text, or index; comma-separated for multiple items)
         target: String,
     },
 
@@ -173,7 +182,14 @@ pub enum DlCmd {
     /// Mark an item as done in today's daily list
     #[clap(name = "done")]
     Done {
-        /// Target item to mark as done (anchor, text, or index)
+        /// Target item to mark as done (anchor, text, or index; comma-separated for multiple items)
+        item: String,
+    },
+    
+    /// Mark an item as not done in today's daily list
+    #[clap(name = "undone")]
+    Undone {
+        /// Target item to mark as not done (anchor, text, or index; comma-separated for multiple items)
         item: String,
     },
 }

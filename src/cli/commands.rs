@@ -31,7 +31,7 @@ pub fn list_lists(json: bool) -> Result<()> {
 
     Ok(())
 }
-/// Handle daily list commands: create/display/add/done for YYYYMMDD_daily_list
+/// Handle daily list commands: create/display/add/done/undone for YYYYMMDD_daily_list
 pub fn daily_list(cmd: Option<&DlCmd>, json: bool) -> Result<()> {
     let date = Local::now().format("%Y%m%d").to_string();
     let list_name = format!("{}_daily_list", date);
@@ -42,6 +42,9 @@ pub fn daily_list(cmd: Option<&DlCmd>, json: bool) -> Result<()> {
         }
         Some(DlCmd::Done { item }) => {
             mark_done(&list_name, item, json)?;
+        }
+        Some(DlCmd::Undone { item }) => {
+            mark_undone(&list_name, item, json)?;
         }
         None => {
             // create if missing
@@ -231,14 +234,43 @@ pub fn add_item(list: &str, text: &str, json: bool) -> Result<()> {
 /// Handle the 'done' command to mark an item as done
 pub fn mark_done(list: &str, target: &str, json: bool) -> Result<()> {
     let list_name = normalize_list(list)?;
-    let item = storage::markdown::mark_done(&list_name, target)?;
+    let items = storage::markdown::mark_done(&list_name, target)?;
 
     if json {
-        println!("{}", serde_json::to_string(&item)?);
+        println!("{}", serde_json::to_string(&items)?);
         return Ok(());
     }
 
-    println!("Marked done in {}: {}", list_name.cyan(), item.text);
+    if items.len() == 1 {
+        println!("Marked done in {}: {}", list_name.cyan(), items[0].text);
+    } else {
+        println!("Marked {} items as done in {}:", items.len(), list_name.cyan());
+        for item in &items {
+            println!("  {}", item.text);
+        }
+    }
+
+    Ok(())
+}
+
+/// Handle the 'undone' command to mark a completed item as not done
+pub fn mark_undone(list: &str, target: &str, json: bool) -> Result<()> {
+    let list_name = normalize_list(list)?;
+    let items = storage::markdown::mark_undone(&list_name, target)?;
+
+    if json {
+        println!("{}", serde_json::to_string(&items)?);
+        return Ok(());
+    }
+
+    if items.len() == 1 {
+        println!("Marked undone in {}: {}", list_name.cyan(), items[0].text);
+    } else {
+        println!("Marked {} items as undone in {}:", items.len(), list_name.cyan());
+        for item in &items {
+            println!("  {}", item.text);
+        }
+    }
 
     Ok(())
 }
@@ -252,8 +284,16 @@ pub fn remove_item(list: &str, target: &str, json: bool) -> Result<()> {
 
     if json {
         println!("{}", serde_json::to_string(&removed)?);
+        return Ok(());
+    }
+    
+    if removed.len() == 1 {
+        println!("Deleted from {}: {}", list_name.cyan(), removed[0].text);
     } else {
-        println!("Deleted from {}: {}", list_name.cyan(), removed.text);
+        println!("Deleted {} items from {}:", removed.len(), list_name.cyan());
+        for item in &removed {
+            println!("  {}", item.text);
+        }
     }
     Ok(())
 }
@@ -310,12 +350,17 @@ pub fn display_list(list: &str, json: bool) -> Result<()> {
             ItemStatus::Todo => "[ ]".into(),
             ItemStatus::Done => "[x]".green(),
         };
+        
+        let text = match item.status {
+            ItemStatus::Todo => item.text.normal(),
+            ItemStatus::Done => item.text.strikethrough(),
+        };
 
         println!(
             "#{} {} {} {}",
             idx + 1,
             checkbox,
-            item.text,
+            text,
             item.anchor.dimmed()
         );
     }

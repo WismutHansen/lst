@@ -154,25 +154,95 @@ pub fn add_item(list_name: &str, text: &str) -> Result<ListItem> {
 }
 
 /// Mark an item as done
-pub fn mark_done(list_name: &str, target: &str) -> Result<ListItem> {
+pub fn mark_done(list_name: &str, target: &str) -> Result<Vec<ListItem>> {
     let mut list = load_list(list_name)?;
     
+    // If there are multiple comma-separated targets, handle each one
+    if target.contains(',') {
+        let targets: Vec<&str> = target.split(',').map(|s| s.trim()).collect();
+        let mut marked_items = Vec::new();
+        
+        for target in targets {
+            if let Ok(item) = mark_item_done(&mut list, target) {
+                marked_items.push(item);
+            }
+        }
+        
+        if marked_items.is_empty() {
+            anyhow::bail!("No matching items found in list '{}'", list_name);
+        }
+        
+        save_list(&list)?;
+        return Ok(marked_items);
+    }
+    
+    // Handle single target
+    if let Ok(item) = mark_item_done(&mut list, target) {
+        save_list(&list)?;
+        return Ok(vec![item]);
+    }
+    
+    anyhow::bail!("No item matching '{}' found in list '{}'", target, list_name)
+}
+
+/// Mark an item as undone (not completed)
+pub fn mark_undone(list_name: &str, target: &str) -> Result<Vec<ListItem>> {
+    let mut list = load_list(list_name)?;
+    
+    // If there are multiple comma-separated targets, handle each one
+    if target.contains(',') {
+        let targets: Vec<&str> = target.split(',').map(|s| s.trim()).collect();
+        let mut marked_items = Vec::new();
+        
+        for target in targets {
+            if let Ok(item) = mark_item_undone(&mut list, target) {
+                marked_items.push(item);
+            }
+        }
+        
+        if marked_items.is_empty() {
+            anyhow::bail!("No matching items found in list '{}'", list_name);
+        }
+        
+        save_list(&list)?;
+        return Ok(marked_items);
+    }
+    
+    // Handle single target
+    if let Ok(item) = mark_item_undone(&mut list, target) {
+        save_list(&list)?;
+        return Ok(vec![item]);
+    }
+    
+    anyhow::bail!("No item matching '{}' found in list '{}'", target, list_name)
+}
+
+/// Helper function to mark a single item as done
+fn mark_item_done(list: &mut List, target: &str) -> Result<ListItem> {
+    // Find item and set status
+    find_and_set_item_status(list, target, ItemStatus::Done)
+}
+
+/// Helper function to mark a single item as undone
+fn mark_item_undone(list: &mut List, target: &str) -> Result<ListItem> {
+    // Find item and set status
+    find_and_set_item_status(list, target, ItemStatus::Todo)
+}
+
+/// Helper function to find an item and set its status
+fn find_and_set_item_status(list: &mut List, target: &str, status: ItemStatus) -> Result<ListItem> {
     // Try to find the item by anchor first
     if is_valid_anchor(target) {
         if let Some(idx) = list.find_by_anchor(target) {
-            list.items[idx].status = ItemStatus::Done;
-            let item = list.items[idx].clone();
-            save_list(&list)?;
-            return Ok(item);
+            list.items[idx].status = status;
+            return Ok(list.items[idx].clone());
         }
     }
     
     // Try to find by exact text match
     if let Some(idx) = list.find_by_text(target) {
-        list.items[idx].status = ItemStatus::Done;
-        let item = list.items[idx].clone();
-        save_list(&list)?;
-        return Ok(item);
+        list.items[idx].status = status;
+        return Ok(list.items[idx].clone());
     }
     
     // Check if it's an index reference (#N)
@@ -182,8 +252,7 @@ pub fn mark_done(list_name: &str, target: &str) -> Result<ListItem> {
                 let item = item.clone();
                 let idx = list.find_by_anchor(&item.anchor)
                     .context("Internal error: anchor not found")?;
-                list.items[idx].status = ItemStatus::Done;
-                save_list(&list)?;
+                list.items[idx].status = status;
                 return Ok(item);
             }
         }
@@ -192,51 +261,87 @@ pub fn mark_done(list_name: &str, target: &str) -> Result<ListItem> {
     // Fallback to fuzzy matching (simple contains for now)
     let matches = crate::models::fuzzy_find(&list.items, target, 0.75);
     match matches.len() {
-        0 => anyhow::bail!("No item matching '{}' found in list '{}'", target, list_name),
+        0 => anyhow::bail!("No item matching '{}' found", target),
         1 => {
             let idx = matches[0];
-            list.items[idx].status = ItemStatus::Done;
-            let item = list.items[idx].clone();
-            save_list(&list)?;
-            Ok(item)
+            list.items[idx].status = status;
+            Ok(list.items[idx].clone())
         },
         _ => anyhow::bail!("Multiple items match '{}', please use a more specific query", target),
     }
 }
 
 /// Delete an item from a list
-pub fn delete_item(list_name: &str, target: &str) -> Result<ListItem> {
+pub fn delete_item(list_name: &str, target: &str) -> Result<Vec<ListItem>> {
     let mut list = load_list(list_name)?;
     
+    // If there are multiple comma-separated targets, handle each one
+    if target.contains(',') {
+        let targets: Vec<&str> = target.split(',').map(|s| s.trim()).collect();
+        let mut removed_items = Vec::new();
+        
+        // Handle each target - we need to process them from highest index to lowest
+        // to avoid changing indices during removal
+        let mut to_remove = Vec::new();
+        
+        for target in targets {
+            if let Ok((idx, item)) = find_item_for_removal(&list, target) {
+                to_remove.push((idx, item.clone()));
+            }
+        }
+        
+        // Sort in reverse order by index
+        to_remove.sort_by(|a, b| b.0.cmp(&a.0));
+        
+        // Remove items in reverse index order
+        for (idx, _) in &to_remove {
+            let removed = list.items.remove(*idx);
+            removed_items.push(removed);
+        }
+        
+        if removed_items.is_empty() {
+            anyhow::bail!("No matching items found in list '{}'", list_name);
+        }
+        
+        // Reverse back to original order for consistent output
+        removed_items.reverse();
+        list.metadata.updated = chrono::Utc::now();
+        save_list(&list)?;
+        return Ok(removed_items);
+    }
+    
+    // Handle single target
+    if let Ok((idx, _)) = find_item_for_removal(&list, target) {
+        let removed = list.items.remove(idx);
+        list.metadata.updated = chrono::Utc::now();
+        save_list(&list)?;
+        return Ok(vec![removed]);
+    }
+    
+    anyhow::bail!("No item matching '{}' found in list '{}'", target, list_name)
+}
+
+/// Helper function to find an item for removal, returning (index, item)
+pub fn find_item_for_removal<'a>(list: &'a List, target: &str) -> Result<(usize, &'a ListItem)> {
     // Try to find the item by anchor first
     if is_valid_anchor(target) {
         if let Some(idx) = list.find_by_anchor(target) {
-            let item = list.items.remove(idx);
-            list.metadata.updated = chrono::Utc::now();
-            save_list(&list)?;
-            return Ok(item);
+            return Ok((idx, &list.items[idx]));
         }
     }
     
     // Try to find by exact text match
     if let Some(idx) = list.find_by_text(target) {
-        let item = list.items.remove(idx);
-        list.metadata.updated = chrono::Utc::now();
-        save_list(&list)?;
-        return Ok(item);
+        return Ok((idx, &list.items[idx]));
     }
     
     // Check if it's an index reference (#N)
     if let Some(number_str) = target.strip_prefix('#') {
         if let Ok(idx) = number_str.parse::<usize>() {
             if let Some(item) = list.get_by_index(idx - 1) { // Convert to 0-based
-                let item = item.clone();
                 let idx = list.find_by_anchor(&item.anchor)
                     .context("Internal error: anchor not found")?;
-                let removed = list.items.remove(idx);
-                list.metadata.updated = chrono::Utc::now();
-                save_list(&list)?;
-                return Ok(removed);
+                return Ok((idx, &list.items[idx]));
             }
         }
     }
@@ -244,13 +349,10 @@ pub fn delete_item(list_name: &str, target: &str) -> Result<ListItem> {
     // Fallback to fuzzy matching (simple contains for now)
     let matches = crate::models::fuzzy_find(&list.items, target, 0.75);
     match matches.len() {
-        0 => anyhow::bail!("No item matching '{}' found in list '{}'", target, list_name),
+        0 => anyhow::bail!("No item matching '{}' found", target),
         1 => {
             let idx = matches[0];
-            let item = list.items.remove(idx);
-            list.metadata.updated = chrono::Utc::now();
-            save_list(&list)?;
-            Ok(item)
+            Ok((idx, &list.items[idx]))
         },
         _ => anyhow::bail!("Multiple items match '{}', please use a more specific query", target),
     }

@@ -28,6 +28,9 @@ fn main() -> Result<()> {
         Commands::Done { list, target } => {
             cli::commands::mark_done(list, target, cli.json)?;
         }
+        Commands::Undone { list, target } => {
+            cli::commands::mark_undone(list, target, cli.json)?;
+        }
         Commands::Rm { list, target } => {
             cli::commands::remove_item(list, target, cli.json)?;
         }
