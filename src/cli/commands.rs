@@ -206,7 +206,7 @@ pub fn add_item(list: &str, text: &str, json: bool) -> Result<()> {
 
     for item_text in items {
         if !item_text.is_empty() {
-        let item = storage::markdown::add_item(&list_name, item_text)?;
+            let item = storage::markdown::add_item(&list_name, item_text)?;
             added_items.push(item);
         }
     }
@@ -240,6 +240,21 @@ pub fn mark_done(list: &str, target: &str, json: bool) -> Result<()> {
 
     println!("Marked done in {}: {}", list_name.cyan(), item.text);
 
+    Ok(())
+}
+/// Handle the 'rm' command to remove an item from a list
+pub fn remove_item(list: &str, target: &str, json: bool) -> Result<()> {
+    let list_name = normalize_list(list)?;
+    
+    // Use the storage layer implementation
+    let removed = storage::markdown::delete_item(&list_name, target)
+        .with_context(|| format!("Failed to delete '{}' from {}", target, list_name))?;
+
+    if json {
+        println!("{}", serde_json::to_string(&removed)?);
+    } else {
+        println!("Deleted from {}: {}", list_name.cyan(), removed.text);
+    }
     Ok(())
 }
 

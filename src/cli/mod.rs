@@ -41,6 +41,15 @@ pub enum Commands {
         target: String,
     },
 
+    /// Delelte item from a list
+    #[clap(name = "rm")]
+    Rm {
+        /// Name of the list
+        list: String,
+        /// Target item to mark as done (anchor, text, or index)
+        target: String,
+    },
+
     /// Read items from stdin and add them to a list
     #[clap(name = "pipe")]
     Pipe {

@@ -176,8 +176,8 @@ pub fn mark_done(list_name: &str, target: &str) -> Result<ListItem> {
     }
     
     // Check if it's an index reference (#N)
-    if target.starts_with('#') {
-        if let Ok(idx) = target[1..].parse::<usize>() {
+    if let Some(number_str) = target.strip_prefix('#') {
+        if let Ok(idx) = number_str.parse::<usize>() {
             if let Some(item) = list.get_by_index(idx - 1) { // Convert to 0-based
                 let item = item.clone();
                 let idx = list.find_by_anchor(&item.anchor)
@@ -197,6 +197,58 @@ pub fn mark_done(list_name: &str, target: &str) -> Result<ListItem> {
             let idx = matches[0];
             list.items[idx].status = ItemStatus::Done;
             let item = list.items[idx].clone();
+            save_list(&list)?;
+            Ok(item)
+        },
+        _ => anyhow::bail!("Multiple items match '{}', please use a more specific query", target),
+    }
+}
+
+/// Delete an item from a list
+pub fn delete_item(list_name: &str, target: &str) -> Result<ListItem> {
+    let mut list = load_list(list_name)?;
+    
+    // Try to find the item by anchor first
+    if is_valid_anchor(target) {
+        if let Some(idx) = list.find_by_anchor(target) {
+            let item = list.items.remove(idx);
+            list.metadata.updated = chrono::Utc::now();
+            save_list(&list)?;
+            return Ok(item);
+        }
+    }
+    
+    // Try to find by exact text match
+    if let Some(idx) = list.find_by_text(target) {
+        let item = list.items.remove(idx);
+        list.metadata.updated = chrono::Utc::now();
+        save_list(&list)?;
+        return Ok(item);
+    }
+    
+    // Check if it's an index reference (#N)
+    if let Some(number_str) = target.strip_prefix('#') {
+        if let Ok(idx) = number_str.parse::<usize>() {
+            if let Some(item) = list.get_by_index(idx - 1) { // Convert to 0-based
+                let item = item.clone();
+                let idx = list.find_by_anchor(&item.anchor)
+                    .context("Internal error: anchor not found")?;
+                let removed = list.items.remove(idx);
+                list.metadata.updated = chrono::Utc::now();
+                save_list(&list)?;
+                return Ok(removed);
+            }
+        }
+    }
+    
+    // Fallback to fuzzy matching (simple contains for now)
+    let matches = crate::models::fuzzy_find(&list.items, target, 0.75);
+    match matches.len() {
+        0 => anyhow::bail!("No item matching '{}' found in list '{}'", target, list_name),
+        1 => {
+            let idx = matches[0];
+            let item = list.items.remove(idx);
+            list.metadata.updated = chrono::Utc::now();
             save_list(&list)?;
             Ok(item)
         },

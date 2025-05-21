@@ -1,20 +1,27 @@
-mod wordlist;
 mod config;
+mod wordlist;
 
-use axum::{routing::{get, post}, Router, Json};
 use axum::http::StatusCode;
-use std::{collections::HashMap, net::{SocketAddr, IpAddr}, path::PathBuf, sync::{Arc, Mutex}};
-use serde::{Deserialize, Serialize};
+use axum::{
+    routing::{get, post},
+    Json, Router,
+};
+use base64::{engine::general_purpose, Engine as _};
+use clap::Parser;
+use config::{EmailSettings, ServerSettings, Settings};
+use image::Luma;
+use jsonwebtoken::{encode, EncodingKey, Header};
+use lettre::transport::smtp::authentication::Credentials;
+use lettre::{message::Message, AsyncSmtpTransport, AsyncTransport, Tokio1Executor};
+use qrcode::QrCode;
 use rand::seq::SliceRandom;
 use rand::Rng;
-use qrcode::QrCode;
-use image::Luma;
-use base64::{engine::general_purpose, Engine as _};
-use jsonwebtoken::{encode, Header, EncodingKey};
-use clap::Parser;
-use lettre::{AsyncSmtpTransport, Tokio1Executor, message::Message};
-use lettre::transport::smtp::authentication::Credentials;
-use config::Settings;
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::HashMap,
+    net::{IpAddr, SocketAddr},
+    sync::{Arc, Mutex},
+};
 
 // Global in-memory token store (email -> (token, expiry))
 type TokenMap = Arc<Mutex<HashMap<String, (String, std::time::Instant)>>>;
@@ -23,7 +30,7 @@ const TOKEN_VALID_FOR: u64 = 15 * 60; // 15 min in seconds
 #[derive(Deserialize)]
 struct AuthRequest {
     email: String,
-    host: String // must be provided by the client for correct QR
+    host: String, // must be provided by the client for correct QR
 }
 
 #[derive(Serialize)]
@@ -43,6 +50,9 @@ struct Args {
 
 #[tokio::main]
 async fn main() {
+    let args = Args::parse();
+    let settings = Arc::new(Settings::from_file(args.config.as_ref()).unwrap());
+    
     let token_map: TokenMap = Arc::new(Mutex::new(HashMap::new()));
     let app = Router::new().nest(
         "/api",
@@ -70,7 +80,9 @@ async fn main() {
     );
     println!("lst-server listening on http://{}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app.into_make_service()).await.unwrap();
+    axum::serve(listener, app.into_make_service())
+        .await
+        .unwrap();
 }
 
 async fn health_handler() -> &'static str {
@@ -104,34 +116,56 @@ async fn auth_request_handler(
 
         let encoder = PngEncoder::new(&mut buf);
         encoder
-            .write_image(img.as_raw(), img.width(), img.height(), ColorType::L8.into())
+            .write_image(
+                img.as_raw(),
+                img.width(),
+                img.height(),
+                ColorType::L8.into(),
+            )
             .unwrap();
     }
     let base64_png = general_purpose::STANDARD.encode(buf.get_ref());
 
-    
     if let Some(email_cfg) = &settings.email {
         let email = Message::builder()
             .from(email_cfg.sender.parse().map_err(|e| {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("invalid sender address: {}", e))
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("invalid sender address: {}", e),
+                )
             })?)
             .to(req.email.parse().map_err(|e| {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("invalid recipient address: {}", e))
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("invalid recipient address: {}", e),
+                )
             })?)
             .subject("Your lst login link")
-            .body(format!("Click to login: {}\nOr use code: {}", login_url, token))
+            .body(format!(
+                "Click to login: {}\nOr use code: {}",
+                login_url, token
+            ))
             .map_err(|e| {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("failed to build email: {}", e))
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("failed to build email: {}", e),
+                )
             })?;
         let creds = Credentials::new(email_cfg.smtp_user.clone(), email_cfg.smtp_pass.clone());
         let mailer = AsyncSmtpTransport::<Tokio1Executor>::relay(&email_cfg.smtp_host)
             .map_err(|e| {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("failed to create SMTP transport: {}", e))
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("failed to create SMTP transport: {}", e),
+                )
             })?
             .credentials(creds)
             .build();
         mailer.send(email).await.map_err(|e| {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("failed to send email: {}", e))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("failed to send email: {}", e),
+            )
         })?;
     } else {
         println!("Login link for {}: {}", req.email, login_url);
@@ -149,7 +183,13 @@ fn generate_token() -> String {
     let words = wordlist::WORDS;
     let picks: Vec<&str> = words.choose_multiple(&mut rng, 3).cloned().collect();
     let digits: u16 = rng.gen_range(1000..10000);
-    format!("{}-{}-{}-{}", picks[0].to_uppercase(), picks[1].to_uppercase(), picks[2].to_uppercase(), digits)
+    format!(
+        "{}-{}-{}-{}",
+        picks[0].to_uppercase(),
+        picks[1].to_uppercase(),
+        picks[2].to_uppercase(),
+        digits
+    )
 }
 
 #[derive(Deserialize)]
@@ -170,7 +210,10 @@ struct Claims {
     exp: usize,
 }
 
-async fn auth_verify_handler(Json(req): Json<VerifyRequest>, tokens: TokenMap) -> Result<Json<VerifyResponse>, (StatusCode, String)> {
+async fn auth_verify_handler(
+    Json(req): Json<VerifyRequest>,
+    tokens: TokenMap,
+) -> Result<Json<VerifyResponse>, (StatusCode, String)> {
     let now = std::time::Instant::now();
     let mut map = tokens.lock().unwrap();
     // Check token matches for email
@@ -179,10 +222,21 @@ async fn auth_verify_handler(Json(req): Json<VerifyRequest>, tokens: TokenMap) -
             // Generate JWT
             let jwt_secret = b"lst-jwt-demo-secret-goes-here";
             let exp = (chrono::Utc::now() + chrono::Duration::hours(1)).timestamp() as usize;
-            let claims = Claims { sub: req.email.clone(), exp };
-            let jwt = encode(&Header::default(), &claims, &EncodingKey::from_secret(jwt_secret)).unwrap();
-            Ok(Json(VerifyResponse { jwt, user: req.email }))
+            let claims = Claims {
+                sub: req.email.clone(),
+                exp,
+            };
+            let jwt = encode(
+                &Header::default(),
+                &claims,
+                &EncodingKey::from_secret(jwt_secret),
+            )
+            .unwrap();
+            Ok(Json(VerifyResponse {
+                jwt,
+                user: req.email,
+            }))
         }
-        _ => Err((StatusCode::UNAUTHORIZED, "Invalid or expired token".into()))
+        _ => Err((StatusCode::UNAUTHORIZED, "Invalid or expired token".into())),
     }
 }

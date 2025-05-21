@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use rand::distributions::{Alphanumeric, DistString};
 use regex::Regex;
@@ -55,7 +55,6 @@ pub struct ListItem {
 }
 
 /// Represents a complete list with metadata and items
-/// Represents a complete list with metadata and items
 #[derive(Debug, Serialize, Deserialize)]
 pub struct List {
     /// Metadata for the list
@@ -94,16 +93,6 @@ impl List {
         self.items.last().unwrap()
     }
 
-    /// Mark an item as done
-    pub fn mark_done(&mut self, anchor: &str) -> Result<&ListItem> {
-        let idx = self
-            .find_by_anchor(anchor)
-            .with_context(|| format!("Item with anchor '{}' not found", anchor))?;
-
-        self.items[idx].status = ItemStatus::Done;
-        self.metadata.updated = Utc::now();
-        Ok(&self.items[idx])
-    }
 
     /// Find an item by its anchor
     pub fn find_by_anchor(&self, anchor: &str) -> Option<usize> {
@@ -162,4 +151,3 @@ pub fn save_list_to_markdown(_list: &List, _path: &Path) -> Result<()> {
     // Placeholder implementation, to be expanded
     Err(anyhow::anyhow!("Not implemented yet"))
 }
-
