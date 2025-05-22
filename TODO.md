@@ -7,9 +7,9 @@
 - [x] Implement core storage model for content directories
 - [x] Create file format parsers for lists
 - [x] Implement anchor generation and tracking
-- [ ] Convert project to a Cargo workspace
-- [ ] Create `lst-proto` crate for shared wire types
-- [ ] Implement CRDT-based sync daemon (`lst-syncd`)
+- [x] Convert project to a Cargo workspace
+- [x] Create `lst-proto` crate for shared wire types
+- [x] Implement CRDT-based sync daemon (`lst-syncd`)
 - [ ] Implement WebSocket relay server (`lst-sync-srv`)
 - [ ] Create file format parsers for notes and posts
 - [ ] Set up Git-based three-way merge for notes/posts
@@ -63,8 +63,8 @@
 - [ ] Improve error handling and user feedback
 - [ ] Add tests for core functionality
 - [ ] Implement image support with Git LFS
-- [ ] Convert project into a Cargo workspace
-- [ ] Scaffold `lst-syncd` daemon with file watching
+- [x] Convert project into a Cargo workspace
+- [x] Scaffold `lst-syncd` daemon with file watching
 - [ ] Scaffold `lst-sync-srv` relay with WebSocket support
 - [ ] Implement simple XChaCha20 encryption and Ed25519 signing
 - [ ] Persist CRDT state in sled and handle membership changes

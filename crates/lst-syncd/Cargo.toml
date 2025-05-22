@@ -1,0 +1,41 @@
+[package]
+name = "lst-syncd"
+version = "0.1.0"
+description = "Background sync daemon for lst - handles encrypted CRDT sync with remote servers"
+authors = ["Tommy Falkowski"]
+edition = "2021"
+
+[[bin]]
+name = "lst-syncd"
+path = "src/main.rs"
+
+[dependencies]
+# CLI
+clap = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true }
+
+# File watching
+notify = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+
+# Utilities
+uuid = { workspace = true }
+chrono = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+dirs = { workspace = true }
+
+# HTTP client
+reqwest = { workspace = true }
+
+# Encryption (for future CRDT encryption)
+# ring = "0.17"
+
+# Internal dependencies
+lst-proto = { path = "../lst-proto" }
