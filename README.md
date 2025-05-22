@@ -4,6 +4,8 @@
 
 ## Installation
 
+For a step-by-step guide see [docs/INSTALL.md](docs/INSTALL.md).
+
 ### From Source
 
 ```bash
