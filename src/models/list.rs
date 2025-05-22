@@ -62,7 +62,7 @@ pub struct List {
     pub metadata: ListMetadata,
 
     /// List items; stored in markdown body, not in frontmatter
-    #[serde(default, skip_serializing)]
+    #[serde(default)]
     pub items: Vec<ListItem>,
 }
 
