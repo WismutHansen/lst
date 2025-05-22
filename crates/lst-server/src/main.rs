@@ -44,14 +44,19 @@ struct AuthToken {
 #[command(name = "lst-server", about = "lst server API")]
 struct Args {
     /// Path to server configuration TOML file
-    #[arg(long, default_value = "/opt/lst/server.toml")]
+    #[arg(long, default_value = "~/.config/lst/lst_server.toml")]
     config: String,
 }
 
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
-    let settings = Arc::new(Settings::from_file(args.config.as_ref()).unwrap());
+    let config_path = if args.config.starts_with("~/") {
+        dirs::home_dir().unwrap().join(&args.config[2..])
+    } else {
+        std::path::PathBuf::from(args.config)
+    };
+    let settings = Arc::new(Settings::from_file(&config_path).unwrap());
     
     let token_map: TokenMap = Arc::new(Mutex::new(HashMap::new()));
     let app = Router::new().nest(

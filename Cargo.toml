@@ -1,11 +1,12 @@
-[package]
-name = "lst"
-version = "0.1.0"
-description = "Personal lists & notes app"
-authors = ["Tommy Falkowski"]
-edition = "2021"
+[workspace]
+members = [
+    "crates/lst-cli",
+    "crates/lst-proto",
+    "crates/lst-server",
+]
+resolver = "2"
 
-[dependencies]
+[workspace.dependencies]
 # CLI
 clap = { version = "4.5.3", features = ["derive"] }
 colored = "2.1.0"
@@ -42,14 +43,4 @@ lettre = { version = "0.11.6", features = [
   "tokio1-native-tls",
   "smtp-transport",
 ] }
-
-[[bin]]
-name = "lst-server"
-path = "src/server/main.rs"
-
-[features]
-default = ["lists"]
-lists = []
-notes = []
-posts = []
-media = []
+reqwest = { version = "0.11", features = ["json"] }
