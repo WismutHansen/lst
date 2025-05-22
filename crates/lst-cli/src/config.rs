@@ -7,8 +7,6 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default)]
-    pub server: ServerConfig,
-    #[serde(default)]
     pub ui: UiConfig,
     #[serde(default)]
     pub fuzzy: FuzzyConfig,
@@ -16,12 +14,6 @@ pub struct Config {
     pub paths: PathsConfig,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
-pub struct ServerConfig {
-    #[serde(default = "default_server_url")]
-    pub url: String,
-    pub auth_token: Option<String>,
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UiConfig {
@@ -46,7 +38,6 @@ pub struct PathsConfig {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            server: ServerConfig::default(),
             ui: UiConfig {
                 resolution_order: default_resolution_order(),
             },
@@ -88,9 +79,6 @@ impl Default for PathsConfig {
     }
 }
 
-fn default_server_url() -> String {
-    "http://localhost:3000/api".to_string()
-}
 
 fn default_resolution_order() -> Vec<String> {
     vec![
