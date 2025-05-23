@@ -67,6 +67,9 @@ fn main() -> Result<()> {
         Commands::Dn => {
             cli::commands::daily_note(cli.json)?;
         }
+        Commands::Sync(sync_cmd) => {
+            cli::commands::handle_sync_command(sync_cmd.clone(), cli.json)?;
+        }
         Commands::Image(img_cmd) => match img_cmd {
             ImageCommands::Add {
                 file: _,

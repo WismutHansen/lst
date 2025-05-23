@@ -79,21 +79,31 @@ lst img paste --to <document> [--caption "Optional caption"]
 
 ## Configuration
 
-`lst` uses a TOML configuration file located at `~/.config/lst/lst.toml`. You can override the config file location by setting the `LST_CONFIG` environment variable.
+`lst` uses a unified TOML configuration file located at `~/.config/lst/lst.toml` that is shared across all components (CLI, server, sync daemon). You can override the config file location by setting the `LST_CONFIG` environment variable.
 
 Configuration changes take effect the next time you run a command. If you change the `content_dir` option, existing data will remain in the old location, and you'll need to move it manually to the new location.
 
 ### Configuration Options
 
-#### Server Configuration
+#### CLI & Server Configuration
 
 ```toml
 [server]
-# URL of the sync server API
+# URL of the sync server API (CLI) / Server host & port (server only)
 url = "https://lists.example.com/api"
-
-# Authentication token (obtained via magic link flow)
 auth_token = "your-auth-token"
+host = "127.0.0.1"  # server only
+port = 3000         # server only
+```
+
+#### Sync Daemon Configuration
+
+```toml
+[syncd]
+# Server URL for remote sync (if None, runs in local-only mode)
+url = "https://lists.example.com/api"
+auth_token = "your-auth-token"
+# device_id is auto-generated on first startup
 ```
 
 #### User Interface Configuration
@@ -130,9 +140,41 @@ content_dir = "~/Documents/lst"
 media_dir = "~/Documents/lst/media"
 ```
 
+#### Server-Only Configuration
+
+```toml
+[email]
+# SMTP relay settings (optional - if missing, login links logged to stdout)
+smtp_host = "smtp.example.com"
+smtp_user = "your-smtp-user"
+smtp_pass = "${SMTP_PASSWORD}"  # Environment variable
+sender = "noreply@example.com"
+
+[content]
+# Content directory layout (server only)
+root = "~/Documents/lst"
+kinds = ["lists", "notes", "posts"]
+media_dir = "media"
+```
+
+#### Sync Daemon-Only Configuration
+
+```toml
+[sync]
+# Sync behavior settings
+interval_seconds = 30
+max_file_size = 10485760  # 10MB
+exclude_patterns = [".*", "*.tmp", "*.swp"]
+
+[storage]
+# CRDT storage settings
+crdt_dir = "~/.config/lst/crdt"
+max_snapshots = 100
+```
+
 ## Example Configuration
 
-An example configuration file is provided in the `examples/lst.toml` file in the repository. You can copy this file to `~/.config/lst/lst.toml` and customize it to your needs.
+An example unified configuration file is provided in the `examples/lst.toml` file in the repository. You can copy this file to `~/.config/lst/lst.toml` and customize it to your needs. Each component reads only the sections it needs from the same file.
 
 ## Storage Format
 

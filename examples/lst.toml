@@ -1,12 +1,17 @@
-# Example lst configuration file
+# Unified lst configuration file
 # This file should be placed at ~/.config/lst/lst.toml
+# All lst components (CLI, server, syncd) read from this single file
 
+# ===== CLI Configuration =====
 [server]
 # URL of the sync server API (required for syncing)
 url = "https://lists.example.com/api"
-
 # Authentication token (obtained via magic link flow)
 auth_token = "your-auth-token"
+# Server host/interface to bind to (server only)
+host = "127.0.0.1"
+# Server port to listen on (server only)
+port = 3000
 
 [ui]
 # Order in which to try different methods when resolving item targets
@@ -17,7 +22,6 @@ resolution_order = ["anchor", "exact", "fuzzy", "index", "interactive"]
 # Similarity threshold for fuzzy matching (0.0 to 1.0)
 # Higher values require closer matches
 threshold = 0.75
-
 # Maximum number of suggestions to show in interactive mode
 max_suggestions = 7
 
@@ -25,7 +29,40 @@ max_suggestions = 7
 # Base directory for all content (lists, notes, posts, media)
 # Default: "./content" in current working directory
 content_dir = "~/Documents/lst"
+# Document kinds (e.g. ["lists", "notes", "posts"])
+kinds = ["lists", "notes", "posts"]
+# Subdirectory for media files under content root
+# Default: "media" (relative to content_dir)
+media_dir = "media"
 
-# Override the media directory location
-# Default: "$content_dir/media"
-media_dir = "~/Documents/lst/media"
+# ===== Server Configuration =====
+# [email]
+# SMTP relay settings for sending login emails (server only)
+# If this section is commented out or missing, login links will be logged to stdout
+# smtp_host = "smtp.example.com"
+# smtp_user = "your-smtp-user"
+# smtp_pass = "${SMTP_PASSWORD}"  # Environment variable
+# sender = "noreply@example.com"
+
+# ===== Sync Daemon Configuration =====
+[syncd]
+# Server URL for remote sync (syncd only) - if None, runs in local-only mode
+url = "https://lists.example.com/api"
+# Authentication token for server (syncd only)
+auth_token = "your-auth-token"
+# Device identifier (syncd only) - auto-generated if missing
+# device_id = "auto-generated-uuid"
+
+[sync]
+# Sync interval in seconds (syncd only)
+interval_seconds = 30
+# Maximum file size to sync in bytes (syncd only)
+max_file_size = 10485760  # 10MB
+# File patterns to exclude from sync (syncd only)
+exclude_patterns = [".*", "*.tmp", "*.swp"]
+
+[storage]
+# CRDT storage settings (syncd only)
+crdt_dir = "~/.config/lst/crdt"
+# Maximum number of CRDT snapshots to keep (syncd only)
+max_snapshots = 100

@@ -3,12 +3,13 @@ use colored::{ColoredString, Colorize};
 use serde_json;
 use std::io::{self, BufRead};
 
-use crate::cli::DlCmd;
+use crate::cli::{DlCmd, SyncCommands};
 use crate::storage;
 use crate::{models::ItemStatus, storage::notes::delete_note};
 use chrono::{Local, Utc};
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
+use crate::config::{Config, get_config};
 
 /// Handle the 'ls' command to list all lists
 pub fn list_lists(json: bool) -> Result<()> {
@@ -366,4 +367,211 @@ pub fn display_list(list: &str, json: bool) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Handle sync daemon commands
+pub fn handle_sync_command(cmd: SyncCommands, json: bool) -> Result<()> {
+    match cmd {
+        SyncCommands::Setup { server, token } => sync_setup(server, token, json),
+        SyncCommands::Start { foreground } => sync_start(foreground, json),
+        SyncCommands::Stop => sync_stop(json),
+        SyncCommands::Status => sync_status(json),
+        SyncCommands::Logs { follow, lines } => sync_logs(follow, lines, json),
+    }
+}
+
+/// Setup sync configuration (first login flow)
+pub fn sync_setup(server: Option<String>, token: Option<String>, json: bool) -> Result<()> {
+    use dialoguer::{Input, Confirm};
+    
+    let mut config = Config::load()?;
+    config.init_syncd()?;
+    
+    let server_url = if let Some(url) = server {
+        url
+    } else {
+        Input::<String>::new()
+            .with_prompt("Enter server URL (leave empty for local-only mode)")
+            .allow_empty(true)
+            .interact()?
+    };
+    
+    let auth_token = if server_url.is_empty() {
+        None
+    } else if let Some(token) = token {
+        Some(token)
+    } else {
+        let token: String = Input::new()
+            .with_prompt("Enter authentication token")
+            .interact()?;
+        if token.is_empty() { None } else { Some(token) }
+    };
+    
+    if let Some(ref mut syncd) = config.syncd {
+        syncd.url = if server_url.is_empty() { None } else { Some(server_url.clone()) };
+        syncd.auth_token = auth_token.clone();
+    }
+    
+    config.save()?;
+    
+    if json {
+        println!("{{\"status\": \"configured\", \"server\": {:?}, \"has_token\": {}}}", 
+            server_url, auth_token.is_some());
+    } else {
+        if server_url.is_empty() {
+            println!("Configured for local-only mode");
+        } else {
+            println!("Configured to sync with: {}", server_url.cyan());
+            if auth_token.is_some() {
+                println!("Authentication token set");
+            }
+        }
+        
+        if Confirm::new()
+            .with_prompt("Start sync daemon now?")
+            .default(true)
+            .interact()? 
+        {
+            sync_start(false, json)?;
+        }
+    }
+    
+    Ok(())
+}
+
+/// Start sync daemon
+pub fn sync_start(foreground: bool, json: bool) -> Result<()> {
+    // Check if syncd binary exists
+    let syncd_path = find_syncd_binary()?;
+    
+    let mut cmd = Command::new(&syncd_path);
+    if foreground {
+        cmd.arg("--foreground");
+    }
+    cmd.arg("--verbose");
+    
+    if foreground {
+        // Run in foreground
+        let status = cmd.status()?;
+        if !status.success() {
+            bail!("lst-syncd exited with status: {}", status);
+        }
+    } else {
+        // Start daemon in background
+        cmd.stdout(Stdio::null())
+           .stderr(Stdio::null())
+           .stdin(Stdio::null());
+        
+        let child = cmd.spawn()?;
+        let pid = child.id();
+        
+        if json {
+            println!("{{\"status\": \"started\", \"pid\": {}}}", pid);
+        } else {
+            println!("Sync daemon started (PID: {})", pid);
+        }
+    }
+    
+    Ok(())
+}
+
+/// Stop sync daemon
+pub fn sync_stop(json: bool) -> Result<()> {
+    // Find running lst-syncd process and stop it
+    let output = Command::new("pkill")
+        .args(&["-f", "lst-syncd"])
+        .output()?;
+    
+    if json {
+        println!("{{\"status\": \"stopped\"}}");
+    } else {
+        if output.status.success() {
+            println!("Sync daemon stopped");
+        } else {
+            println!("No sync daemon found running");
+        }
+    }
+    
+    Ok(())
+}
+
+/// Show sync daemon status
+pub fn sync_status(json: bool) -> Result<()> {
+    let config = get_config();
+    
+    // Check if syncd is configured
+    let configured = config.syncd.is_some();
+    let server_url = config.syncd.as_ref().and_then(|s| s.url.as_ref());
+    let has_token = config.syncd.as_ref().and_then(|s| s.auth_token.as_ref()).is_some();
+    
+    // Check if daemon is running
+    let running = Command::new("pgrep")
+        .args(&["-f", "lst-syncd"])
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false);
+    
+    if json {
+        println!("{{\"configured\": {}, \"running\": {}, \"server\": {:?}, \"has_token\": {}}}", 
+            configured, running, server_url, has_token);
+    } else {
+        println!("Sync Configuration:");
+        println!("  Configured: {}", if configured { "Yes".green() } else { "No".red() });
+        
+        if let Some(url) = server_url {
+            println!("  Server: {}", url.cyan());
+        } else {
+            println!("  Mode: {}", "Local-only".yellow());
+        }
+        
+        println!("  Auth token: {}", if has_token { "Set".green() } else { "Not set".red() });
+        println!("  Daemon: {}", if running { "Running".green() } else { "Stopped".red() });
+        
+        if !configured {
+            println!("\nRun 'lst sync setup' to configure sync settings");
+        } else if !running {
+            println!("\nRun 'lst sync start' to start the sync daemon");
+        }
+    }
+    
+    Ok(())
+}
+
+/// Show sync daemon logs
+pub fn sync_logs(follow: bool, lines: usize, _json: bool) -> Result<()> {
+    println!("Sync daemon logs (last {} lines):", lines);
+    
+    // For now, just indicate that logging isn't implemented yet
+    println!("Log viewing not implemented yet - check system logs for lst-syncd");
+    
+    if follow {
+        println!("Use 'lst sync start --foreground' to see live output");
+    }
+    
+    Ok(())
+}
+
+/// Find the lst-syncd binary
+fn find_syncd_binary() -> Result<String> {
+    // Try common locations for lst-syncd
+    let possible_paths = [
+        "lst-syncd", // In PATH
+        "./target/debug/lst-syncd", // Local debug build
+        "./target/release/lst-syncd", // Local release build
+        &std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|parent| parent.join("lst-syncd")))
+            .and_then(|p| p.to_str().map(String::from))
+            .unwrap_or_default(),
+    ];
+    
+    for path in possible_paths.iter() {
+        if path.is_empty() { continue; }
+        
+        if Command::new(path).arg("--help").output().is_ok() {
+            return Ok(path.to_string());
+        }
+    }
+    
+    bail!("lst-syncd binary not found. Make sure it's installed and in your PATH.");
 }

@@ -1,30 +1,32 @@
 use anyhow::{Context, Result};
 use notify::Event;
 use std::collections::HashMap;
-use tokio::time::{Duration, Instant};
+use tokio::time::Instant;
 
-use crate::config::SyncConfig;
+use crate::config::Config;
 use lst_proto::SyncMessage;
 
 pub struct SyncManager {
-    config: SyncConfig,
+    config: Config,
     client: Option<reqwest::Client>,
     last_sync: Instant,
     pending_changes: HashMap<String, SyncMessage>,
 }
 
 impl SyncManager {
-    pub async fn new(config: SyncConfig) -> Result<Self> {
-        let client = if config.server.url.is_some() {
+    pub async fn new(config: Config) -> Result<Self> {
+        let client = if config.syncd.as_ref().and_then(|s| s.url.as_ref()).is_some() {
             Some(reqwest::Client::new())
         } else {
             None
         };
         
         // Ensure CRDT storage directory exists
-        tokio::fs::create_dir_all(&config.storage.crdt_dir)
-            .await
-            .with_context(|| format!("Failed to create CRDT directory: {}", config.storage.crdt_dir.display()))?;
+        if let Some(ref storage) = config.storage {
+            tokio::fs::create_dir_all(&storage.crdt_dir)
+                .await
+                .with_context(|| format!("Failed to create CRDT directory: {}", storage.crdt_dir.display()))?;
+        }
         
         Ok(Self {
             config,
@@ -62,14 +64,16 @@ impl SyncManager {
     }
     
     pub async fn periodic_sync(&self) -> Result<()> {
-        if let Some(ref client) = self.client {
-            if let Some(ref server_url) = self.config.server.url {
-                // TODO: Sync pending changes to server
-                // TODO: Fetch remote changes from server
-                // TODO: Merge remote changes with local state
-                
-                println!("Would sync {} pending changes to {}", 
-                    self.pending_changes.len(), server_url);
+        if let Some(ref _client) = self.client {
+            if let Some(ref syncd) = self.config.syncd {
+                if let Some(ref server_url) = syncd.url {
+                    // TODO: Sync pending changes to server
+                    // TODO: Fetch remote changes from server
+                    // TODO: Merge remote changes with local state
+                    
+                    println!("Would sync {} pending changes to {}", 
+                        self.pending_changes.len(), server_url);
+                }
             }
         }
         

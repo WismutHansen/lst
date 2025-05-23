@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Configuration for the lst application
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default)]
     pub ui: UiConfig,
@@ -12,16 +12,25 @@ pub struct Config {
     pub fuzzy: FuzzyConfig,
     #[serde(default)]
     pub paths: PathsConfig,
+    #[serde(default)]
+    pub server: ServerConfig,
+    // Syncd-specific configuration (optional)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub syncd: Option<SyncdConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub storage: Option<StorageConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sync: Option<SyncSettings>,
 }
 
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UiConfig {
     #[serde(default = "default_resolution_order")]
     pub resolution_order: Vec<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FuzzyConfig {
     #[serde(default = "default_threshold")]
     pub threshold: f32,
@@ -29,10 +38,66 @@ pub struct FuzzyConfig {
     pub max_suggestions: usize,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PathsConfig {
     pub content_dir: Option<PathBuf>,
     pub media_dir: Option<PathBuf>,
+    pub kinds: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerConfig {
+    pub url: Option<String>,
+    pub auth_token: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncdConfig {
+    /// Server URL (if None, runs in local-only mode)
+    pub url: Option<String>,
+    
+    /// Authentication token for server
+    pub auth_token: Option<String>,
+    
+    /// Device identifier (auto-generated if missing)
+    pub device_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorageConfig {
+    /// Directory for CRDT state storage
+    pub crdt_dir: PathBuf,
+    
+    /// Maximum number of CRDT snapshots to keep
+    #[serde(default = "default_max_snapshots")]
+    pub max_snapshots: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncSettings {
+    /// Sync interval in seconds
+    #[serde(default = "default_sync_interval")]
+    pub interval_seconds: u64,
+    
+    /// Maximum file size to sync (in bytes)
+    #[serde(default = "default_max_file_size")]
+    pub max_file_size: u64,
+    
+    /// File patterns to exclude from sync
+    #[serde(default)]
+    pub exclude_patterns: Vec<String>,
+}
+
+fn default_sync_interval() -> u64 {
+    30 // 30 seconds
+}
+
+fn default_max_file_size() -> u64 {
+    10 * 1024 * 1024 // 10MB
+}
+
+fn default_max_snapshots() -> usize {
+    100
 }
 
 impl Default for Config {
@@ -48,7 +113,12 @@ impl Default for Config {
             paths: PathsConfig {
                 content_dir: None,
                 media_dir: None,
+                kinds: None,
             },
+            server: ServerConfig::default(),
+            syncd: None,
+            storage: None,
+            sync: None,
         }
     }
 }
@@ -75,6 +145,16 @@ impl Default for PathsConfig {
         Self {
             content_dir: None,
             media_dir: None,
+            kinds: None,
+        }
+    }
+}
+
+impl Default for ServerConfig {
+    fn default() -> Self {
+        Self {
+            url: None,
+            auth_token: None,
         }
     }
 }
@@ -141,6 +221,49 @@ impl Config {
         let config_path = config_dir.join("lst.toml");
         let toml_str = toml::to_string_pretty(self).context("Failed to serialize config")?;
         fs::write(&config_path, toml_str).context("Failed to write config file")?;
+        Ok(())
+    }
+
+    /// Get the content directory, using default if not configured
+    pub fn get_content_dir(&self) -> PathBuf {
+        if let Some(ref content_dir) = self.paths.content_dir {
+            content_dir.clone()
+        } else {
+            // Default content directory
+            let home_dir = dirs::home_dir().expect("Cannot determine home directory");
+            home_dir.join("lst").join("content")
+        }
+    }
+
+    /// Initialize syncd configuration with defaults
+    pub fn init_syncd(&mut self) -> Result<()> {
+        if self.syncd.is_none() {
+            let crdt_dir = dirs::config_dir()
+                .context("Cannot determine config directory")?
+                .join("lst")
+                .join("crdt");
+            
+            self.syncd = Some(SyncdConfig {
+                url: None,
+                auth_token: None,
+                device_id: Some(uuid::Uuid::new_v4().to_string()),
+            });
+            
+            self.storage = Some(StorageConfig {
+                crdt_dir,
+                max_snapshots: default_max_snapshots(),
+            });
+            
+            self.sync = Some(SyncSettings {
+                interval_seconds: default_sync_interval(),
+                max_file_size: default_max_file_size(),
+                exclude_patterns: vec![
+                    ".*".to_string(),
+                    "*.tmp".to_string(),
+                    "*.swp".to_string(),
+                ],
+            });
+        }
         Ok(())
     }
 }

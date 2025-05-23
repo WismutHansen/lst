@@ -39,3 +39,4 @@ reqwest = { workspace = true }
 
 # Internal dependencies
 lst-proto = { path = "../lst-proto" }
+lst-cli = { path = "../lst-cli" }
