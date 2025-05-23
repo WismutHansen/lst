@@ -5,6 +5,10 @@ description = "Personal lists & notes app CLI"
 authors = ["Tommy Falkowski"]
 edition = "2021"
 
+[lib]
+name = "lst_cli"
+path = "src/lib.rs"
+
 [[bin]]
 name = "lst"
 path = "src/main.rs"

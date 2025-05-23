@@ -84,6 +84,10 @@ pub enum Commands {
     /// Daily note: create or open today's note
     #[clap(name = "dn")]
     Dn,
+
+    /// Sync daemon commands
+    #[clap(subcommand, name = "sync")]
+    Sync(SyncCommands),
 }
 
 #[derive(Subcommand)]
@@ -191,5 +195,47 @@ pub enum DlCmd {
     Undone {
         /// Target item to mark as not done (anchor, text, or index; comma-separated for multiple items)
         item: String,
+    },
+}
+
+/// Subcommands for sync daemon management
+#[derive(Clone, Subcommand)]
+pub enum SyncCommands {
+    /// Start sync daemon in background
+    #[clap(name = "start")]
+    Start {
+        /// Run in foreground mode (don't daemonize)
+        #[clap(long)]
+        foreground: bool,
+    },
+
+    /// Stop sync daemon
+    #[clap(name = "stop")]
+    Stop,
+
+    /// Show sync daemon status
+    #[clap(name = "status")]
+    Status,
+
+    /// Configure sync settings
+    #[clap(name = "setup")]
+    Setup {
+        /// Server URL to sync with
+        #[clap(long)]
+        server: Option<String>,
+        /// Authentication token
+        #[clap(long)]
+        token: Option<String>,
+    },
+
+    /// Show sync daemon logs
+    #[clap(name = "logs")]
+    Logs {
+        /// Follow logs in real-time
+        #[clap(short, long)]
+        follow: bool,
+        /// Number of lines to show
+        #[clap(short, long, default_value = "50")]
+        lines: usize,
     },
 }

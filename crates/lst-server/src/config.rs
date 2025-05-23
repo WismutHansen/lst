@@ -8,7 +8,7 @@ pub struct Settings {
     pub server: ServerSettings,
     /// SMTP/email settings; if absent, login links are logged to stdout
     pub email: Option<EmailSettings>,
-    pub content: ContentSettings,
+    pub paths: PathsSettings,
 }
 
 /// Network settings for the HTTP server
@@ -29,15 +29,15 @@ pub struct EmailSettings {
     pub sender: String,
 }
 
-/// Content directory layout and kinds
+/// Path settings shared with CLI
 #[derive(Debug, Deserialize, Clone)]
-pub struct ContentSettings {
+pub struct PathsSettings {
     /// Root path for content files
-    pub root: String,
+    pub content_dir: Option<String>,
     /// Document kinds (e.g. ["lists", "notes", "posts"])
-    pub kinds: Vec<String>,
+    pub kinds: Option<Vec<String>>,
     /// Subdirectory for media files under content root
-    pub media_dir: String,
+    pub media_dir: Option<String>,
 }
 
 impl Settings {
@@ -56,5 +56,12 @@ impl Settings {
             }
         }
         Ok(settings)
+    }
+
+    /// Load configuration from the standard lst config location
+    pub fn load() -> anyhow::Result<Self> {
+        let home_dir = dirs::home_dir().context("Could not determine home directory")?;
+        let config_path = home_dir.join(".config").join("lst").join("lst.toml");
+        Self::from_file(&config_path)
     }
 }

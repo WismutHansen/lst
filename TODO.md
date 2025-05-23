@@ -56,9 +56,15 @@
   - [ ] Create AGNO agent for natural language processing
   - [ ] Implement JSON action interface
 
-## Next Immediate Tasks
+## Configuration & Infrastructure
 
 - [x] Implement configuration loading from `~/.config/lst/lst.toml`
+- [x] Unified configuration system across all components
+- [x] Auto-generate device_id for syncd on first startup
+- [x] Separate CLI and syncd server configurations
+
+## Next Immediate Tasks
+
 - [x] Implement note commands
 - [ ] Improve error handling and user feedback
 - [ ] Add tests for core functionality

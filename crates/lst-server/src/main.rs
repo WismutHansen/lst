@@ -44,7 +44,7 @@ struct AuthToken {
 #[command(name = "lst-server", about = "lst server API")]
 struct Args {
     /// Path to server configuration TOML file
-    #[arg(long, default_value = "~/.config/lst/lst_server.toml")]
+    #[arg(long, default_value = "~/.config/lst/lst.toml")]
     config: String,
 }
 
@@ -57,7 +57,7 @@ async fn main() {
         std::path::PathBuf::from(args.config)
     };
     let settings = Arc::new(Settings::from_file(&config_path).unwrap());
-    
+
     let token_map: TokenMap = Arc::new(Mutex::new(HashMap::new()));
     let app = Router::new().nest(
         "/api",
