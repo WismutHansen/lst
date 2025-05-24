@@ -1,3 +1,5 @@
+![lst Banner](Logo/Banner_black.svg)
+
 # lst - Personal Lists & Notes App
 
 `lst` is a personal lists, notes, and blog posts management application with a focus on plain-text storage, offline-first functionality, and multi-device synchronization.
@@ -95,8 +97,9 @@ lst dn                           # Open today's daily note in editor
 ```
 
 Daily files are automatically named with the current date (e.g., `daily_lists/20250524_daily_list.md`, `daily_notes/20250524_daily_note.md`) and organized in their respective subdirectories.
-  
+
 ### Posts (Coming Soon)
+
 ```bash
 # Create a new blog post
 lst post new "<title>"
@@ -252,9 +255,9 @@ sharing: []
 updated: 2025-04-21T07:35:51.705060Z
 ---
 
-- [ ] Milk  ^XMuD1
-- [x] Bread  ^lkJzl
-- [ ] Eggs  ^w5Cdq
+- [ ] Milk ^XMuD1
+- [x] Bread ^lkJzl
+- [ ] Eggs ^w5Cdq
 ```
 
 ## License
@@ -264,7 +267,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-  
+
 ## Project Architecture
 
 The `lst` project follows a layered architecture with clear separation of concerns:
@@ -272,20 +275,24 @@ The `lst` project follows a layered architecture with clear separation of concer
 ### Core Architecture Layers
 
 1. **Models Layer** (`models/`)
+
    - Contains core data structures like `List`, `ListItem`, etc.
    - Defines the domain objects without any I/O operations
    - Provides basic operations on in-memory objects
 
 2. **Storage Layer** (`storage/`)
+
    - Handles persistence of model objects to disk (markdown files)
    - Provides higher-level operations that combine model operations with file I/O
    - Organized by storage format (markdown.rs, notes.rs)
 
 3. **CLI Layer** (`cli/`)
+
    - Handles command-line parsing and user interaction
    - Connects user commands to storage operations
 
 4. **Configuration Layer** (`config/`)
+
    - Manages application settings and paths
    - Provides utility functions for finding content directories
 
@@ -303,6 +310,7 @@ A typical command flow:
 4. `storage::markdown::mark_done` loads the list from disk, modifies it, and saves it back
 
 This architecture provides:
+
 - **Separation of Concerns**: Each module has a distinct responsibility
 - **Testability**: Core logic can be tested without I/O dependencies
 - **Flexibility**: Multiple interfaces (CLI, server) can use the same storage and model logic
@@ -311,15 +319,19 @@ This architecture provides:
 
 The `lst` CLI is implemented in Rust, and debug builds (e.g., those under `target/debug`) can exhibit noticeable startup latency.
 For the fastest experience, use the optimized release build:
+
 ```bash
 # Install the release binary to your Cargo bin directory
 cargo install --path .
 ```
+
 This builds with release optimizations and should start up in just a few milliseconds.
 
 If you prefer to build locally without installing, you can:
+
 ```bash
 # Build and run the release binary
 cargo build --release
 ./target/release/lst ls <list_name>
 ```
+
