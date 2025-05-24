@@ -98,26 +98,6 @@ lst dn                           # Open today's daily note in editor
 
 Daily files are automatically named with the current date (e.g., `daily_lists/20250524_daily_list.md`, `daily_notes/20250524_daily_note.md`) and organized in their respective subdirectories.
 
-### Posts (Coming Soon)
-
-```bash
-# Create a new blog post
-lst post new "<title>"
-
-# Publish a blog post
-lst post publish <slug>
-```
-
-### Media Support (Coming Soon)
-
-```bash
-# Add an image to a document
-lst img add <file.jpg> --to <document> [--caption "Optional caption"]
-
-# Paste image from clipboard
-lst img paste --to <document> [--caption "Optional caption"]
-```
-
 ## Configuration
 
 `lst` uses a unified TOML configuration file located at `~/.config/lst/lst.toml` that is shared across all components (CLI, server, sync daemon). You can override the config file location by setting the `LST_CONFIG` environment variable.
