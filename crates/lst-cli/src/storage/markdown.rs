@@ -4,23 +4,61 @@ use std::fs;
 use std::path::Path;
 use crate::models::{List, ListItem, ItemStatus, is_valid_anchor, generate_anchor};
 
-/// Load a list from a markdown file
+/// Load a list from a markdown file (supports directory paths)
 pub fn load_list(list_name: &str) -> Result<List> {
     let lists_dir = super::get_lists_dir()?;
+    
+    // Try exact path first (supports both simple names and directory paths)
     let filename = format!("{}.md", list_name);
     let path = lists_dir.join(filename);
     
-    if !path.exists() {
-        anyhow::bail!("List '{}' does not exist", list_name);
+    if path.exists() {
+        return parse_list_from_file(&path);
     }
     
-    parse_list_from_file(&path)
+    // If exact path doesn't exist and input looks like a simple filename, try fuzzy search
+    if !list_name.contains('/') && !list_name.contains('\\') {
+        let entries = super::list_lists_with_info()?;
+        
+        // First try exact filename match
+        for entry in &entries {
+            if entry.name == list_name {
+                return parse_list_from_file(&entry.full_path);
+            }
+        }
+        
+        // Then try fuzzy match by filename
+        let matches: Vec<&super::FileEntry> = entries
+            .iter()
+            .filter(|entry| entry.name.contains(list_name))
+            .collect();
+        
+        match matches.len() {
+            0 => anyhow::bail!("List '{}' does not exist", list_name),
+            1 => parse_list_from_file(&matches[0].full_path),
+            _ => {
+                let match_names: Vec<String> = matches.iter().map(|e| e.relative_path.clone()).collect();
+                anyhow::bail!("Multiple lists match '{}': {:?}", list_name, match_names);
+            }
+        }
+    } else {
+        anyhow::bail!("List '{}' does not exist", list_name);
+    }
 }
 
 /// Save a list to a markdown file
 pub fn save_list(list: &List) -> Result<()> {
     let lists_dir = super::get_lists_dir()?;
     let filename = list.file_name();
+    let path = lists_dir.join(filename);
+    
+    write_list_to_file(list, &path)
+}
+
+/// Save a list to a markdown file using the original list name path
+pub fn save_list_with_path(list: &List, list_name: &str) -> Result<()> {
+    let lists_dir = super::get_lists_dir()?;
+    let filename = format!("{}.md", list_name);
     let path = lists_dir.join(filename);
     
     write_list_to_file(list, &path)
@@ -127,17 +165,36 @@ fn format_list_as_markdown(list: &List) -> String {
     content
 }
 
-/// Create a new list
+/// Create a new list (supports directory paths)
 pub fn create_list(name: &str) -> Result<List> {
     let lists_dir = super::get_lists_dir()?;
     let filename = format!("{}.md", name);
-    let path = lists_dir.join(filename);
+    let path = lists_dir.join(&filename);
     
     if path.exists() {
         anyhow::bail!("List '{}' already exists", name);
     }
     
-    let list = List::new(name.to_string());
+    // Create parent directories if they don't exist
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create directory: {}", parent.display()))?;
+        }
+    }
+    
+    // Extract just the filename for the list title (not the full path)
+    let list_title = if name.contains('/') || name.contains('\\') {
+        Path::new(name)
+            .file_name()
+            .and_then(|f| f.to_str())
+            .unwrap_or(name)
+            .to_string()
+    } else {
+        name.to_string()
+    };
+    
+    let list = List::new(list_title);
     write_list_to_file(&list, &path)?;
     
     Ok(list)
@@ -148,7 +205,9 @@ pub fn add_item(list_name: &str, text: &str) -> Result<ListItem> {
     let mut list = load_list(list_name)?;
     let item = list.add_item(text.to_string());
     let item_clone = item.clone();
-    save_list(&list)?;
+    
+    // Save to the correct path by resolving the list name to its actual path
+    save_list_with_path(&list, list_name)?;
     
     Ok(item_clone)
 }
@@ -172,13 +231,13 @@ pub fn mark_done(list_name: &str, target: &str) -> Result<Vec<ListItem>> {
             anyhow::bail!("No matching items found in list '{}'", list_name);
         }
         
-        save_list(&list)?;
+        save_list_with_path(&list, list_name)?;
         return Ok(marked_items);
     }
     
     // Handle single target
     if let Ok(item) = mark_item_done(&mut list, target) {
-        save_list(&list)?;
+        save_list_with_path(&list, list_name)?;
         return Ok(vec![item]);
     }
     
@@ -204,13 +263,13 @@ pub fn mark_undone(list_name: &str, target: &str) -> Result<Vec<ListItem>> {
             anyhow::bail!("No matching items found in list '{}'", list_name);
         }
         
-        save_list(&list)?;
+        save_list_with_path(&list, list_name)?;
         return Ok(marked_items);
     }
     
     // Handle single target
     if let Ok(item) = mark_item_undone(&mut list, target) {
-        save_list(&list)?;
+        save_list_with_path(&list, list_name)?;
         return Ok(vec![item]);
     }
     
@@ -306,7 +365,7 @@ pub fn delete_item(list_name: &str, target: &str) -> Result<Vec<ListItem>> {
         // Reverse back to original order for consistent output
         removed_items.reverse();
         list.metadata.updated = chrono::Utc::now();
-        save_list(&list)?;
+        save_list_with_path(&list, list_name)?;
         return Ok(removed_items);
     }
     
@@ -314,7 +373,7 @@ pub fn delete_item(list_name: &str, target: &str) -> Result<Vec<ListItem>> {
     if let Ok((idx, _)) = find_item_for_removal(&list, target) {
         let removed = list.items.remove(idx);
         list.metadata.updated = chrono::Utc::now();
-        save_list(&list)?;
+        save_list_with_path(&list, list_name)?;
         return Ok(vec![removed]);
     }
     

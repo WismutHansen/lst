@@ -5,9 +5,11 @@ use std::{env, fs, path::Path};
 /// Server configuration loaded from TOML file
 #[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
-    pub server: ServerSettings,
+    #[serde(default)]
+    pub lst_server: ServerSettings,
     /// SMTP/email settings; if absent, login links are logged to stdout
     pub email: Option<EmailSettings>,
+    #[serde(default)]
     pub paths: PathsSettings,
 }
 
@@ -15,9 +17,19 @@ pub struct Settings {
 #[derive(Debug, Deserialize, Clone)]
 pub struct ServerSettings {
     /// Host/interface to bind to, e.g. "127.0.0.1"
+    #[serde(default = "default_host")]
     pub host: String,
     /// Port to listen on, e.g. 3000
+    #[serde(default = "default_port")]
     pub port: u16,
+}
+
+fn default_host() -> String {
+    "127.0.0.1".to_string()
+}
+
+fn default_port() -> u16 {
+    3000
 }
 
 /// SMTP relay settings for sending login emails
@@ -38,6 +50,25 @@ pub struct PathsSettings {
     pub kinds: Option<Vec<String>>,
     /// Subdirectory for media files under content root
     pub media_dir: Option<String>,
+}
+
+impl Default for ServerSettings {
+    fn default() -> Self {
+        Self {
+            host: default_host(),
+            port: default_port(),
+        }
+    }
+}
+
+impl Default for PathsSettings {
+    fn default() -> Self {
+        Self {
+            content_dir: None,
+            kinds: None,
+            media_dir: None,
+        }
+    }
 }
 
 impl Settings {
