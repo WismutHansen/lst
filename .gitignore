@@ -1,2 +1,4 @@
-.opencode/
+.DS_Store
+*/.DS_Store
+.opencod
 /target
