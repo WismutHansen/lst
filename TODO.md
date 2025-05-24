@@ -42,7 +42,9 @@
 - [x] Implement `lst pipe <list>` command
 - [x] Add `--json` output option for all commands
 - [x] Implement note commands (`note new`, `note add`, `note open`, `note rm`, `note ls`)
-- [ ] support directory structures (e.g. groceries/pharmacy.md) while still supporting fuzzy search only by name (without having to always specify the directory)
+- [x] Support directory structures (e.g. groceries/pharmacy.md) while still supporting fuzzy search only by name (without having to always specify the directory)
+- [x] Implement daily list commands (`dl add`, `dl done`, `dl undone`, `dl ls`, `dl rm`) with automatic organization in `daily_lists/` subdirectory
+- [x] Implement daily note command (`dn`) with automatic organization in `daily_notes/` subdirectory
 - [ ] Add `share` and `unshare` commands to manage document members (will involve key exchange mechanisms)
 - [ ] **Improvements & Polish:**
   - [ ] Improve `fuzzy_find` beyond simple "contains"
