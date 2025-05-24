@@ -1,4 +1,4 @@
-![lst Banner](Logo/Banner_black.svg)
+![lst Banner](Logo/Banner_black.png)
 
 # lst - Personal Lists & Notes App
 
@@ -334,4 +334,3 @@ If you prefer to build locally without installing, you can:
 cargo build --release
 ./target/release/lst ls <list_name>
 ```
-
