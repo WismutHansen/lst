@@ -155,15 +155,36 @@ fn open_editor(path: &Path) -> Result<()> {
 /// Normalize a list identifier: strip .md and fuzzy-match existing, or allow new
 fn normalize_list(input: &str) -> Result<String> {
     let key = input.trim_end_matches(".md");
-    let lists = storage::list_lists()?;
-    if lists.contains(&key.to_string()) {
+    
+    // If it contains path separators, use as-is (directory path)
+    if key.contains('/') || key.contains('\\') {
         return Ok(key.to_string());
     }
-    let matches: Vec<&String> = lists.iter().filter(|l| l.contains(key)).collect();
-    if matches.len() == 1 {
-        return Ok(matches[0].clone());
+    
+    // Otherwise try fuzzy matching
+    let entries = storage::list_lists_with_info()?;
+    
+    // First try exact filename match
+    for entry in &entries {
+        if entry.name == key {
+            return Ok(entry.relative_path.clone());
+        }
     }
-    Ok(key.to_string())
+    
+    // Then try fuzzy match by filename
+    let matches: Vec<&storage::FileEntry> = entries
+        .iter()
+        .filter(|entry| entry.name.contains(key))
+        .collect();
+    
+    match matches.len() {
+        0 => Ok(key.to_string()), // Allow new list creation
+        1 => Ok(matches[0].relative_path.clone()),
+        _ => {
+            let match_names: Vec<String> = matches.iter().map(|e| e.relative_path.clone()).collect();
+            bail!("Multiple lists match '{}': {:?}", key, match_names);
+        }
+    }
 }
 /// Normalize a note identifier: strip .md and fuzzy-match existing, or allow new
 fn normalize_note(input: &str) -> Result<String> {
@@ -182,15 +203,35 @@ fn normalize_note(input: &str) -> Result<String> {
 /// Resolve a note identifier: strip .md and fuzzy-match to exactly one or error
 fn resolve_note(input: &str) -> Result<String> {
     let key = input.trim_end_matches(".md");
-    let notes = storage::list_notes()?;
-    if notes.contains(&key.to_string()) {
+    
+    // If it contains path separators, use as-is (directory path)
+    if key.contains('/') || key.contains('\\') {
         return Ok(key.to_string());
     }
-    let matches: Vec<&String> = notes.iter().filter(|n| n.contains(key)).collect();
+    
+    // Otherwise try fuzzy matching
+    let entries = storage::list_notes_with_info()?;
+    
+    // First try exact filename match
+    for entry in &entries {
+        if entry.name == key {
+            return Ok(entry.relative_path.clone());
+        }
+    }
+    
+    // Then try fuzzy match by filename
+    let matches: Vec<&storage::FileEntry> = entries
+        .iter()
+        .filter(|entry| entry.name.contains(key))
+        .collect();
+    
     match matches.len() {
-        1 => Ok(matches[0].clone()),
         0 => bail!("No note matching '{}' found", input),
-        _ => bail!("Multiple notes match '{}': {:?}", input, matches),
+        1 => Ok(matches[0].relative_path.clone()),
+        _ => {
+            let match_names: Vec<String> = matches.iter().map(|e| e.relative_path.clone()).collect();
+            bail!("Multiple notes match '{}': {:?}", input, match_names);
+        }
     }
 }
 

@@ -8,7 +8,7 @@ use axum::{
 };
 use base64::{engine::general_purpose, Engine as _};
 use clap::Parser;
-use config::{EmailSettings, ServerSettings, Settings};
+use config::Settings;
 use image::Luma;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use lettre::transport::smtp::authentication::Credentials;
@@ -80,8 +80,8 @@ async fn main() {
             ),
     );
     let addr = SocketAddr::new(
-        settings.server.host.parse::<IpAddr>().unwrap(),
-        settings.server.port,
+        settings.lst_server.host.parse::<IpAddr>().unwrap(),
+        settings.lst_server.port,
     );
     println!("lst-server listening on http://{}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();

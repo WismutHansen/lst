@@ -120,7 +120,7 @@ pub fn get_media_dir() -> Result<PathBuf> {
     Ok(media_dir)
 }
 
-/// List all files in a directory with a specific extension
+/// List all files in a directory with a specific extension (non-recursive)
 pub fn list_files(dir: &Path, extension: &str) -> Result<Vec<PathBuf>> {
     let entries = fs::read_dir(dir)
         .with_context(|| format!("Failed to read directory: {}", dir.display()))?;
@@ -140,32 +140,136 @@ pub fn list_files(dir: &Path, extension: &str) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-/// List all available lists
+/// Recursively list all files in a directory tree with a specific extension
+pub fn list_files_recursive(dir: &Path, extension: &str) -> Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    list_files_recursive_impl(dir, extension, &mut files)?;
+    Ok(files)
+}
+
+fn list_files_recursive_impl(dir: &Path, extension: &str, files: &mut Vec<PathBuf>) -> Result<()> {
+    let entries = fs::read_dir(dir)
+        .with_context(|| format!("Failed to read directory: {}", dir.display()))?;
+
+    for entry in entries {
+        let entry = entry?;
+        let path = entry.path();
+        
+        if path.is_file() && path.extension().map_or(false, |ext| ext == extension) {
+            files.push(path);
+        } else if path.is_dir() {
+            // Skip hidden directories (starting with .)
+            if let Some(dir_name) = path.file_name() {
+                if !dir_name.to_string_lossy().starts_with('.') {
+                    list_files_recursive_impl(&path, extension, files)?;
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Represents a file with its filename and relative path from the base directory
+#[derive(Debug, Clone)]
+pub struct FileEntry {
+    pub name: String,      // filename without extension (e.g., "pharmacy")
+    pub relative_path: String,  // relative path from base dir (e.g., "groceries/pharmacy")
+    pub full_path: PathBuf,     // full filesystem path
+}
+
+/// List all available lists with directory structure support
 pub fn list_lists() -> Result<Vec<String>> {
     let lists_dir = get_lists_dir()?;
-    let files = list_files(&lists_dir, "md")?;
+    let files = list_files_recursive(&lists_dir, "md")?;
 
     let lists = files
         .iter()
         .filter_map(|path| {
-            path.file_stem()
-                .map(|stem| stem.to_string_lossy().to_string())
+            // Get relative path from lists directory
+            if let Ok(relative) = path.strip_prefix(&lists_dir) {
+                // Remove .md extension and convert to string
+                let path_without_ext = relative.with_extension("");
+                return Some(path_without_ext.to_string_lossy().to_string());
+            }
+            None
         })
         .collect();
 
     Ok(lists)
 }
 
-/// List all available notes
+/// List all available lists with full file information
+pub fn list_lists_with_info() -> Result<Vec<FileEntry>> {
+    let lists_dir = get_lists_dir()?;
+    let files = list_files_recursive(&lists_dir, "md")?;
+
+    let lists = files
+        .iter()
+        .filter_map(|path| {
+            // Get relative path from lists directory
+            if let Ok(relative) = path.strip_prefix(&lists_dir) {
+                // Get filename without extension
+                let name = relative.file_stem()?.to_string_lossy().to_string();
+                // Get relative path without extension
+                let relative_path = relative.with_extension("").to_string_lossy().to_string();
+                
+                return Some(FileEntry {
+                    name,
+                    relative_path,
+                    full_path: path.clone(),
+                });
+            }
+            None
+        })
+        .collect();
+
+    Ok(lists)
+}
+
+/// List all available notes with directory structure support
 pub fn list_notes() -> Result<Vec<String>> {
     let notes_dir = get_notes_dir()?;
-    let files = list_files(&notes_dir, "md")?;
+    let files = list_files_recursive(&notes_dir, "md")?;
 
     let notes = files
         .iter()
         .filter_map(|path| {
-            path.file_stem()
-                .map(|stem| stem.to_string_lossy().to_string())
+            // Get relative path from notes directory
+            if let Ok(relative) = path.strip_prefix(&notes_dir) {
+                // Remove .md extension and convert to string
+                let path_without_ext = relative.with_extension("");
+                return Some(path_without_ext.to_string_lossy().to_string());
+            }
+            None
+        })
+        .collect();
+
+    Ok(notes)
+}
+
+/// List all available notes with full file information
+pub fn list_notes_with_info() -> Result<Vec<FileEntry>> {
+    let notes_dir = get_notes_dir()?;
+    let files = list_files_recursive(&notes_dir, "md")?;
+
+    let notes = files
+        .iter()
+        .filter_map(|path| {
+            // Get relative path from notes directory
+            if let Ok(relative) = path.strip_prefix(&notes_dir) {
+                // Get filename without extension
+                let name = relative.file_stem()?.to_string_lossy().to_string();
+                // Get relative path without extension
+                let relative_path = relative.with_extension("").to_string_lossy().to_string();
+                
+                return Some(FileEntry {
+                    name,
+                    relative_path,
+                    full_path: path.clone(),
+                });
+            }
+            None
         })
         .collect();
 
