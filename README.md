@@ -1,4 +1,4 @@
-![lst Banner](Logo/Banner_black.png)
+![lst Banner](Banner_black.png)
 
 # lst - Personal Lists & Notes App
 
