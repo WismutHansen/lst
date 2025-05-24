@@ -4,6 +4,11 @@ version = "0.1.0"
 description = "Shared types and protocol definitions for lst"
 authors = ["Tommy Falkowski"]
 edition = "2021"
+repository = "https://github.com/WismutHansen/lst"
+homepage = "https://github.com/WismutHansen/lst"
+
+[package.metadata.dist]
+dist = true
 
 [dependencies]
 serde = { workspace = true }

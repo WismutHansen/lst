@@ -4,6 +4,10 @@ version = "0.1.0"
 description = "Personal lists & notes app server"
 authors = ["Tommy Falkowski"]
 edition = "2021"
+homepage = "https://github.com/WismutHansen/lst"
+
+[package.metadata.dist]
+dist = false
 
 [[bin]]
 name = "lst-server"
