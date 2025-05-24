@@ -4,6 +4,10 @@ version = "0.1.0"
 description = "Background sync daemon for lst - handles encrypted CRDT sync with remote servers"
 authors = ["Tommy Falkowski"]
 edition = "2021"
+homepage = "https://github.com/WismutHansen/lst"
+
+[package.metadata.dist]
+dist = false
 
 [[bin]]
 name = "lst-syncd"

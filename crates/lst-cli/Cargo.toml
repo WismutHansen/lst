@@ -4,6 +4,17 @@ version = "0.1.0"
 description = "Personal lists & notes app CLI"
 authors = ["Tommy Falkowski"]
 edition = "2021"
+repository = "https://github.com/WismutHansen/lst.git"
+homepage = "https://github.com/WismutHansen/lst"
+
+[package.metadata.dist]
+dist = true
+
+[package.metadata.wix]
+upgrade-guid = "9716A42E-9AB4-42EA-A66D-692ACFB16DAE"
+path-guid = "36C7B5DE-4572-4FFD-847E-6E96F65C0524"
+license = false
+eula = false
 
 [lib]
 name = "lst_cli"
