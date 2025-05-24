@@ -35,7 +35,7 @@ pub fn list_lists(json: bool) -> Result<()> {
 /// Handle daily list commands: create/display/add/done/undone for YYYYMMDD_daily_list
 pub fn daily_list(cmd: Option<&DlCmd>, json: bool) -> Result<()> {
     let date = Local::now().format("%Y%m%d").to_string();
-    let list_name = format!("{}_daily_list", date);
+    let list_name = format!("daily_lists/{}_daily_list", date);
     // No subcommand: ensure exists then display
     match cmd {
         Some(DlCmd::Add { item }) => {
@@ -46,6 +46,12 @@ pub fn daily_list(cmd: Option<&DlCmd>, json: bool) -> Result<()> {
         }
         Some(DlCmd::Undone { item }) => {
             mark_undone(&list_name, item, json)?;
+        }
+        Some(DlCmd::List) => {
+            list_daily_lists(json)?;
+        }
+        Some(DlCmd::Remove { item }) => {
+            remove_item(&list_name, item, json)?;
         }
         None => {
             // create if missing
@@ -61,12 +67,21 @@ pub fn daily_list(cmd: Option<&DlCmd>, json: bool) -> Result<()> {
 pub fn daily_note(_json: bool) -> Result<()> {
     let date = Local::now().format("%Y%m%d").to_string();
     let notes_dir = storage::get_notes_dir()?;
-    let filename = format!("{}_daily_note.md", date);
+    let filename = format!("daily_notes/{}_daily_note.md", date);
     let path = notes_dir.join(&filename);
+    
     // create if missing
     if !path.exists() {
+        // Create parent directory if it doesn't exist
+        if let Some(parent) = path.parent() {
+            if !parent.exists() {
+                std::fs::create_dir_all(parent)
+                    .context(format!("Failed to create directory: {}", parent.display()))?;
+            }
+        }
+        
         let now = Utc::now().to_rfc3339();
-        let title = filename.trim_end_matches(".md");
+        let title = format!("{}_daily_note", date);
         let content = format!("---\ntitle: \"{}\"\ncreated: {}\n---\n\n", title, now);
         std::fs::write(&path, content)
             .context(format!("Failed to create daily note: {}", path.display()))?;
@@ -615,4 +630,40 @@ fn find_syncd_binary() -> Result<String> {
     }
     
     bail!("lst-syncd binary not found. Make sure it's installed and in your PATH.");
+}
+
+/// List all daily lists
+pub fn list_daily_lists(json: bool) -> Result<()> {
+    let entries = storage::list_lists_with_info()?;
+    
+    // Filter for daily lists (in daily_lists directory)
+    let daily_lists: Vec<&storage::FileEntry> = entries
+        .iter()
+        .filter(|entry| entry.relative_path.starts_with("daily_lists/") && entry.name.ends_with("_daily_list"))
+        .collect();
+    
+    if json {
+        let list_names: Vec<String> = daily_lists.iter().map(|e| e.relative_path.clone()).collect();
+        println!("{}", serde_json::to_string(&list_names)?);
+        return Ok(());
+    }
+    
+    if daily_lists.is_empty() {
+        println!("No daily lists found. Create one with 'lst dl add <text>'");
+        return Ok(());
+    }
+    
+    println!("Daily lists:");
+    for entry in daily_lists {
+        // Extract date from filename for display
+        let date_part = entry.name.trim_end_matches("_daily_list");
+        if let Ok(parsed_date) = chrono::NaiveDate::parse_from_str(date_part, "%Y%m%d") {
+            let formatted_date = parsed_date.format("%Y-%m-%d (%A)").to_string();
+            println!("  {} ({})", formatted_date, entry.relative_path);
+        } else {
+            println!("  {}", entry.relative_path);
+        }
+    }
+    
+    Ok(())
 }

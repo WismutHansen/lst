@@ -21,6 +21,8 @@ cargo install --path .
 - Work offline, sync when connected
 - Fuzzy matching for item targeting
 - Supports multiple document types: lists, notes, and blog posts
+- **Directory structure support**: Organize files in nested directories while maintaining fuzzy search by filename
+- **Daily workflows**: Automatic organization of daily lists and notes in dedicated subdirectories
 
 ## Usage
 
@@ -41,8 +43,15 @@ lst done <list_name> "<item_text>"  # Text match
 lst done <list_name> "<partial_text>"  # Fuzzy match
 lst done <list_name> "#2"  # By index (the second item)
 
+# Remove an item from a list
+lst rm <list_name> "<item_text>"
+
 # Read items from stdin
 cat items.txt | lst pipe <list_name>
+
+# Directory structure support
+lst add groceries/pharmacy "Vitamins"     # Creates groceries/pharmacy.md automatically
+lst add pharmacy "Bandages"               # Fuzzy matches to groceries/pharmacy.md
 ```
 
 ### Notes
@@ -56,7 +65,36 @@ lst note add "<title>" "<text>"
 
 # Open a note in your editor
 lst note open "<title>"
+
+# Remove a note
+lst note rm "<title>"
+
+# List all notes
+lst note ls
+
+# Directory structure support for notes
+lst note new "projects/rust/lst"         # Creates projects/rust/lst.md automatically
+lst note open "lst"                      # Fuzzy matches to projects/rust/lst.md
 ```
+
+### Daily Commands
+
+`lst` provides special commands for daily workflows that automatically organize files by date:
+
+```bash
+# Daily Lists (stored in daily_lists/ subdirectory)
+lst dl                           # Show today's daily list
+lst dl add "<task>"              # Add task to today's daily list
+lst dl done "<task>"             # Mark task as done
+lst dl undone "<task>"           # Mark task as undone
+lst dl rm "<task>"               # Remove task from today's daily list
+lst dl ls                        # List all daily lists with dates
+
+# Daily Notes (stored in daily_notes/ subdirectory)
+lst dn                           # Open today's daily note in editor
+```
+
+Daily files are automatically named with the current date (e.g., `daily_lists/20250524_daily_list.md`, `daily_notes/20250524_daily_note.md`) and organized in their respective subdirectories.
   
 ### Posts (Coming Soon)
 ```bash
@@ -182,10 +220,19 @@ All data is stored as Markdown files in the content directory (which can be conf
 
 ```
 content/
-├─ lists/                    # per-line anchors
-│   └─ groceries.md
-├─ notes/                    # whole-file merge
-│   └─ bicycle-ideas.md
+├─ lists/                    # per-line anchors, supports nested directories
+│   ├─ groceries.md
+│   ├─ groceries/
+│   │   └─ pharmacy.md
+│   └─ daily_lists/         # automatically organized daily lists
+│       └─ 20250524_daily_list.md
+├─ notes/                    # whole-file merge, supports nested directories
+│   ├─ bicycle-ideas.md
+│   ├─ projects/
+│   │   └─ rust/
+│   │       └─ lst.md
+│   └─ daily_notes/         # automatically organized daily notes
+│       └─ 20250524_daily_note.md
 ├─ posts/                    # blog, Zola-compatible
 │   └─ 2025-04-22-first-ride.md
 └─ media/                    # images & binary files

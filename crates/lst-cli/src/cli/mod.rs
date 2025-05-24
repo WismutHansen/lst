@@ -196,6 +196,17 @@ pub enum DlCmd {
         /// Target item to mark as not done (anchor, text, or index; comma-separated for multiple items)
         item: String,
     },
+
+    /// List all daily lists
+    #[clap(name = "ls")]
+    List,
+
+    /// Remove an item from today's daily list
+    #[clap(name = "rm")]
+    Remove {
+        /// Target item to remove (anchor, text, or index; comma-separated for multiple items)
+        item: String,
+    },
 }
 
 /// Subcommands for sync daemon management
