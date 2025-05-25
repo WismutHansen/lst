@@ -1,6 +1,6 @@
 [package]
 name = "lst-server"
-version = "0.1.0"
+version = "--workspace"
 description = "Personal lists & notes app server"
 authors = ["Tommy Falkowski"]
 edition = "2021"
@@ -42,7 +42,7 @@ lettre = { workspace = true }
 dirs = { workspace = true }
 
 # Internal dependencies
-lst-proto = { path = "../lst-proto" }
+lst-proto = { path = "../lst-proto" , version = "--workspace" }
 
 [dev-dependencies]
 reqwest = { workspace = true }

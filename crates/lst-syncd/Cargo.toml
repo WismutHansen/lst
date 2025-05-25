@@ -1,6 +1,6 @@
 [package]
 name = "lst-syncd"
-version = "0.1.0"
+version = "--workspace"
 description = "Background sync daemon for lst - handles encrypted CRDT sync with remote servers"
 authors = ["Tommy Falkowski"]
 edition = "2021"
@@ -42,5 +42,5 @@ reqwest = { workspace = true }
 # ring = "0.17"
 
 # Internal dependencies
-lst-proto = { path = "../lst-proto" }
-lst-cli = { path = "../lst-cli" }
+lst-proto = { path = "../lst-proto" , version = "--workspace" }
+lst-cli = { path = "../lst-cli" , version = "--workspace" }
