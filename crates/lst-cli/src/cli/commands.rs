@@ -4,12 +4,12 @@ use serde_json;
 use std::io::{self, BufRead};
 
 use crate::cli::{DlCmd, SyncCommands};
+use crate::config::{get_config, Config};
 use crate::storage;
 use crate::{models::ItemStatus, storage::notes::delete_note};
 use chrono::{Local, Utc};
 use std::path::Path;
 use std::process::{Command, Stdio};
-use crate::config::{Config, get_config};
 
 /// Handle the 'ls' command to list all lists
 pub fn list_lists(json: bool) -> Result<()> {
@@ -48,7 +48,7 @@ pub fn daily_list(cmd: Option<&DlCmd>, json: bool) -> Result<()> {
             mark_undone(&list_name, item, json)?;
         }
         Some(DlCmd::List) => {
-            list_daily_lists(json)?;
+            display_daily_list(json)?;
         }
         Some(DlCmd::Remove { item }) => {
             remove_item(&list_name, item, json)?;
@@ -69,7 +69,7 @@ pub fn daily_note(_json: bool) -> Result<()> {
     let notes_dir = storage::get_notes_dir()?;
     let filename = format!("daily_notes/{}_daily_note.md", date);
     let path = notes_dir.join(&filename);
-    
+
     // create if missing
     if !path.exists() {
         // Create parent directory if it doesn't exist
@@ -79,7 +79,7 @@ pub fn daily_note(_json: bool) -> Result<()> {
                     .context(format!("Failed to create directory: {}", parent.display()))?;
             }
         }
-        
+
         let now = Utc::now().to_rfc3339();
         let title = format!("{}_daily_note", date);
         let content = format!("---\ntitle: \"{}\"\ncreated: {}\n---\n\n", title, now);
@@ -170,33 +170,34 @@ fn open_editor(path: &Path) -> Result<()> {
 /// Normalize a list identifier: strip .md and fuzzy-match existing, or allow new
 fn normalize_list(input: &str) -> Result<String> {
     let key = input.trim_end_matches(".md");
-    
+
     // If it contains path separators, use as-is (directory path)
     if key.contains('/') || key.contains('\\') {
         return Ok(key.to_string());
     }
-    
+
     // Otherwise try fuzzy matching
     let entries = storage::list_lists_with_info()?;
-    
+
     // First try exact filename match
     for entry in &entries {
         if entry.name == key {
             return Ok(entry.relative_path.clone());
         }
     }
-    
+
     // Then try fuzzy match by filename
     let matches: Vec<&storage::FileEntry> = entries
         .iter()
         .filter(|entry| entry.name.contains(key))
         .collect();
-    
+
     match matches.len() {
         0 => Ok(key.to_string()), // Allow new list creation
         1 => Ok(matches[0].relative_path.clone()),
         _ => {
-            let match_names: Vec<String> = matches.iter().map(|e| e.relative_path.clone()).collect();
+            let match_names: Vec<String> =
+                matches.iter().map(|e| e.relative_path.clone()).collect();
             bail!("Multiple lists match '{}': {:?}", key, match_names);
         }
     }
@@ -218,38 +219,83 @@ fn normalize_note(input: &str) -> Result<String> {
 /// Resolve a note identifier: strip .md and fuzzy-match to exactly one or error
 fn resolve_note(input: &str) -> Result<String> {
     let key = input.trim_end_matches(".md");
-    
+
     // If it contains path separators, use as-is (directory path)
     if key.contains('/') || key.contains('\\') {
         return Ok(key.to_string());
     }
-    
+
     // Otherwise try fuzzy matching
     let entries = storage::list_notes_with_info()?;
-    
+
     // First try exact filename match
     for entry in &entries {
         if entry.name == key {
             return Ok(entry.relative_path.clone());
         }
     }
-    
+
     // Then try fuzzy match by filename
     let matches: Vec<&storage::FileEntry> = entries
         .iter()
         .filter(|entry| entry.name.contains(key))
         .collect();
-    
+
     match matches.len() {
         0 => bail!("No note matching '{}' found", input),
         1 => Ok(matches[0].relative_path.clone()),
         _ => {
-            let match_names: Vec<String> = matches.iter().map(|e| e.relative_path.clone()).collect();
+            let match_names: Vec<String> =
+                matches.iter().map(|e| e.relative_path.clone()).collect();
             bail!("Multiple notes match '{}': {:?}", input, match_names);
         }
     }
 }
 
+/// Resolve a note identifier: strip .md and fuzzy-match to exactly one or error
+fn resolve_list(input: &str) -> Result<String> {
+    let key = input.trim_end_matches(".md");
+
+    // If it contains path separators, use as-is (directory path)
+    if key.contains('/') || key.contains('\\') {
+        return Ok(key.to_string());
+    }
+
+    // Otherwise try fuzzy matching
+    let entries = storage::list_lists_with_info()?;
+
+    // First try exact filename match
+    for entry in &entries {
+        if entry.name == key {
+            return Ok(entry.relative_path.clone());
+        }
+    }
+
+    // Then try fuzzy match by filename
+    let matches: Vec<&storage::FileEntry> = entries
+        .iter()
+        .filter(|entry| entry.name.contains(key))
+        .collect();
+
+    match matches.len() {
+        0 => bail!("No list matching '{}' found", input),
+        1 => Ok(matches[0].relative_path.clone()),
+        _ => {
+            let match_names: Vec<String> =
+                matches.iter().map(|e| e.relative_path.clone()).collect();
+            bail!("Multiple lists match '{}': {:?}", input, match_names);
+        }
+    }
+}
+/// Handle the 'open' command to open a list
+pub fn open_list(list: &str) -> Result<()> {
+    // Resolve list name (omit .md, fuzzy match)
+    let key = list.trim_end_matches(".md");
+    let note = resolve_list(key)?;
+    let path = storage::notes::load_note(&note).context("Failed to load list")?;
+
+    open_editor(&path)
+}
 /// Handle the 'add' command to add an item to a list
 pub fn add_item(list: &str, text: &str, json: bool) -> Result<()> {
     // Try to load the list, create it if it doesn't exist
@@ -301,7 +347,11 @@ pub fn mark_done(list: &str, target: &str, json: bool) -> Result<()> {
     if items.len() == 1 {
         println!("Marked done in {}: {}", list_name.cyan(), items[0].text);
     } else {
-        println!("Marked {} items as done in {}:", items.len(), list_name.cyan());
+        println!(
+            "Marked {} items as done in {}:",
+            items.len(),
+            list_name.cyan()
+        );
         for item in &items {
             println!("  {}", item.text);
         }
@@ -323,7 +373,11 @@ pub fn mark_undone(list: &str, target: &str, json: bool) -> Result<()> {
     if items.len() == 1 {
         println!("Marked undone in {}: {}", list_name.cyan(), items[0].text);
     } else {
-        println!("Marked {} items as undone in {}:", items.len(), list_name.cyan());
+        println!(
+            "Marked {} items as undone in {}:",
+            items.len(),
+            list_name.cyan()
+        );
         for item in &items {
             println!("  {}", item.text);
         }
@@ -334,7 +388,7 @@ pub fn mark_undone(list: &str, target: &str, json: bool) -> Result<()> {
 /// Handle the 'rm' command to remove an item from a list
 pub fn remove_item(list: &str, target: &str, json: bool) -> Result<()> {
     let list_name = normalize_list(list)?;
-    
+
     // Use the storage layer implementation
     let removed = storage::markdown::delete_item(&list_name, target)
         .with_context(|| format!("Failed to delete '{}' from {}", target, list_name))?;
@@ -343,7 +397,7 @@ pub fn remove_item(list: &str, target: &str, json: bool) -> Result<()> {
         println!("{}", serde_json::to_string(&removed)?);
         return Ok(());
     }
-    
+
     if removed.len() == 1 {
         println!("Deleted from {}: {}", list_name.cyan(), removed[0].text);
     } else {
@@ -407,7 +461,7 @@ pub fn display_list(list: &str, json: bool) -> Result<()> {
             ItemStatus::Todo => "[ ]".into(),
             ItemStatus::Done => "[x]".green(),
         };
-        
+
         let text = match item.status {
             ItemStatus::Todo => item.text.normal(),
             ItemStatus::Done => item.text.strikethrough(),
@@ -438,11 +492,11 @@ pub fn handle_sync_command(cmd: SyncCommands, json: bool) -> Result<()> {
 
 /// Setup sync configuration (first login flow)
 pub fn sync_setup(server: Option<String>, token: Option<String>, json: bool) -> Result<()> {
-    use dialoguer::{Input, Confirm};
-    
+    use dialoguer::{Confirm, Input};
+
     let mut config = Config::load()?;
     config.init_syncd()?;
-    
+
     let server_url = if let Some(url) = server {
         url
     } else {
@@ -451,7 +505,7 @@ pub fn sync_setup(server: Option<String>, token: Option<String>, json: bool) -> 
             .allow_empty(true)
             .interact()?
     };
-    
+
     let auth_token = if server_url.is_empty() {
         None
     } else if let Some(token) = token {
@@ -460,19 +514,30 @@ pub fn sync_setup(server: Option<String>, token: Option<String>, json: bool) -> 
         let token: String = Input::new()
             .with_prompt("Enter authentication token")
             .interact()?;
-        if token.is_empty() { None } else { Some(token) }
+        if token.is_empty() {
+            None
+        } else {
+            Some(token)
+        }
     };
-    
+
     if let Some(ref mut syncd) = config.syncd {
-        syncd.url = if server_url.is_empty() { None } else { Some(server_url.clone()) };
+        syncd.url = if server_url.is_empty() {
+            None
+        } else {
+            Some(server_url.clone())
+        };
         syncd.auth_token = auth_token.clone();
     }
-    
+
     config.save()?;
-    
+
     if json {
-        println!("{{\"status\": \"configured\", \"server\": {:?}, \"has_token\": {}}}", 
-            server_url, auth_token.is_some());
+        println!(
+            "{{\"status\": \"configured\", \"server\": {:?}, \"has_token\": {}}}",
+            server_url,
+            auth_token.is_some()
+        );
     } else {
         if server_url.is_empty() {
             println!("Configured for local-only mode");
@@ -482,16 +547,16 @@ pub fn sync_setup(server: Option<String>, token: Option<String>, json: bool) -> 
                 println!("Authentication token set");
             }
         }
-        
+
         if Confirm::new()
             .with_prompt("Start sync daemon now?")
             .default(true)
-            .interact()? 
+            .interact()?
         {
             sync_start(false, json)?;
         }
     }
-    
+
     Ok(())
 }
 
@@ -499,13 +564,13 @@ pub fn sync_setup(server: Option<String>, token: Option<String>, json: bool) -> 
 pub fn sync_start(foreground: bool, json: bool) -> Result<()> {
     // Check if syncd binary exists
     let syncd_path = find_syncd_binary()?;
-    
+
     let mut cmd = Command::new(&syncd_path);
     if foreground {
         cmd.arg("--foreground");
     }
     cmd.arg("--verbose");
-    
+
     if foreground {
         // Run in foreground
         let status = cmd.status()?;
@@ -515,29 +580,27 @@ pub fn sync_start(foreground: bool, json: bool) -> Result<()> {
     } else {
         // Start daemon in background
         cmd.stdout(Stdio::null())
-           .stderr(Stdio::null())
-           .stdin(Stdio::null());
-        
+            .stderr(Stdio::null())
+            .stdin(Stdio::null());
+
         let child = cmd.spawn()?;
         let pid = child.id();
-        
+
         if json {
             println!("{{\"status\": \"started\", \"pid\": {}}}", pid);
         } else {
             println!("Sync daemon started (PID: {})", pid);
         }
     }
-    
+
     Ok(())
 }
 
 /// Stop sync daemon
 pub fn sync_stop(json: bool) -> Result<()> {
     // Find running lst-syncd process and stop it
-    let output = Command::new("pkill")
-        .args(&["-f", "lst-syncd"])
-        .output()?;
-    
+    let output = Command::new("pkill").args(&["-f", "lst-syncd"]).output()?;
+
     if json {
         println!("{{\"status\": \"stopped\"}}");
     } else {
@@ -547,63 +610,90 @@ pub fn sync_stop(json: bool) -> Result<()> {
             println!("No sync daemon found running");
         }
     }
-    
+
     Ok(())
 }
 
 /// Show sync daemon status
 pub fn sync_status(json: bool) -> Result<()> {
     let config = get_config();
-    
+
     // Check if syncd is configured
     let configured = config.syncd.is_some();
     let server_url = config.syncd.as_ref().and_then(|s| s.url.as_ref());
-    let has_token = config.syncd.as_ref().and_then(|s| s.auth_token.as_ref()).is_some();
-    
+    let has_token = config
+        .syncd
+        .as_ref()
+        .and_then(|s| s.auth_token.as_ref())
+        .is_some();
+
     // Check if daemon is running
     let running = Command::new("pgrep")
         .args(&["-f", "lst-syncd"])
         .output()
         .map(|output| output.status.success())
         .unwrap_or(false);
-    
+
     if json {
-        println!("{{\"configured\": {}, \"running\": {}, \"server\": {:?}, \"has_token\": {}}}", 
-            configured, running, server_url, has_token);
+        println!(
+            "{{\"configured\": {}, \"running\": {}, \"server\": {:?}, \"has_token\": {}}}",
+            configured, running, server_url, has_token
+        );
     } else {
         println!("Sync Configuration:");
-        println!("  Configured: {}", if configured { "Yes".green() } else { "No".red() });
-        
+        println!(
+            "  Configured: {}",
+            if configured {
+                "Yes".green()
+            } else {
+                "No".red()
+            }
+        );
+
         if let Some(url) = server_url {
             println!("  Server: {}", url.cyan());
         } else {
             println!("  Mode: {}", "Local-only".yellow());
         }
-        
-        println!("  Auth token: {}", if has_token { "Set".green() } else { "Not set".red() });
-        println!("  Daemon: {}", if running { "Running".green() } else { "Stopped".red() });
-        
+
+        println!(
+            "  Auth token: {}",
+            if has_token {
+                "Set".green()
+            } else {
+                "Not set".red()
+            }
+        );
+        println!(
+            "  Daemon: {}",
+            if running {
+                "Running".green()
+            } else {
+                "Stopped".red()
+            }
+        );
+
         if !configured {
             println!("\nRun 'lst sync setup' to configure sync settings");
         } else if !running {
             println!("\nRun 'lst sync start' to start the sync daemon");
         }
     }
-    
+
     Ok(())
 }
 
 /// Show sync daemon logs
 pub fn sync_logs(follow: bool, lines: usize, _json: bool) -> Result<()> {
     println!("Sync daemon logs (last {} lines):", lines);
-    
+
     // For now, just indicate that logging isn't implemented yet
     println!("Log viewing not implemented yet - check system logs for lst-syncd");
-    
+
     if follow {
         println!("Use 'lst sync start --foreground' to see live output");
     }
-    
+
     Ok(())
 }
 
@@ -611,8 +701,8 @@ pub fn sync_logs(follow: bool, lines: usize, _json: bool) -> Result<()> {
 fn find_syncd_binary() -> Result<String> {
     // Try common locations for lst-syncd
     let possible_paths = [
-        "lst-syncd", // In PATH
-        "./target/debug/lst-syncd", // Local debug build
+        "lst-syncd",                  // In PATH
+        "./target/debug/lst-syncd",   // Local debug build
         "./target/release/lst-syncd", // Local release build
         &std::env::current_exe()
             .ok()
@@ -620,39 +710,52 @@ fn find_syncd_binary() -> Result<String> {
             .and_then(|p| p.to_str().map(String::from))
             .unwrap_or_default(),
     ];
-    
+
     for path in possible_paths.iter() {
-        if path.is_empty() { continue; }
-        
+        if path.is_empty() {
+            continue;
+        }
+
         if Command::new(path).arg("--help").output().is_ok() {
             return Ok(path.to_string());
         }
     }
-    
+
     bail!("lst-syncd binary not found. Make sure it's installed and in your PATH.");
 }
 
 /// List all daily lists
+pub fn display_daily_list(json: bool) -> Result<()> {
+    let date = Local::now().format("%Y%m%d").to_string();
+    let list_name = format!("daily_lists/{}_daily_list", date);
+    display_list(&list_name, json)
+}
+
 pub fn list_daily_lists(json: bool) -> Result<()> {
     let entries = storage::list_lists_with_info()?;
-    
+
     // Filter for daily lists (in daily_lists directory)
     let daily_lists: Vec<&storage::FileEntry> = entries
         .iter()
-        .filter(|entry| entry.relative_path.starts_with("daily_lists/") && entry.name.ends_with("_daily_list"))
+        .filter(|entry| {
+            entry.relative_path.starts_with("daily_lists/") && entry.name.ends_with("_daily_list")
+        })
         .collect();
-    
+
     if json {
-        let list_names: Vec<String> = daily_lists.iter().map(|e| e.relative_path.clone()).collect();
+        let list_names: Vec<String> = daily_lists
+            .iter()
+            .map(|e| e.relative_path.clone())
+            .collect();
         println!("{}", serde_json::to_string(&list_names)?);
         return Ok(());
     }
-    
+
     if daily_lists.is_empty() {
         println!("No daily lists found. Create one with 'lst dl add <text>'");
         return Ok(());
     }
-    
+
     println!("Daily lists:");
     for entry in daily_lists {
         // Extract date from filename for display
@@ -664,6 +767,6 @@ pub fn list_daily_lists(json: bool) -> Result<()> {
             println!("  {}", entry.relative_path);
         }
     }
-    
+
     Ok(())
 }

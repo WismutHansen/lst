@@ -32,6 +32,12 @@ pub enum Commands {
         text: String,
     },
 
+    /// Open a list in the editor
+    #[clap(name = "open")]
+    Open {
+        /// Name of the list
+        list: String,
+    },
     /// Mark an item as done
     #[clap(name = "done")]
     Done {
@@ -40,7 +46,7 @@ pub enum Commands {
         /// Target item to mark as done (anchor, text, or index; comma-separated for multiple items)
         target: String,
     },
-    
+
     /// Mark a completed item as not done
     #[clap(name = "undone")]
     Undone {
@@ -189,7 +195,7 @@ pub enum DlCmd {
         /// Target item to mark as done (anchor, text, or index; comma-separated for multiple items)
         item: String,
     },
-    
+
     /// Mark an item as not done in today's daily list
     #[clap(name = "undone")]
     Undone {
