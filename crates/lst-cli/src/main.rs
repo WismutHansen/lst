@@ -25,6 +25,9 @@ fn main() -> Result<()> {
         Commands::Add { list, text } => {
             cli::commands::add_item(list, text, cli.json)?;
         }
+        Commands::Open { list } => {
+            cli::commands::open_list(list)?;
+        }
         Commands::Done { list, target } => {
             cli::commands::mark_done(list, target, cli.json)?;
         }
