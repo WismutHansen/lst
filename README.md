@@ -19,7 +19,7 @@ cargo install --path .
 ## Features
 
 - Manage to-do lists from the command line
-- Store everything as plain Markdown files
+- Stores data locally as plain Markdown files (CLI); `lst-server` uses SQLite databases for centralized data management via its API.
 - Work offline, sync when connected
 - Fuzzy matching for item targeting
 - Supports multiple document types: lists, notes, and blog posts
@@ -152,30 +152,43 @@ max_suggestions = 7
 
 ```toml
 [paths]
-# Base directory for all content (lists, notes, posts, media)
-# Default: current working directory
+# Base directory for all content (lists, notes, posts, media) when used by the CLI directly.
+# For `lst-server`, this directory (or the directory containing lst.toml if content_dir is not set,
+# which then determines the location of a 'lst_server_data' subdirectory)
+# is where SQLite database files (e.g., tokens.db, content.db) are stored.
 content_dir = "~/Documents/lst"
 
 # Override the media directory location (relative to content_dir)
 # Default: "$content_dir/media"
+# Note: Media handling via server API is not yet specified.
 media_dir = "~/Documents/lst/media"
 ```
 
 #### Server-Only Configuration
 
+The `lst-server` uses specific sections from `lst.toml`:
+
 ```toml
+# Settings for lst-server under its [server] block (host, port)
+# are already shown in "CLI & Server Configuration".
+
+# The [paths] block (see above) is crucial for lst-server:
+# `content_dir` (or the directory of lst.toml if content_dir is not set)
+# determines where the 'lst_server_data' subdirectory is created,
+# which in turn stores its SQLite database files (e.g., tokens.db, content.db).
+
 [email]
 # SMTP relay settings (optional - if missing, login links logged to stdout)
+# Used by lst-server to send login tokens.
 smtp_host = "smtp.example.com"
 smtp_user = "your-smtp-user"
-smtp_pass = "${SMTP_PASSWORD}"  # Environment variable
+smtp_pass = "${SMTP_PASSWORD}"  # Can be an environment variable like ${MY_SMTP_PASS}
 sender = "noreply@example.com"
 
-[content]
-# Content directory layout (server only)
-root = "~/Documents/lst"
-kinds = ["lists", "notes", "posts"]
-media_dir = "media"
+# The [content] block (with 'root', 'kinds', 'media_dir') previously used for
+# file system layout is no longer directly applicable to how lst-server serves
+# content via its API, as content is now stored in an SQLite database.
+# 'Kind' is now a dynamic part of the data schema within the database.
 ```
 
 #### Sync Daemon-Only Configuration
@@ -199,7 +212,9 @@ An example unified configuration file is provided in the `examples/lst.toml` fil
 
 ## Storage Format
 
-All data is stored as Markdown files in the content directory (which can be configured in `lst.toml`):
+**CLI and Local Usage:**
+
+When using the `lst` CLI directly for local operations, data is stored as Markdown files in the content directory (which can be configured in `lst.toml` using `paths.content_dir`):
 
 ```
 content/
@@ -277,79 +292,75 @@ The `lst` project follows a layered architecture with clear separation of concer
    - Provides utility functions for finding content directories
 
 5. **Server Layer** (`server/`)
-   - Implements a REST API for accessing the data
-   - Separate executable from the CLI
+   - Implements a REST API for accessing the data.
+   - Uses SQLite databases (`tokens.db` for authentication tokens, `content.db` for user content) for persistence.
+   - These database files are typically stored in a subdirectory (e.g., `lst_server_data`) within the path derived from the server's configuration file location or the `paths.content_dir` setting in `lst.toml`.
+   - Separate executable from the CLI.
 
-## Server (`lst-server`)
+### Server API Overview
 
-The `lst-server` component provides an HTTP API for interacting with your `lst` data remotely. This enables synchronization across multiple clients and provides a backend for future GUI or mobile applications.
+The `lst-server` provides an HTTP API for managing authentication and content.
 
-### Authentication
+#### Authentication Flow
 
-The server uses a two-stage authentication process:
+1.  **Token Request**: `POST /api/auth/request`
+    -   Client sends: `{ "email": "user@example.com", "host": "client.host.name" }`
+    -   Server emails a one-time token to `user@example.com`. This token is stored temporarily in its `tokens.db` SQLite database.
+2.  **Token Verification & JWT**: `POST /api/auth/verify`
+    -   Client sends: `{ "email": "user@example.com", "token": "RECEIVED_TOKEN" }`
+    -   Server verifies the token against `tokens.db`. If valid, it's consumed, and a JWT is issued.
+3.  **Authenticated Requests**:
+    -   The received JWT is used in the `Authorization: Bearer <JWT>` header for all subsequent protected API calls.
 
-1.  **Initial Token Request**: A client requests a one-time login token by sending its email address to the `/api/auth/request` endpoint. The server emails a short-lived, human-readable token (and optionally provides a QR code containing a login URL).
-2.  **Token Verification & JWT**: The client sends the received token and its email to the `/api/auth/verify` endpoint. If valid, the server responds with a JSON Web Token (JWT).
+#### Content Management API
 
-This JWT must be included in the `Authorization` header for subsequent requests to protected API endpoints (e.g., `Authorization: Bearer <your_jwt>`). JWTs are typically long-lived (e.g., hours or days).
+Content (like notes or lists) is stored in the server's `content.db` SQLite database. Items are identified by a `kind` (e.g., "notes", "lists") and a `path` (e.g., "personal/todos.md"). These are logical identifiers within the database.
 
-For detailed API specifications, see [SPEC.md](SPEC.md).
+-   **Create**: `POST /api/content`
+    -   Payload: `{ "kind": "notes", "path": "travel/packing_list.md", "content": "- Passport\n- Tickets" }`
+    -   Response: `201 Created` or `409 Conflict` if `kind`/`path` already exists.
+-   **Read**: `GET /api/content/{kind}/{path}`
+    -   Example: `GET /api/content/notes/travel/packing_list.md`
+    -   Response: `200 OK` with content or `404 Not Found`.
+-   **Update**: `PUT /api/content/{kind}/{path}`
+    -   Payload: `{ "content": "- Passport (checked!)" }`
+    -   Response: `200 OK` or `404 Not Found`.
+-   **Delete**: `DELETE /api/content/{kind}/{path}`
+    -   Response: `200 OK` or `404 Not Found`.
 
-### Content Management API
+**Example `curl` Usage:**
 
-Once authenticated, clients can manage content (lists, notes, etc.) using the following RESTful endpoints. These endpoints operate on files stored in the `content_dir` specified in the server configuration, organized by `kind` and `path`.
-
--   **Create Content**: `POST /api/content`
-    -   Payload: `{ "kind": "your_kind", "path": "path/to/file.md", "content": "File content" }`
-    -   Creates or overwrites a file.
--   **Read Content**: `GET /api/content/{kind}/{path}`
-    -   Returns the raw content of the specified file.
--   **Update Content**: `PUT /api/content/{kind}/{path}`
-    -   Payload: `{ "content": "New file content" }`
-    -   Updates an existing file.
--   **Delete Content**: `DELETE /api/content/{kind}/{path}`
-    -   Deletes the specified file.
-
-All content endpoints require JWT authentication. For detailed request/response formats and more examples, please refer to [SPEC.md](SPEC.md).
-
-#### Example API Usage with `curl`
-
-1.  **Request login token**:
+1.  Request login token:
     ```bash
     curl -X POST -H "Content-Type: application/json" \
       -d '{ "email": "user@example.com", "host": "your.server.com" }' \
       http://your.server.com:3000/api/auth/request
     ```
-    (Check your email for the token, let's say it's `ABCD-1234`)
+    (Server sends token to `user@example.com`. Assume token is `ABCD-1234`)
 
-2.  **Verify token and get JWT**:
+2.  Verify token and get JWT:
     ```bash
     curl -X POST -H "Content-Type: application/json" \
       -d '{ "email": "user@example.com", "token": "ABCD-1234" }' \
       http://your.server.com:3000/api/auth/verify
     ```
-    (This will return a JSON response containing a `jwt` field. Extract this JWT.)
-    ```json
-    {
-      "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-      "user": "user@example.com"
-    }
-    ```
+    (Returns JSON with `jwt` field, e.g., `{"jwt":"eyJ...", "user":"user@example.com"}`)
 
-3.  **Create a new note (using the JWT)**:
+3.  Create a note using JWT:
     ```bash
-    JWT="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." # Replace with your actual JWT
-    curl -X POST -H "Content-Type: application/json" \
-      -H "Authorization: Bearer $JWT" \
-      -d '{ "kind": "notes", "path": "mynote.md", "content": "# My New Note\nHello world." }' \
+    JWT_TOKEN="eyJ..." # Replace with actual JWT
+    curl -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $JWT_TOKEN" \
+      -d '{ "kind": "notes", "path": "example.md", "content": "Hello from API!" }' \
       http://your.server.com:3000/api/content
     ```
 
-4.  **Read the note**:
+4.  Read the note:
     ```bash
-    curl -X GET -H "Authorization: Bearer $JWT" \
-      http://your.server.com:3000/api/content/notes/mynote.md
+    curl -X GET -H "Authorization: Bearer $JWT_TOKEN" \
+      http://your.server.com:3000/api/content/notes/example.md
     ```
+
+For complete API details, please refer to [SPEC.md](SPEC.md).
 
 ### Flow of Control
 
