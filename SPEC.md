@@ -55,14 +55,17 @@ graph TD
 - User enters or scans this code in their client (CLI, GUI, or mobile app).
     - API call: `POST /auth/verify` with email and token, or follows the encoded URL if scanned.
     - If the token is valid and unexpired, the server returns a JWT/session for further API use.
-- All tokens are one-time and expire after ~15 minutes.
+- All one-time tokens are securely stored by the server (e.g., in an SQLite database like `tokens.db`) and are consumed upon successful verification or removed if an attempt fails or they expire.
 - No server-stored plaintext passwords; user authentication is ephemeral by design.
+- Upon successful verification of the one-time token, the server issues a JSON Web Token (JWT) which is used for subsequent authenticated API calls. The JWT secret is a critical server configuration.
 
 **This login flow is inspired by [Atuin](https://github.com/atuinsh/atuin): QR code onboarding encodes a login URL so users can scan and securely add a new device in a single step. Manual token entry is always supported as fallback.**
 
 ---
 
 ## 3 · Storage Model
+
+This section primarily describes the conceptual model and the format used by the CLI for local plain-text storage. The `lst-server` component stores this information as records in an SQLite database (`content.db`), using `kind` and `path` (referred to as `item_path` in the database schema) as logical identifiers for content. The actual text content within the database typically resembles Markdown.
 
 ```
 content/
@@ -118,14 +121,14 @@ sender    = "Lists Bot <no‑reply@mg.example.com>"
 
 ## 6. Content API
 
-The Content API provides CRUD (Create, Read, Update, Delete) operations for managing files (lists, notes, etc.) on the server. All endpoints listed in this section are prefixed with `/api` (e.g., `/api/content`) and **require JWT authentication**.
+The Content API provides CRUD (Create, Read, Update, Delete) operations for managing content records (representing lists, notes, etc.) within the server's SQLite database (`content.db`). All endpoints listed in this section are prefixed with `/api` (e.g., `/api/content`) and **require JWT authentication**.
 
 **Authentication**: Clients must include a valid JWT in the `Authorization` header as a Bearer token:
 `Authorization: Bearer <your_jwt_here>`
 
 If authentication fails (missing, invalid, or expired JWT), the server will respond with a `401 Unauthorized` status code.
 
-The server uses the `paths.content_dir` setting from its configuration file (`lst.toml`) as the root directory for all content operations.
+Content items are identified by a `kind` (string, e.g., "notes", "lists") and a `path` (string, e.g., "recipes/pasta.md", referred to as `item_path` in the database). These form a unique logical key for a content record.
 
 ---
 
@@ -133,7 +136,7 @@ The server uses the `paths.content_dir` setting from its configuration file (`ls
 
 -   **Method**: `POST`
 -   **Path**: `/api/content`
--   **Description**: Creates a new content file or overwrites an existing one at the specified path.
+-   **Description**: Creates a new content record in the database.
 -   **Request Body (JSON)**:
     ```json
     {
@@ -142,20 +145,21 @@ The server uses the `paths.content_dir` setting from its configuration file (`ls
         "content": "string"
     }
     ```
-    -   `kind`: (string, required) The type of content, corresponding to a subdirectory under `content_dir` (e.g., "notes", "lists").
-    -   `path`: (string, required) The relative path of the file within the `kind` directory (e.g., "topic/subtopic/file.md").
-    -   `content`: (string, required) The textual content to be written to the file.
+    -   `kind`: (string, required) The category or type of content.
+    -   `path`: (string, required) The logical path or name for the content within its kind.
+    -   `content`: (string, required) The textual content to be stored.
 -   **Success Response (201 Created)**:
     ```json
     {
         "message": "Content created successfully.",
-        "path": "/full/path/to/content_dir/kind/path/to/file.md"
+        "path": "kind/path" // The logical path of the created content
     }
     ```
 -   **Error Responses**:
-    -   `400 Bad Request`: Invalid payload or path parameters.
+    -   `400 Bad Request`: Invalid payload (e.g., empty `kind` or `path`, invalid characters).
     -   `401 Unauthorized`: Missing or invalid JWT.
-    -   `500 Internal Server Error`: If the file cannot be written.
+    -   `409 Conflict`: If content with the same `kind` and `path` already exists.
+    -   `500 Internal Server Error`: If the record cannot be created in the database.
 -   **`curl` Example**:
     ```bash
     JWT="your_jwt_here"
@@ -170,18 +174,18 @@ The server uses the `paths.content_dir` setting from its configuration file (`ls
 ### 6.2 Read Content
 
 -   **Method**: `GET`
--   **Path**: `/api/content/{kind}/{path}`
--   **Description**: Retrieves the content of the specified file.
+-   **Path**: `/api/content/{kind}/{path}` (Note: `{path}` here can contain slashes, e.g., `topic/sub/file.md`)
+-   **Description**: Retrieves the content of a specific record from the database.
 -   **Path Parameters**:
     -   `{kind}`: The type/category of content.
-    -   `{path}`: The full relative path to the file within the `kind` directory (e.g., `topic/subtopic/file.md`).
+    -   `{path}`: The logical path of the content within its kind.
 -   **Success Response (200 OK)**:
-    -   **Content-Type**: `text/plain` (or appropriate based on file type in future extensions)
-    -   **Body**: The raw textual content of the file.
+    -   **Content-Type**: `text/plain; charset=utf-8`
+    -   **Body**: The raw textual content of the record.
 -   **Error Responses**:
     -   `401 Unauthorized`: Missing or invalid JWT.
-    -   `404 Not Found`: If the file does not exist.
-    -   `500 Internal Server Error`: If the file cannot be read.
+    -   `404 Not Found`: If no record matches the given `kind` and `path`.
+    -   `500 Internal Server Error`: If the record cannot be read.
 -   **`curl` Example**:
     ```bash
     JWT="your_jwt_here"
@@ -195,29 +199,29 @@ The server uses the `paths.content_dir` setting from its configuration file (`ls
 
 -   **Method**: `PUT`
 -   **Path**: `/api/content/{kind}/{path}`
--   **Description**: Updates the content of an existing file.
+-   **Description**: Updates the content of an existing record in the database.
 -   **Path Parameters**:
     -   `{kind}`: The type/category of content.
-    -   `{path}`: The full relative path to the file.
+    -   `{path}`: The logical path of the content.
 -   **Request Body (JSON)**:
     ```json
     {
         "content": "string"
     }
     ```
-    -   `content`: (string, required) The new textual content for the file.
+    -   `content`: (string, required) The new textual content for the record.
 -   **Success Response (200 OK)**:
     ```json
     {
         "message": "Content updated successfully.",
-        "path": "/full/path/to/content_dir/kind/path/to/file.md"
+        "path": "kind/path" // The logical path of the updated content
     }
     ```
 -   **Error Responses**:
     -   `400 Bad Request`: Invalid payload.
     -   `401 Unauthorized`: Missing or invalid JWT.
-    -   `404 Not Found`: If the file does not exist.
-    -   `500 Internal Server Error`: If the file cannot be written.
+    -   `404 Not Found`: If no record matches the given `kind` and `path`.
+    -   `500 Internal Server Error`: If the record cannot be updated.
 -   **`curl` Example**:
     ```bash
     JWT="your_jwt_here"
@@ -233,21 +237,21 @@ The server uses the `paths.content_dir` setting from its configuration file (`ls
 
 -   **Method**: `DELETE`
 -   **Path**: `/api/content/{kind}/{path}`
--   **Description**: Deletes the specified file.
+-   **Description**: Deletes a specific record from the database.
 -   **Path Parameters**:
     -   `{kind}`: The type/category of content.
-    -   `{path}`: The full relative path to the file.
+    -   `{path}`: The logical path of the content.
 -   **Success Response (200 OK)**:
     ```json
     {
         "message": "Content deleted successfully.",
-        "path": "/full/path/to/content_dir/kind/path/to/file.md"
+        "path": "kind/path" // The logical path of the deleted content
     }
     ```
 -   **Error Responses**:
     -   `401 Unauthorized`: Missing or invalid JWT.
-    -   `404 Not Found`: If the file does not exist.
-    -   `500 Internal Server Error`: If the file cannot be deleted.
+    -   `404 Not Found`: If no record matches the given `kind` and `path`.
+    -   `500 Internal Server Error`: If the record cannot be deleted.
 -   **`curl` Example**:
     ```bash
     JWT="your_jwt_here"
@@ -364,13 +368,15 @@ smtp_pass = "${SMTP_PASS}" # Example: load from environment variable
 sender    = "Lists Bot <no-reply@mg.example.com>"
 
 [paths] # Path settings used by the server
-content_dir = "/srv/lst/content" # Example: absolute path for server's content
-# media_dir may also be relevant if server handles media directly.
+# For `lst-server`, `content_dir` (or the directory of lst.toml if content_dir is not set)
+# determines where the 'lst_server_data' subdirectory is created.
+# This 'lst_server_data' directory stores SQLite database files like 'tokens.db' and 'content.db'.
+content_dir = "/srv/lst/data" # Example: a dedicated data directory for the server's databases.
 
-# The [content] block from older versions of this spec (root, kinds, media_dir)
-# is largely superseded by `paths.content_dir` for defining the content root.
-# Specific 'kinds' are now generally determined by the directory structure within `content_dir`
-# or by the 'kind' parameter in API calls, rather than a fixed list in config.
+# The [content] block (with `root`, `kinds`, `media_dir`) previously describing
+# a file system layout for content is no longer directly used by the server's API
+# for content storage, as content is now in an SQLite database (`content.db`).
+# `kind` is a field in the database, and media handling via API is not yet specified.
 ```
 
 ### 10.2 Client Configuration
