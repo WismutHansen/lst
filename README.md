@@ -280,6 +280,77 @@ The `lst` project follows a layered architecture with clear separation of concer
    - Implements a REST API for accessing the data
    - Separate executable from the CLI
 
+## Server (`lst-server`)
+
+The `lst-server` component provides an HTTP API for interacting with your `lst` data remotely. This enables synchronization across multiple clients and provides a backend for future GUI or mobile applications.
+
+### Authentication
+
+The server uses a two-stage authentication process:
+
+1.  **Initial Token Request**: A client requests a one-time login token by sending its email address to the `/api/auth/request` endpoint. The server emails a short-lived, human-readable token (and optionally provides a QR code containing a login URL).
+2.  **Token Verification & JWT**: The client sends the received token and its email to the `/api/auth/verify` endpoint. If valid, the server responds with a JSON Web Token (JWT).
+
+This JWT must be included in the `Authorization` header for subsequent requests to protected API endpoints (e.g., `Authorization: Bearer <your_jwt>`). JWTs are typically long-lived (e.g., hours or days).
+
+For detailed API specifications, see [SPEC.md](SPEC.md).
+
+### Content Management API
+
+Once authenticated, clients can manage content (lists, notes, etc.) using the following RESTful endpoints. These endpoints operate on files stored in the `content_dir` specified in the server configuration, organized by `kind` and `path`.
+
+-   **Create Content**: `POST /api/content`
+    -   Payload: `{ "kind": "your_kind", "path": "path/to/file.md", "content": "File content" }`
+    -   Creates or overwrites a file.
+-   **Read Content**: `GET /api/content/{kind}/{path}`
+    -   Returns the raw content of the specified file.
+-   **Update Content**: `PUT /api/content/{kind}/{path}`
+    -   Payload: `{ "content": "New file content" }`
+    -   Updates an existing file.
+-   **Delete Content**: `DELETE /api/content/{kind}/{path}`
+    -   Deletes the specified file.
+
+All content endpoints require JWT authentication. For detailed request/response formats and more examples, please refer to [SPEC.md](SPEC.md).
+
+#### Example API Usage with `curl`
+
+1.  **Request login token**:
+    ```bash
+    curl -X POST -H "Content-Type: application/json" \
+      -d '{ "email": "user@example.com", "host": "your.server.com" }' \
+      http://your.server.com:3000/api/auth/request
+    ```
+    (Check your email for the token, let's say it's `ABCD-1234`)
+
+2.  **Verify token and get JWT**:
+    ```bash
+    curl -X POST -H "Content-Type: application/json" \
+      -d '{ "email": "user@example.com", "token": "ABCD-1234" }' \
+      http://your.server.com:3000/api/auth/verify
+    ```
+    (This will return a JSON response containing a `jwt` field. Extract this JWT.)
+    ```json
+    {
+      "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "user": "user@example.com"
+    }
+    ```
+
+3.  **Create a new note (using the JWT)**:
+    ```bash
+    JWT="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." # Replace with your actual JWT
+    curl -X POST -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $JWT" \
+      -d '{ "kind": "notes", "path": "mynote.md", "content": "# My New Note\nHello world." }' \
+      http://your.server.com:3000/api/content
+    ```
+
+4.  **Read the note**:
+    ```bash
+    curl -X GET -H "Authorization: Bearer $JWT" \
+      http://your.server.com:3000/api/content/notes/mynote.md
+    ```
+
 ### Flow of Control
 
 A typical command flow:
