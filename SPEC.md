@@ -112,10 +112,152 @@ sender    = "Lists Bot <no‑reply@mg.example.com>"
 ```
 
 - Rust crate `lettre` ≥ 0.11 handles async SMTP; if SMTP unset, login link is logged for dev.
+- The JWT secret used for signing and verifying JWTs is a critical server configuration item, typically managed securely by the server administrator. It is not exposed to clients.
 
 ---
 
-## 6 · CLI **`lst`**
+## 6. Content API
+
+The Content API provides CRUD (Create, Read, Update, Delete) operations for managing files (lists, notes, etc.) on the server. All endpoints listed in this section are prefixed with `/api` (e.g., `/api/content`) and **require JWT authentication**.
+
+**Authentication**: Clients must include a valid JWT in the `Authorization` header as a Bearer token:
+`Authorization: Bearer <your_jwt_here>`
+
+If authentication fails (missing, invalid, or expired JWT), the server will respond with a `401 Unauthorized` status code.
+
+The server uses the `paths.content_dir` setting from its configuration file (`lst.toml`) as the root directory for all content operations.
+
+---
+
+### 6.1 Create Content
+
+-   **Method**: `POST`
+-   **Path**: `/api/content`
+-   **Description**: Creates a new content file or overwrites an existing one at the specified path.
+-   **Request Body (JSON)**:
+    ```json
+    {
+        "kind": "string",
+        "path": "string",
+        "content": "string"
+    }
+    ```
+    -   `kind`: (string, required) The type of content, corresponding to a subdirectory under `content_dir` (e.g., "notes", "lists").
+    -   `path`: (string, required) The relative path of the file within the `kind` directory (e.g., "topic/subtopic/file.md").
+    -   `content`: (string, required) The textual content to be written to the file.
+-   **Success Response (201 Created)**:
+    ```json
+    {
+        "message": "Content created successfully.",
+        "path": "/full/path/to/content_dir/kind/path/to/file.md"
+    }
+    ```
+-   **Error Responses**:
+    -   `400 Bad Request`: Invalid payload or path parameters.
+    -   `401 Unauthorized`: Missing or invalid JWT.
+    -   `500 Internal Server Error`: If the file cannot be written.
+-   **`curl` Example**:
+    ```bash
+    JWT="your_jwt_here"
+    curl -X POST -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $JWT" \
+      -d '{ "kind": "notes", "path": "cooking/recipes/pasta.md", "content": "# Pasta Recipe\n..." }' \
+      http://localhost:3000/api/content
+    ```
+
+---
+
+### 6.2 Read Content
+
+-   **Method**: `GET`
+-   **Path**: `/api/content/{kind}/{path}`
+-   **Description**: Retrieves the content of the specified file.
+-   **Path Parameters**:
+    -   `{kind}`: The type/category of content.
+    -   `{path}`: The full relative path to the file within the `kind` directory (e.g., `topic/subtopic/file.md`).
+-   **Success Response (200 OK)**:
+    -   **Content-Type**: `text/plain` (or appropriate based on file type in future extensions)
+    -   **Body**: The raw textual content of the file.
+-   **Error Responses**:
+    -   `401 Unauthorized`: Missing or invalid JWT.
+    -   `404 Not Found`: If the file does not exist.
+    -   `500 Internal Server Error`: If the file cannot be read.
+-   **`curl` Example**:
+    ```bash
+    JWT="your_jwt_here"
+    curl -X GET -H "Authorization: Bearer $JWT" \
+      http://localhost:3000/api/content/notes/cooking/recipes/pasta.md
+    ```
+
+---
+
+### 6.3 Update Content
+
+-   **Method**: `PUT`
+-   **Path**: `/api/content/{kind}/{path}`
+-   **Description**: Updates the content of an existing file.
+-   **Path Parameters**:
+    -   `{kind}`: The type/category of content.
+    -   `{path}`: The full relative path to the file.
+-   **Request Body (JSON)**:
+    ```json
+    {
+        "content": "string"
+    }
+    ```
+    -   `content`: (string, required) The new textual content for the file.
+-   **Success Response (200 OK)**:
+    ```json
+    {
+        "message": "Content updated successfully.",
+        "path": "/full/path/to/content_dir/kind/path/to/file.md"
+    }
+    ```
+-   **Error Responses**:
+    -   `400 Bad Request`: Invalid payload.
+    -   `401 Unauthorized`: Missing or invalid JWT.
+    -   `404 Not Found`: If the file does not exist.
+    -   `500 Internal Server Error`: If the file cannot be written.
+-   **`curl` Example**:
+    ```bash
+    JWT="your_jwt_here"
+    curl -X PUT -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $JWT" \
+      -d '{ "content": "# Pasta Recipe\nUpdated ingredients..." }' \
+      http://localhost:3000/api/content/notes/cooking/recipes/pasta.md
+    ```
+
+---
+
+### 6.4 Delete Content
+
+-   **Method**: `DELETE`
+-   **Path**: `/api/content/{kind}/{path}`
+-   **Description**: Deletes the specified file.
+-   **Path Parameters**:
+    -   `{kind}`: The type/category of content.
+    -   `{path}`: The full relative path to the file.
+-   **Success Response (200 OK)**:
+    ```json
+    {
+        "message": "Content deleted successfully.",
+        "path": "/full/path/to/content_dir/kind/path/to/file.md"
+    }
+    ```
+-   **Error Responses**:
+    -   `401 Unauthorized`: Missing or invalid JWT.
+    -   `404 Not Found`: If the file does not exist.
+    -   `500 Internal Server Error`: If the file cannot be deleted.
+-   **`curl` Example**:
+    ```bash
+    JWT="your_jwt_here"
+    curl -X DELETE -H "Authorization: Bearer $JWT" \
+      http://localhost:3000/api/content/notes/cooking/recipes/pasta.md
+    ```
+
+---
+
+## 7 · CLI **`lst`**
 
 ```
 $ lst help
@@ -207,23 +349,28 @@ Proxy with Caddy/Traefik for HTTPS and path routing.
 
 ### 10.1 Server Configuration
 
-Server is configured via `/opt/lst/server.toml`:
+Server is configured via `/opt/lst/server.toml` (example path):
 
 ```toml
-[server]
+[server] # General server settings block
 host = "127.0.0.1"
 port = 3000
+# jwt_secret = "a_very_secret_key_loaded_securely" # This is illustrative; actual secret management varies.
 
-[email]
+[email] # Email settings for auth token delivery
 smtp_host = "smtp.mailgun.org"
 smtp_user = "postmaster@mg.example.com"
-smtp_pass = "${SMTP_PASS}"
+smtp_pass = "${SMTP_PASS}" # Example: load from environment variable
 sender    = "Lists Bot <no-reply@mg.example.com>"
 
-[content]
-root = "content"
-kinds = ["lists", "notes", "posts"]
-media_dir = "media"
+[paths] # Path settings used by the server
+content_dir = "/srv/lst/content" # Example: absolute path for server's content
+# media_dir may also be relevant if server handles media directly.
+
+# The [content] block from older versions of this spec (root, kinds, media_dir)
+# is largely superseded by `paths.content_dir` for defining the content root.
+# Specific 'kinds' are now generally determined by the directory structure within `content_dir`
+# or by the 'kind' parameter in API calls, rather than a fixed list in config.
 ```
 
 ### 10.2 Client Configuration
