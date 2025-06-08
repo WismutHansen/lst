@@ -1,436 +1,239 @@
-# lst - personal lists & notes App – Specification v0.4
+# `lst` - Specification v0.5
 
-## 1 · Scope & Guiding Principles
+## 1. Guiding Principles
 
-| Principle                       | Manifestation                                                                             |
-| ------------------------------- | ----------------------------------------------------------------------------------------- |
-| **Plain‑text ownership**        | Everything is Markdown you can open in Neovim.                                            |
-| **One core, many surfaces**     | `lst` CLI, slim desktop GUI, mobile apps, Apple Shortcuts, AGNO voice agent, public blog. |
-| **Offline‑first / Self‑hosted** | Single Rust server in a Proxmox LXC; sync is opportunistic; you own the data.             |
-| **Extensible "document kinds"** | _lists_, _notes_, _posts_ share storage & auth.                                           |
+| Principle                   | Manifestation                                                                                                     |
+| :-------------------------- | :---------------------------------------------------------------------------------------------------------------- |
+| **Plain-Text Primary**      | All user content is created and edited as local Markdown files. The CLI is the ground truth for user interaction. |
+| **Local-First Sync**        | The application works fully offline. Synchronization via `lst-syncd` is an optional, opportunistic layer.         |
+| **Zero-Knowledge Server**   | User content is client-side encrypted before sync. The server stores and relays opaque blobs it cannot read.      |
+| **One Core, Many Surfaces** | A single Rust core powers multiple clients: a fast CLI, a future GUI, mobile apps, and other integrations.        |
+| **Self-Hosted by Default**  | The entire stack is designed to be easily run on personal infrastructure, like a home server or a small VPS.      |
 
 ---
 
-## 2 · High‑Level Architecture
+## 2. High-Level Architecture
+
+The `lst` ecosystem is composed of three main components that work together to provide a seamless plain-text to multi-device experience.
 
 ```mermaid
 graph TD
-    subgraph Clients
-        CLI["lst (Rust)"]
-        GUI["Tauri slim GUI"]
-        Mobile["Tauri 2 mobile"]
-        Shortcuts["Apple Shortcuts / AppIntents"]
-        Voice["AGNO agent"]
+    subgraph User Interaction
+        A[lst CLI]
+        B[Tauri GUI (Future)]
     end
 
-    CLI --> API
-    GUI --> API
-    Mobile --> API
-    Shortcuts --> API
-    Voice --> API
+    subgraph Client Machine
+        A -- Modifies/Reads --> C{Markdown Files};
+        B -- Modifies/Reads --> C;
 
-    subgraph Server (LXC)
-        API["Core API (Axum)"]
-        Sync["CRDT + Git Store"]
-        Mail["SMTP relay"]
-        Build["Zola static build"]
+        D[lst-syncd] -- Watches --> C;
+        C -- Notifies --> D;
+
+        D <--> E[syncd.db (SQLite)];
+        D -- Encrypts/Decrypts --> F{Automerge CRDTs};
+        F -- Generates/Applies Changes --> D;
     end
 
-    API --|file events| Sync
-    Sync --|publish posts| Build
+    subgraph Network
+        D -- WebSocket (TLS) --> G[lst-server];
+    end
+
+    subgraph Server (LXC/VM)
+        G -- Relays Encrypted Blobs --> G;
+        G <--> H[content.db (SQLite)];
+        G <--> I[tokens.db (SQLite)];
+    end
+
+    A: `lst` CLI is the primary interface for users to edit Markdown files.
+    D: `lst-syncd` runs in the background, detects file changes, converts them to an Automerge CRDT format, encrypts them, and syncs with the server. It also applies encrypted changes from the server back to the local Markdown files.
+    E: `syncd.db` is a local SQLite database that maps files to CRDT documents and tracks sync state.
+    G: `lst-server` is the central relay and persistence layer. It handles authentication and stores/relays encrypted data blobs without ever decrypting them.
+    H/I: The server uses SQLite to store authentication tokens and the encrypted user content.
 ```
 
 ---
 
-## Authentication & Login
+## 3. Storage & Sync Model
 
-### Passwordless, Human-Friendly Token Auth
+This model is designed to bridge the plain-text file system with a robust, conflict-free, multi-device synchronization system.
 
-- Users authenticate by requesting a login code to their email address.
-    - API call: `POST /auth/request` with their email.
-    - Server generates a **human-readable, short-lived token** (e.g. `PLUM-FIRE-BIRD-7182`).
-    - Server also generates a **QR code** that encodes a login URL (e.g. `lst-login://host/auth/verify?token=TOKEN&email=EMAIL`).
-        - The domain/server is included, enabling true one-step login on mobile.
-    - The token, QR (as base64 PNG), and login URL are returned in the API response.
-- User enters or scans this code in their client (CLI, GUI, or mobile app).
-    - API call: `POST /auth/verify` with email and token, or follows the encoded URL if scanned.
-    - If the token is valid and unexpired, the server returns a JWT/session for further API use.
-- All one-time tokens are securely stored by the server (e.g., in an SQLite database like `tokens.db`) and are consumed upon successful verification or removed if an attempt fails or they expire.
-- No server-stored plaintext passwords; user authentication is ephemeral by design.
-- Upon successful verification of the one-time token, the server issues a JSON Web Token (JWT) which is used for subsequent authenticated API calls. The JWT secret is a critical server configuration.
+### 3.1 `lst-cli` & Plain-Text Files
 
-**This login flow is inspired by [Atuin](https://github.com/atuinsh/atuin): QR code onboarding encodes a login URL so users can scan and securely add a new device in a single step. Manual token entry is always supported as fallback.**
+The user-facing experience is centered on Markdown files in the `content` directory, as configured in `lst.toml`. `lst-cli` is responsible for creating, reading, and modifying these files. This layer is intentionally unaware of the sync mechanism.
+
+- **File Formats**: As described in `README.md`, content is structured Markdown with YAML frontmatter.
+- **Organization**: Users can organize files into subdirectories (e.g., `lists/groceries/pharmacy.md`).
+
+### 3.2 `lst-syncd`: The Sync Engine
+
+`lst-syncd` is the background daemon responsible for synchronization. It acts as the bridge between the file system and the Automerge CRDT model.
+
+#### Local SQLite Database (`syncd.db`)
+
+`lst-syncd` maintains a local SQLite database to manage sync state.
+
+- **Location**: `~/.config/lst/syncd.db`
+- **Schema**:
+  - `documents` table:
+    - `doc_id` (UUID, Primary Key): A unique ID for the Automerge document.
+    - `file_path` (TEXT, UNIQUE): The relative path to the Markdown file (e.g., `lists/groceries.md`).
+    - `doc_type` (TEXT): The type of document, e.g., 'list', 'note'.
+    - `last_sync_hash` (TEXT): The hash of the file content at the last successful sync, to avoid reprocessing unchanged files.
+    - `automerge_state` (BLOB): The full, unencrypted Automerge document state. This allows for efficient change calculation without re-parsing the file every time.
+
+#### Sync Lifecycle
+
+1.  **Initial Scan**: On first start, `lst-syncd` scans the content directory. For each Markdown file, it creates an Automerge document, generates a `doc_id`, and populates the `syncd.db`.
+2.  **File Watching**: `lst-syncd` watches the content directory for changes.
+    - When a file is modified, it compares the new content hash with `last_sync_hash`.
+    - If different, it loads the corresponding `automerge_state` from its database.
+    - It computes the changes required to bring the Automerge document in sync with the new file content. For lists, this should be a line-by-line diff. for notes, it can be a full text replacement.
+    - It generates an Automerge change set (`Vec<u8>`).
+3.  **Applying Remote Changes**:
+    - When `lst-syncd` receives an encrypted change set from the server, it decrypts it.
+    - It loads the relevant document from `automerge_state` in `syncd.db`.
+    - It applies the Automerge changes.
+    - It re-renders the Automerge document back into Markdown format and overwrites the local file.
+    - It updates its local `automerge_state` and `last_sync_hash`.
+
+### 3.3 Client-Side Encryption
+
+Privacy is paramount. All content is encrypted on the client before being transmitted.
+
+- **Algorithm**: **XChaCha20-Poly1305** is recommended for its performance and security.
+- **Key Management**: A master encryption key will be required by `lst-syncd`. Initially, this can be stored in the system's secure credential manager (e.g., macOS Keychain, Freedesktop Secret Service). The key should be generated on first run of `lst sync setup`.
+- **Process**:
+  1.  `lst-syncd` generates an Automerge change set (`Vec<u8>`).
+  2.  This change set is encrypted using the master key.
+  3.  The resulting ciphertext (opaque blob) is sent to `lst-server`.
+  4.  The reverse process happens for incoming changes.
+
+### 3.4 `lst-server`: The Encrypted Relay
+
+The server's role is intentionally limited to authentication and acting as a dumb, reliable relay for encrypted data. **It never holds decryption keys and cannot read user content.**
+
+#### Server SQLite Database (`content.db`)
+
+- **Location**: Managed by the server, typically in a data directory alongside `tokens.db`.
+- **Schema**:
+  - `documents` table:
+    - `doc_id` (UUID, Primary Key): The same ID used by the client.
+    - `user_id` (TEXT): The user's email or a unique ID.
+    - `encrypted_snapshot` (BLOB): The full, encrypted Automerge document. This serves as the "source of truth" for new devices joining the sync network.
+    - `updated_at` (TIMESTAMP).
+  - `document_changes` table:
+    - `change_id` (INTEGER, Primary Key).
+    - `doc_id` (UUID, Foreign Key).
+    - `device_id` (TEXT): The ID of the device that sent the change.
+    - `encrypted_change` (BLOB): An individual encrypted Automerge change set.
+    - `created_at` (TIMESTAMP).
+
+#### Sync Protocol (WebSocket)
+
+The sync protocol is designed around exchanging encrypted Automerge changes.
+
+1.  **Connection**: A client (`lst-syncd`) establishes a WebSocket connection to the server and authenticates using its JWT.
+2.  **Initial Sync (for a new device)**:
+    - The client requests the full list of `doc_id`s for its user.
+    - For each `doc_id`, it requests the `encrypted_snapshot` from the server.
+    - It decrypts the snapshot, reconstructs the Automerge document, and saves it to its local `syncd.db` and writes the initial Markdown file.
+3.  **Sending Changes**:
+    - `lst-syncd` sends a message: `PushChanges { doc_id: Uuid, device_id: String, changes: Vec<Vec<u8>> }`.
+    - `changes` is a list of encrypted Automerge change sets.
+    - The server saves these changes to its `document_changes` table and broadcasts a `NewChanges` message to all other connected devices for that user.
+4.  **Receiving Changes**:
+    - Clients receive `NewChanges { doc_id: Uuid, changes: Vec<Vec<u8>> }`.
+    - They decrypt and apply the changes locally, updating their Markdown file and `syncd.db`.
+5.  **Compaction**:
+    - To prevent the `document_changes` log from growing infinitely, the server will periodically request a compaction.
+    - Server sends a `RequestCompaction { doc_id: Uuid }` message to one of its connected clients.
+    - The client loads its local Automerge document, saves a new full snapshot, encrypts it, and sends it to the server in a `PushSnapshot { doc_id: Uuid, snapshot: Vec<u8> }` message.
+    - The server replaces its `encrypted_snapshot` in the `documents` table and deletes all entries from `document_changes` for that `doc_id`.
 
 ---
 
-## 3 · Storage Model
+## 4. API Specification
 
-This section primarily describes the conceptual model and the format used by the CLI for local plain-text storage. The `lst-server` component stores this information as records in an SQLite database (`content.db`), using `kind` and `path` (referred to as `item_path` in the database schema) as logical identifiers for content. The actual text content within the database typically resembles Markdown.
+The existing REST API for content (`/api/content`) will be **deprecated and replaced** by the WebSocket-based sync protocol. The authentication endpoints remain unchanged.
 
-```
-content/
-├─ lists/                    # per‑line anchors
-│   └─ groceries.md
-├─ notes/                    # whole‑file merge
-│   └─ bicycle‑ideas.md
-├─ posts/                    # blog, Zola‑compatible
-│   └─ 2025‑04‑22‑first‑ride.md
-└─ media/                    # images & binary files
-    ├─ 6fc9e6e2b4d3.jpg      # originals
-    └─ 6fc9e6e2b4d3@512.webp # thumbnails
-```
+### 4.1 Authentication API (REST)
 
-### 3.1 File formats
+- `POST /api/auth/request`: Unchanged. Requests a one-time login token via email.
+- `POST /api/auth/verify`: Unchanged. Verifies the token and returns a long-lived JWT.
 
-- **Lists** – bullet lines end with two spaces + `^abc12`; optional YAML front‑matter.
-- **Notes** – optional front‑matter (`id`, `title`, `tags`).
-- **Posts** – mandatory front‑matter (`id`, `title`, `date`, `draft`, `tags`, `summary`).
-- **Media** – binary files named with SHA-256 hash of content; referenced in Markdown via relative paths.
+### 4.2 Sync API (WebSocket)
 
----
+- **Endpoint**: `/api/sync`
+- **Protocol**: All messages are JSON-encoded.
 
-## 4 · Sync Logic & Merging
+#### Client-to-Server Messages
 
-| Kind              | Diff unit | Technique                                   |
-| ----------------- | --------- | ------------------------------------------- |
-| **lists**         | line      | Automerge CRDT patches                      |
-| **notes / posts** | file      | three‑way Git merge; manual fix on conflict |
-| **media**         | file      | Git LFS for files up to ~50MB               |
+- `Authenticate { jwt: String }`: Sent immediately after connection.
+- `RequestDocumentList`: Asks the server for all `doc_id`s and their `updated_at` timestamps for the user.
+- `RequestSnapshot { doc_id: Uuid }`: Asks for the full encrypted snapshot of a document.
+- `PushChanges { doc_id: Uuid, device_id: String, changes: Vec<Vec<u8>> }`: Pushes one or more encrypted change sets.
+- `PushSnapshot { doc_id: Uuid, snapshot: Vec<u8> }`: Responds to a compaction request with a new full encrypted snapshot.
 
-Anchors survive re‑ordering; missing anchors are added automatically (background sync or Neovim Lua autocmd).
+#### Server-to-Client Messages
+
+- `Authenticated { success: bool }`: Confirms authentication status.
+- `DocumentList { documents: Vec<{doc_id: Uuid, updated_at: Timestamp}> }`: Response to `RequestDocumentList`.
+- `Snapshot { doc_id: Uuid, snapshot: Vec<u8> }`: Response to `RequestSnapshot`.
+- `NewChanges { doc_id: Uuid, from_device_id: String, changes: Vec<Vec<u8>> }`: Broadcasts new changes to other clients.
+- `RequestCompaction { doc_id: Uuid }`: Asks the client to generate and push a new snapshot.
 
 ---
 
-## 5 · Authentication & Email Delivery
+## 5. CLI Specification
 
-- **Magic‑link flow** – 15 min TTL, single use.
-- **SMTP Relay** – default path (Mailgun/Postmark/SES). Configure in `server.toml`:
+The CLI interface remains largely the same, focusing on user-friendly interaction with local Markdown files.
+
+- **List Management**: `lst ls`, `add`, `done`, `undone`, `rm`, `pipe`, `dl`.
+- **Note Management**: `lst note new`, `add`, `open`, `rm`, `ls`, `dn`.
+- **Sync Management**:
+  - `lst sync setup`: Guides the user through logging in and generating the client-side encryption key.
+  - `lst sync start/stop/status`: Manages the `lst-syncd` daemon process.
+
+---
+
+## 6. Configuration (`lst.toml`)
+
+The unified configuration file will be updated to include sync and encryption settings.
 
 ```toml
-[email]
-smtp_host = "smtp.mailgun.org"
-smtp_user = "postmaster@mg.example.com"
-smtp_pass = "${SMTP_PASS}"
-sender    = "Lists Bot <no‑reply@mg.example.com>"
-```
-
-- Rust crate `lettre` ≥ 0.11 handles async SMTP; if SMTP unset, login link is logged for dev.
-- The JWT secret used for signing and verifying JWTs is a critical server configuration item, typically managed securely by the server administrator. It is not exposed to clients.
-
----
-
-## 6. Content API
-
-The Content API provides CRUD (Create, Read, Update, Delete) operations for managing content records (representing lists, notes, etc.) within the server's SQLite database (`content.db`). All endpoints listed in this section are prefixed with `/api` (e.g., `/api/content`) and **require JWT authentication**.
-
-**Authentication**: Clients must include a valid JWT in the `Authorization` header as a Bearer token:
-`Authorization: Bearer <your_jwt_here>`
-
-If authentication fails (missing, invalid, or expired JWT), the server will respond with a `401 Unauthorized` status code.
-
-Content items are identified by a `kind` (string, e.g., "notes", "lists") and a `path` (string, e.g., "recipes/pasta.md", referred to as `item_path` in the database). These form a unique logical key for a content record.
-
----
-
-### 6.1 Create Content
-
--   **Method**: `POST`
--   **Path**: `/api/content`
--   **Description**: Creates a new content record in the database.
--   **Request Body (JSON)**:
-    ```json
-    {
-        "kind": "string",
-        "path": "string",
-        "content": "string"
-    }
-    ```
-    -   `kind`: (string, required) The category or type of content.
-    -   `path`: (string, required) The logical path or name for the content within its kind.
-    -   `content`: (string, required) The textual content to be stored.
--   **Success Response (201 Created)**:
-    ```json
-    {
-        "message": "Content created successfully.",
-        "path": "kind/path" // The logical path of the created content
-    }
-    ```
--   **Error Responses**:
-    -   `400 Bad Request`: Invalid payload (e.g., empty `kind` or `path`, invalid characters).
-    -   `401 Unauthorized`: Missing or invalid JWT.
-    -   `409 Conflict`: If content with the same `kind` and `path` already exists.
-    -   `500 Internal Server Error`: If the record cannot be created in the database.
--   **`curl` Example**:
-    ```bash
-    JWT="your_jwt_here"
-    curl -X POST -H "Content-Type: application/json" \
-      -H "Authorization: Bearer $JWT" \
-      -d '{ "kind": "notes", "path": "cooking/recipes/pasta.md", "content": "# Pasta Recipe\n..." }' \
-      http://localhost:3000/api/content
-    ```
-
----
-
-### 6.2 Read Content
-
--   **Method**: `GET`
--   **Path**: `/api/content/{kind}/{path}` (Note: `{path}` here can contain slashes, e.g., `topic/sub/file.md`)
--   **Description**: Retrieves the content of a specific record from the database.
--   **Path Parameters**:
-    -   `{kind}`: The type/category of content.
-    -   `{path}`: The logical path of the content within its kind.
--   **Success Response (200 OK)**:
-    -   **Content-Type**: `text/plain; charset=utf-8`
-    -   **Body**: The raw textual content of the record.
--   **Error Responses**:
-    -   `401 Unauthorized`: Missing or invalid JWT.
-    -   `404 Not Found`: If no record matches the given `kind` and `path`.
-    -   `500 Internal Server Error`: If the record cannot be read.
--   **`curl` Example**:
-    ```bash
-    JWT="your_jwt_here"
-    curl -X GET -H "Authorization: Bearer $JWT" \
-      http://localhost:3000/api/content/notes/cooking/recipes/pasta.md
-    ```
-
----
-
-### 6.3 Update Content
-
--   **Method**: `PUT`
--   **Path**: `/api/content/{kind}/{path}`
--   **Description**: Updates the content of an existing record in the database.
--   **Path Parameters**:
-    -   `{kind}`: The type/category of content.
-    -   `{path}`: The logical path of the content.
--   **Request Body (JSON)**:
-    ```json
-    {
-        "content": "string"
-    }
-    ```
-    -   `content`: (string, required) The new textual content for the record.
--   **Success Response (200 OK)**:
-    ```json
-    {
-        "message": "Content updated successfully.",
-        "path": "kind/path" // The logical path of the updated content
-    }
-    ```
--   **Error Responses**:
-    -   `400 Bad Request`: Invalid payload.
-    -   `401 Unauthorized`: Missing or invalid JWT.
-    -   `404 Not Found`: If no record matches the given `kind` and `path`.
-    -   `500 Internal Server Error`: If the record cannot be updated.
--   **`curl` Example**:
-    ```bash
-    JWT="your_jwt_here"
-    curl -X PUT -H "Content-Type: application/json" \
-      -H "Authorization: Bearer $JWT" \
-      -d '{ "content": "# Pasta Recipe\nUpdated ingredients..." }' \
-      http://localhost:3000/api/content/notes/cooking/recipes/pasta.md
-    ```
-
----
-
-### 6.4 Delete Content
-
--   **Method**: `DELETE`
--   **Path**: `/api/content/{kind}/{path}`
--   **Description**: Deletes a specific record from the database.
--   **Path Parameters**:
-    -   `{kind}`: The type/category of content.
-    -   `{path}`: The logical path of the content.
--   **Success Response (200 OK)**:
-    ```json
-    {
-        "message": "Content deleted successfully.",
-        "path": "kind/path" // The logical path of the deleted content
-    }
-    ```
--   **Error Responses**:
-    -   `401 Unauthorized`: Missing or invalid JWT.
-    -   `404 Not Found`: If no record matches the given `kind` and `path`.
-    -   `500 Internal Server Error`: If the record cannot be deleted.
--   **`curl` Example**:
-    ```bash
-    JWT="your_jwt_here"
-    curl -X DELETE -H "Authorization: Bearer $JWT" \
-      http://localhost:3000/api/content/notes/cooking/recipes/pasta.md
-    ```
-
----
-
-## 7 · CLI **`lst`**
-
-```
-$ lst help
-Usage: lst <command> …
-
-Core – lists
-  lst ls                        # list all lists
-  lst add   <list> <text>       # add bullet
-  lst done  <list> <target>     # mark done (anchor, fuzzy text, or #index)
-  lst pipe  <list>              # read items from STDIN
-
-Notes
-  lst note new <title>
-  lst note add <title> <text>
-  lst note open <title>
-
-Posts
-  lst post new "<title>"
-  lst post list
-  lst post publish <slug>
-
-Media
-  lst img add <file> --to <doc> # add image to document
-  lst img paste --to <doc>      # paste clipboard image
-  lst img list <doc>            # list images in document
-  lst img rm <doc> <hash>       # remove image reference
-```
-
-All commands accept `--json` for automation and return script‑friendly exit codes.
-
-### 6.1 Target Resolution Rules
-
-When using commands like `lst done` that operate on a specific item, the target can be specified in several ways:
-
-1. **Exact anchor** – `^[-A-Za-z0-9]{4,}` matches directly against the anchor ID
-2. **Exact text** – Case-insensitive match against the item text
-3. **Fuzzy text** – Levenshtein distance ≤2 or contains all words in any order
-4. **Numeric index** – `#12` refers to the 12th visible bullet in the list
-5. **Interactive picker** – If none of the above resolve uniquely and STDIN is a TTY, presents an interactive selection
-
-Examples:
-```bash
-lst done groceries oat         # fuzzy → matches "oat milk (x2)"
-lst done groceries "#4"        # by index (the 4th unchecked item)
-lst done groceries ^d3e1       # explicit anchor (still works)
-```
-
----
-
-## 7 · Client Applications
-
-| Surface              | Highlights                                                                      |
-| -------------------- | ------------------------------------------------------------------------------- |
-| **Slim GUI (Tauri)** | toggleable, always‑on‑top; Markdown viewer/editor; sync status tray icon.       |
-| **Mobile (Tauri 2)** | offline SQLite cache → CRDT; share‑sheet "Add to list"; AppIntents.             |
-| **Shortcuts**        | Intents: _AddItem, RemoveItem, GetList, DraftPost_.                             |
-| **Voice (AGNO)**     | Whisper transcription → AGNO agent → JSON action (`kind`, `action`, `payload`). |
-
----
-
-## 8 · Blog Publishing Pipeline
-
-1. `lst post publish <slug>` flips `draft:false`.
-2. Server runs `zola build` → `public/`.
-3. Reverse proxy serves `/blog/*` static or optionally pushes to GitHub Pages.
-
----
-
-## 9 · Deployment Recipe (Proxmox LXC)
-
-```bash
-# host
-pct create 120 debian-12 --cores 2 --memory 1024 --net0 name=eth0,bridge=vmbr0,ip=dhcp
-pct start 120
-
-# inside LXC
-apt install ca-certificates tzdata
-useradd -r -m lst
-mkdir /opt/lst && chown lst /opt/lst
-# copy single static binary + content/ + server.toml
-systemctl enable --now lst.service  # /opt/lst/lst --config /opt/lst/server.toml
-```
-
-Proxy with Caddy/Traefik for HTTPS and path routing.
-
----
-
-## 10 · Configuration
-
-### 10.1 Server Configuration
-
-Server is configured via `/opt/lst/server.toml` (example path):
-
-```toml
-[server] # General server settings block
-host = "127.0.0.1"
-port = 3000
-# jwt_secret = "a_very_secret_key_loaded_securely" # This is illustrative; actual secret management varies.
-
-[email] # Email settings for auth token delivery
-smtp_host = "smtp.mailgun.org"
-smtp_user = "postmaster@mg.example.com"
-smtp_pass = "${SMTP_PASS}" # Example: load from environment variable
-sender    = "Lists Bot <no-reply@mg.example.com>"
-
-[paths] # Path settings used by the server
-# For `lst-server`, `content_dir` (or the directory of lst.toml if content_dir is not set)
-# determines where the 'lst_server_data' subdirectory is created.
-# This 'lst_server_data' directory stores SQLite database files like 'tokens.db' and 'content.db'.
-content_dir = "/srv/lst/data" # Example: a dedicated data directory for the server's databases.
-
-# The [content] block (with `root`, `kinds`, `media_dir`) previously describing
-# a file system layout for content is no longer directly used by the server's API
-# for content storage, as content is now in an SQLite database (`content.db`).
-# `kind` is a field in the database, and media handling via API is not yet specified.
-```
-
-### 10.2 Client Configuration
-
-Client is configured via:
-
-- Linux/macOS: `${XDG_CONFIG_HOME:-$HOME/.config}/lst/lst.toml`
-- Windows: `%APPDATA%\lst\lst.toml`
-
-```toml
-[server]
-url = "https://lists.example.com/api"
-auth_token = "..." # obtained via magic link flow
-
-[ui]
-# default order tried when resolving an item
-resolution_order = ["anchor", "exact", "fuzzy", "index", "interactive"]
-
-[fuzzy]
-threshold = 0.75          # 0-1 similarity
-max_suggestions = 7
+# ... [server], [ui], [fuzzy] sections remain ...
 
 [paths]
-media_dir = "~/Documents/lst/media"   # override default
+# Base directory for all CLI content (lists, notes, etc.)
+content_dir = "~/Documents/lst"
+
+[syncd]
+# URL of the sync server's WebSocket endpoint (e.g., wss://lists.example.com/api/sync)
+url = "wss://lists.example.com/api/sync"
+
+# JWT auth token, obtained via 'lst sync setup' and stored automatically
+auth_token = "your-jwt-token"
+
+# Unique ID for this device, auto-generated
+device_id = "auto-generated-uuid"
+
+# Path to the sync daemon's local database
+database_path = "~/.config/lst/syncd.db"
+
+# Reference to the encryption key in the system's credential manager
+encryption_key_ref = "lst-master-key"
 ```
 
-Environment override: `LST_CONFIG=/path/to/custom.toml`
-
 ---
 
-## 11 · Roadmap Snapshot
+## 7. Roadmap
 
-| Phase                 | Duration | Deliverables                                           |
-| --------------------- | -------- | ------------------------------------------------------ |
-| **MVP 0.3.1**         | 6 w      | Core server, `lst` CLI (lists), mobile/GUI read‑only   |
-| **Offline + CRDT**    | 4 w      | conflict‑free lists across devices                     |
-| **Notes & Posts**     | 3 w      | new storage kinds; `lst note` & `lst post`; Zola build |
-| **Media Support**     | 2 w      | Image upload, CLI paste, Git LFS backend              |
-| **Voice & Shortcuts** | 3 w      | AGNO transcription; App Intents                        |
-| **Hardening**         | 2 w      | E2E encryption, invite links, CI, docs                 |
+This roadmap focuses on implementing the described sync architecture.
 
----
-
-## Open Threads
-
-- Set up SMTP provider & DNS (SPF/DKIM).
-- Decide if Zola build stays on‑prem or pushes to CDN.
-- Future document kinds? (journal, code snippets, etc.)
-
----
-
-## Version History
-
-+ **v0.4** (2025-04-27): Added `lst note add` command for appending text to notes
-+ **v0.3** (2025-04-27): Removed `post` commands and spec entries for posts
-+ **v0.2** (2025-04-25): Added notes commands (`lst note new` & `lst note open`)
-+ **v0.1** (2025-04-20): Initial specification
+| Phase                                     | Duration | Key Deliverables                                                                                                                                                                                                                                                                                             |
+| :---------------------------------------- | :------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Phase 1: CRDT & Encryption Foundation** | 4 Weeks  | 1. Integrate `automerge` crate into `lst-syncd`.<br>2. Implement client-side encryption/decryption logic (XChaCha20).<br>3. Implement `syncd.db` (SQLite) for state management.<br>4. Develop logic to convert Markdown file changes to Automerge changes and vice-versa.                                    |
+| **Phase 2: Server & Sync Protocol**       | 3 Weeks  | 1. Implement WebSocket endpoint on `lst-server`.<br>2. Implement server-side logic for relaying and storing encrypted blobs in `content.db`.<br>3. Implement full client-server sync protocol (push/pull changes, compaction).<br>4. Refine `lst-proto` with the new WebSocket message types.                |
+| **Phase 3: CLI Integration & Hardening**  | 2 Weeks  | 1. Update `lst sync setup` to handle encryption key generation and storage.<br>2. Improve `lst sync start/stop/status` to be more robust.<br>3. Add comprehensive unit and integration tests for the entire sync pipeline.<br>4. Document the new sync and encryption architecture for users and developers. |
+| **Phase 4: Future Features**              | Ongoing  | 1. Build Tauri GUI and mobile clients that leverage the `lst-syncd` logic.<br>2. Implement `share` command for multi-user collaboration (will require a key exchange mechanism like Sealed Boxes).<br>3. Add support for `posts` and `media` to the sync engine.                                             |
