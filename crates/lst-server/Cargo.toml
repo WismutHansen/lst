@@ -43,7 +43,7 @@ dirs = { workspace = true }
 
 # Internal dependencies
 lst-proto = { path = "../lst-proto", version = "0.1.1" }
-sqlx = "0.8.6"
+sqlx = { version = "0.8.6", features = ["sqlite", "runtime-tokio-rustls", "chrono", "uuid"] }
 
 [dev-dependencies]
 reqwest = { workspace = true }
