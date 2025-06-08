@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use notify::Event;
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use tokio::time::Instant;
 
@@ -48,46 +49,86 @@ impl SyncManager {
     }
     
     pub async fn handle_file_event(&mut self, event: Event) -> Result<()> {
-        // TODO: Process file changes into CRDT operations
-        // TODO: Store changes locally
-        // TODO: Queue for remote sync if server is configured
-        
         for path in event.paths {
             if let Some(filename) = path.file_name() {
                 if let Some(filename_str) = filename.to_str() {
-                    // Skip temporary files and hidden files
-                    if filename_str.starts_with('.') || 
-                       filename_str.ends_with(".tmp") || 
-                       filename_str.ends_with(".swp") {
+                    if filename_str.starts_with('.')
+                        || filename_str.ends_with(".tmp")
+                        || filename_str.ends_with(".swp")
+                    {
                         continue;
                     }
                 }
             }
-            
-            println!("Processing file change: {}", path.display());
-            
-            // TODO: Convert file changes to CRDT operations
-            // TODO: Encrypt CRDT data
-            // TODO: Store in local CRDT storage
+
+            let doc_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, path.to_string_lossy().as_bytes()).to_string();
+
+            if matches!(event.kind, notify::EventKind::Remove(_)) {
+                self.db.delete_document(&doc_id)?;
+                self.pending_changes.remove(&doc_id);
+                continue;
+            }
+
+            let data = tokio::fs::read(&path).await.unwrap_or_default();
+
+            if let Some(sync) = &self.config.sync {
+                if data.len() as u64 > sync.max_file_size {
+                    continue;
+                }
+            }
+
+            let mut hasher = Sha256::new();
+            hasher.update(&data);
+            let hash = hex::encode(hasher.finalize());
+
+            let doc_type = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("unknown");
+
+            self.db
+                .upsert_document(&doc_id, &path.to_string_lossy(), doc_type, &hash, &data)?;
+
+            self.pending_changes
+                .entry(doc_id)
+                .or_insert_with(Vec::new)
+                .push(data);
         }
-        
+
         Ok(())
     }
-    
-    pub async fn periodic_sync(&self) -> Result<()> {
-        if let Some(ref _client) = self.client {
+
+    pub async fn periodic_sync(&mut self) -> Result<()> {
+        let interval = self
+            .config
+            .sync
+            .as_ref()
+            .map(|s| s.interval_seconds)
+            .unwrap_or(30);
+
+        if self.last_sync.elapsed().as_secs() < interval {
+            return Ok(());
+        }
+
+        if let Some(ref client) = self.client {
             if let Some(ref syncd) = self.config.syncd {
                 if let Some(ref server_url) = syncd.url {
-                    // TODO: Sync pending changes to server
-                    // TODO: Fetch remote changes from server
-                    // TODO: Merge remote changes with local state
-                    
-                    println!("Would sync {} pending changes to {}", 
-                        self.pending_changes.len(), server_url);
+                    if !self.pending_changes.is_empty() {
+                        println!(
+                            "Would sync {} pending changes to {}",
+                            self.pending_changes.len(),
+                            server_url
+                        );
+
+                        // Placeholder for actual networking
+                        let _ = client;
+                    }
                 }
             }
         }
-        
+
+        self.last_sync = Instant::now();
+
         Ok(())
     }
 }
