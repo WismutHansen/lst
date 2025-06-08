@@ -55,14 +55,17 @@ graph TD
 - User enters or scans this code in their client (CLI, GUI, or mobile app).
     - API call: `POST /auth/verify` with email and token, or follows the encoded URL if scanned.
     - If the token is valid and unexpired, the server returns a JWT/session for further API use.
-- All tokens are one-time and expire after ~15 minutes.
+- All one-time tokens are securely stored by the server (e.g., in an SQLite database like `tokens.db`) and are consumed upon successful verification or removed if an attempt fails or they expire.
 - No server-stored plaintext passwords; user authentication is ephemeral by design.
+- Upon successful verification of the one-time token, the server issues a JSON Web Token (JWT) which is used for subsequent authenticated API calls. The JWT secret is a critical server configuration.
 
 **This login flow is inspired by [Atuin](https://github.com/atuinsh/atuin): QR code onboarding encodes a login URL so users can scan and securely add a new device in a single step. Manual token entry is always supported as fallback.**
 
 ---
 
 ## 3 · Storage Model
+
+This section primarily describes the conceptual model and the format used by the CLI for local plain-text storage. The `lst-server` component stores this information as records in an SQLite database (`content.db`), using `kind` and `path` (referred to as `item_path` in the database schema) as logical identifiers for content. The actual text content within the database typically resembles Markdown.
 
 ```
 content/
@@ -112,10 +115,153 @@ sender    = "Lists Bot <no‑reply@mg.example.com>"
 ```
 
 - Rust crate `lettre` ≥ 0.11 handles async SMTP; if SMTP unset, login link is logged for dev.
+- The JWT secret used for signing and verifying JWTs is a critical server configuration item, typically managed securely by the server administrator. It is not exposed to clients.
 
 ---
 
-## 6 · CLI **`lst`**
+## 6. Content API
+
+The Content API provides CRUD (Create, Read, Update, Delete) operations for managing content records (representing lists, notes, etc.) within the server's SQLite database (`content.db`). All endpoints listed in this section are prefixed with `/api` (e.g., `/api/content`) and **require JWT authentication**.
+
+**Authentication**: Clients must include a valid JWT in the `Authorization` header as a Bearer token:
+`Authorization: Bearer <your_jwt_here>`
+
+If authentication fails (missing, invalid, or expired JWT), the server will respond with a `401 Unauthorized` status code.
+
+Content items are identified by a `kind` (string, e.g., "notes", "lists") and a `path` (string, e.g., "recipes/pasta.md", referred to as `item_path` in the database). These form a unique logical key for a content record.
+
+---
+
+### 6.1 Create Content
+
+-   **Method**: `POST`
+-   **Path**: `/api/content`
+-   **Description**: Creates a new content record in the database.
+-   **Request Body (JSON)**:
+    ```json
+    {
+        "kind": "string",
+        "path": "string",
+        "content": "string"
+    }
+    ```
+    -   `kind`: (string, required) The category or type of content.
+    -   `path`: (string, required) The logical path or name for the content within its kind.
+    -   `content`: (string, required) The textual content to be stored.
+-   **Success Response (201 Created)**:
+    ```json
+    {
+        "message": "Content created successfully.",
+        "path": "kind/path" // The logical path of the created content
+    }
+    ```
+-   **Error Responses**:
+    -   `400 Bad Request`: Invalid payload (e.g., empty `kind` or `path`, invalid characters).
+    -   `401 Unauthorized`: Missing or invalid JWT.
+    -   `409 Conflict`: If content with the same `kind` and `path` already exists.
+    -   `500 Internal Server Error`: If the record cannot be created in the database.
+-   **`curl` Example**:
+    ```bash
+    JWT="your_jwt_here"
+    curl -X POST -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $JWT" \
+      -d '{ "kind": "notes", "path": "cooking/recipes/pasta.md", "content": "# Pasta Recipe\n..." }' \
+      http://localhost:3000/api/content
+    ```
+
+---
+
+### 6.2 Read Content
+
+-   **Method**: `GET`
+-   **Path**: `/api/content/{kind}/{path}` (Note: `{path}` here can contain slashes, e.g., `topic/sub/file.md`)
+-   **Description**: Retrieves the content of a specific record from the database.
+-   **Path Parameters**:
+    -   `{kind}`: The type/category of content.
+    -   `{path}`: The logical path of the content within its kind.
+-   **Success Response (200 OK)**:
+    -   **Content-Type**: `text/plain; charset=utf-8`
+    -   **Body**: The raw textual content of the record.
+-   **Error Responses**:
+    -   `401 Unauthorized`: Missing or invalid JWT.
+    -   `404 Not Found`: If no record matches the given `kind` and `path`.
+    -   `500 Internal Server Error`: If the record cannot be read.
+-   **`curl` Example**:
+    ```bash
+    JWT="your_jwt_here"
+    curl -X GET -H "Authorization: Bearer $JWT" \
+      http://localhost:3000/api/content/notes/cooking/recipes/pasta.md
+    ```
+
+---
+
+### 6.3 Update Content
+
+-   **Method**: `PUT`
+-   **Path**: `/api/content/{kind}/{path}`
+-   **Description**: Updates the content of an existing record in the database.
+-   **Path Parameters**:
+    -   `{kind}`: The type/category of content.
+    -   `{path}`: The logical path of the content.
+-   **Request Body (JSON)**:
+    ```json
+    {
+        "content": "string"
+    }
+    ```
+    -   `content`: (string, required) The new textual content for the record.
+-   **Success Response (200 OK)**:
+    ```json
+    {
+        "message": "Content updated successfully.",
+        "path": "kind/path" // The logical path of the updated content
+    }
+    ```
+-   **Error Responses**:
+    -   `400 Bad Request`: Invalid payload.
+    -   `401 Unauthorized`: Missing or invalid JWT.
+    -   `404 Not Found`: If no record matches the given `kind` and `path`.
+    -   `500 Internal Server Error`: If the record cannot be updated.
+-   **`curl` Example**:
+    ```bash
+    JWT="your_jwt_here"
+    curl -X PUT -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $JWT" \
+      -d '{ "content": "# Pasta Recipe\nUpdated ingredients..." }' \
+      http://localhost:3000/api/content/notes/cooking/recipes/pasta.md
+    ```
+
+---
+
+### 6.4 Delete Content
+
+-   **Method**: `DELETE`
+-   **Path**: `/api/content/{kind}/{path}`
+-   **Description**: Deletes a specific record from the database.
+-   **Path Parameters**:
+    -   `{kind}`: The type/category of content.
+    -   `{path}`: The logical path of the content.
+-   **Success Response (200 OK)**:
+    ```json
+    {
+        "message": "Content deleted successfully.",
+        "path": "kind/path" // The logical path of the deleted content
+    }
+    ```
+-   **Error Responses**:
+    -   `401 Unauthorized`: Missing or invalid JWT.
+    -   `404 Not Found`: If no record matches the given `kind` and `path`.
+    -   `500 Internal Server Error`: If the record cannot be deleted.
+-   **`curl` Example**:
+    ```bash
+    JWT="your_jwt_here"
+    curl -X DELETE -H "Authorization: Bearer $JWT" \
+      http://localhost:3000/api/content/notes/cooking/recipes/pasta.md
+    ```
+
+---
+
+## 7 · CLI **`lst`**
 
 ```
 $ lst help
@@ -207,23 +353,30 @@ Proxy with Caddy/Traefik for HTTPS and path routing.
 
 ### 10.1 Server Configuration
 
-Server is configured via `/opt/lst/server.toml`:
+Server is configured via `/opt/lst/server.toml` (example path):
 
 ```toml
-[server]
+[server] # General server settings block
 host = "127.0.0.1"
 port = 3000
+# jwt_secret = "a_very_secret_key_loaded_securely" # This is illustrative; actual secret management varies.
 
-[email]
+[email] # Email settings for auth token delivery
 smtp_host = "smtp.mailgun.org"
 smtp_user = "postmaster@mg.example.com"
-smtp_pass = "${SMTP_PASS}"
+smtp_pass = "${SMTP_PASS}" # Example: load from environment variable
 sender    = "Lists Bot <no-reply@mg.example.com>"
 
-[content]
-root = "content"
-kinds = ["lists", "notes", "posts"]
-media_dir = "media"
+[paths] # Path settings used by the server
+# For `lst-server`, `content_dir` (or the directory of lst.toml if content_dir is not set)
+# determines where the 'lst_server_data' subdirectory is created.
+# This 'lst_server_data' directory stores SQLite database files like 'tokens.db' and 'content.db'.
+content_dir = "/srv/lst/data" # Example: a dedicated data directory for the server's databases.
+
+# The [content] block (with `root`, `kinds`, `media_dir`) previously describing
+# a file system layout for content is no longer directly used by the server's API
+# for content storage, as content is now in an SQLite database (`content.db`).
+# `kind` is a field in the database, and media handling via API is not yet specified.
 ```
 
 ### 10.2 Client Configuration
