@@ -6,7 +6,7 @@ use axum::{
     http::{header, HeaderMap, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{delete, get, post, put},
+    routing::{get, post},
     Json, Router,
 };
 use base64::{engine::general_purpose, Engine as _};
@@ -21,12 +21,11 @@ use rand::seq::SliceRandom;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
-use sqlx::FromRow;
+use sqlx::{FromRow, Row};
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
-use tokio::fs as tokio_fs; // For async file operations in content handlers
 use std::path::Path as StdPath;
 
 
@@ -466,7 +465,7 @@ async fn create_content_handler(
         )),
         Err(e) => {
             if let Some(db_err) = e.as_database_error() {
-                if db_err.is_unique_constraint_violation() {
+                if db_err.is_unique_violation() {
                      return Err((
                         StatusCode::CONFLICT,
                         "Content with this kind and path already exists.".to_string(),
@@ -555,7 +554,7 @@ async fn delete_content_handler(
 }
 
 // --- JWT Auth Middleware ---
-async fn jwt_auth_middleware<B>(req: Request<B>, next: Next<B>) -> Result<Response, StatusCode> {
+async fn jwt_auth_middleware(req: Request, next: Next) -> Result<Response, StatusCode> {
     let headers = req.headers();
     let auth_header = headers.get(header::AUTHORIZATION).and_then(|header| header.to_str().ok());
     if let Some(auth_header) = auth_header {
