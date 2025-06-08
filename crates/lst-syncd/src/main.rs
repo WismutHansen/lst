@@ -1,6 +1,7 @@
 mod config;
 mod sync;
 mod watcher;
+mod database;
 
 use anyhow::Result;
 use clap::Parser;

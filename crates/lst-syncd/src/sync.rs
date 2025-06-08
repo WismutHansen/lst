@@ -4,13 +4,15 @@ use std::collections::HashMap;
 use tokio::time::Instant;
 
 use crate::config::Config;
-use lst_proto::SyncMessage;
+use crate::database::LocalDb;
+use lst_proto::ClientMessage;
 
 pub struct SyncManager {
     config: Config,
     client: Option<reqwest::Client>,
+    db: LocalDb,
     last_sync: Instant,
-    pending_changes: HashMap<String, SyncMessage>,
+    pending_changes: HashMap<String, Vec<Vec<u8>>>,
 }
 
 impl SyncManager {
@@ -20,17 +22,26 @@ impl SyncManager {
         } else {
             None
         };
-        
+
         // Ensure CRDT storage directory exists
         if let Some(ref storage) = config.storage {
             tokio::fs::create_dir_all(&storage.crdt_dir)
                 .await
                 .with_context(|| format!("Failed to create CRDT directory: {}", storage.crdt_dir.display()))?;
         }
-        
+
+        let db_path = config
+            .syncd
+            .as_ref()
+            .and_then(|s| s.database_path.as_ref())
+            .expect("database_path must be set in syncd config");
+
+        let db = LocalDb::new(db_path)?;
+
         Ok(Self {
             config,
             client,
+            db,
             last_sync: Instant::now(),
             pending_changes: HashMap::new(),
         })

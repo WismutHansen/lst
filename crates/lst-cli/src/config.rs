@@ -61,6 +61,12 @@ pub struct SyncdConfig {
     
     /// Device identifier (auto-generated if missing)
     pub device_id: Option<String>,
+
+    /// Path to the local sync database
+    pub database_path: Option<PathBuf>,
+
+    /// Reference to the encryption key
+    pub encryption_key_ref: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -243,10 +249,18 @@ impl Config {
                 .join("lst")
                 .join("crdt");
             
+            let config_dir = dirs::config_dir()
+                .context("Cannot determine config directory")?
+                .join("lst");
+
+            let db_path = config_dir.join("syncd.db");
+
             self.syncd = Some(SyncdConfig {
                 url: None,
                 auth_token: None,
                 device_id: Some(uuid::Uuid::new_v4().to_string()),
+                database_path: Some(db_path),
+                encryption_key_ref: Some("lst-master-key".to_string()),
             });
             
             self.storage = Some(StorageConfig {
