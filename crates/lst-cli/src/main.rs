@@ -22,6 +22,9 @@ fn main() -> Result<()> {
                 cli::commands::list_lists(cli.json)?;
             }
         }
+        Commands::New { list } => {
+            cli::commands::new_list(list)?;
+        }
         Commands::Add { list, text } => {
             cli::commands::add_item(list, text, cli.json)?;
         }

@@ -11,6 +11,13 @@ use chrono::{Local, Utc};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+/// Create a new list: initializes file and opens in editor
+pub fn new_list(title: &str) -> Result<()> {
+    let key = title.trim_end_matches(".md");
+    let path = storage::markdown::create_list(key).context("Failed to create note")?;
+    open_editor(&path)
+}
+
 /// Handle the 'ls' command to list all lists
 pub fn list_lists(json: bool) -> Result<()> {
     let lists = storage::list_lists()?;
@@ -291,9 +298,9 @@ fn resolve_list(input: &str) -> Result<String> {
 pub fn open_list(list: &str) -> Result<()> {
     // Resolve list name (omit .md, fuzzy match)
     let key = list.trim_end_matches(".md");
-    let note = resolve_list(key)?;
-    let path = storage::notes::load_note(&note).context("Failed to load list")?;
-
+    let name = resolve_list(key)?;
+    let list = storage::markdown::load_list(&name).context("Failed to load list")?;
+    let path = list.file_path();
     open_editor(&path)
 }
 /// Handle the 'add' command to add an item to a list
