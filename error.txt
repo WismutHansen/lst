@@ -1,0 +1,219 @@
+warning: /Users/tommyfalkowski/Code/rust/lst/Cargo.toml: unused manifest key: workspace.version
+warning: function `normalize_note` is never used
+   --> crates/lst-cli/src/cli/commands.rs:213:4
+    |
+213 | fn normalize_note(input: &str) -> Result<String> {
+    |    ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` on by default
+
+warning: function `list_daily_lists` is never used
+   --> crates/lst-cli/src/cli/commands.rs:741:8
+    |
+741 | pub fn list_daily_lists(json: bool) -> Result<()> {
+    |        ^^^^^^^^^^^^^^^^
+
+warning: method `get_content_dir` is never used
+   --> crates/lst-cli/src/config.rs:228:12
+    |
+181 | impl Config {
+    | ----------- method in this implementation
+...
+228 |     pub fn get_content_dir(&self) -> PathBuf {
+    |            ^^^^^^^^^^^^^^^
+
+warning: function `parse_list_from_markdown` is never used
+   --> crates/lst-cli/src/models/list.rs:149:8
+    |
+149 | pub fn parse_list_from_markdown(_path: &Path) -> Result<List> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `save_list_to_markdown` is never used
+   --> crates/lst-cli/src/models/list.rs:155:8
+    |
+155 | pub fn save_list_to_markdown(_list: &List, _path: &Path) -> Result<()> {
+    |        ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `get_posts_dir` is never used
+  --> crates/lst-cli/src/storage/mod.rs:76:8
+   |
+76 | pub fn get_posts_dir() -> Result<PathBuf> {
+   |        ^^^^^^^^^^^^^
+
+warning: function `get_media_dir` is never used
+  --> crates/lst-cli/src/storage/mod.rs:86:8
+   |
+86 | pub fn get_media_dir() -> Result<PathBuf> {
+   |        ^^^^^^^^^^^^^
+
+warning: function `list_files` is never used
+   --> crates/lst-cli/src/storage/mod.rs:124:8
+    |
+124 | pub fn list_files(dir: &Path, extension: &str) -> Result<Vec<PathBuf>> {
+    |        ^^^^^^^^^^
+
+warning: function `save_list` is never used
+  --> crates/lst-cli/src/storage/markdown.rs:51:8
+   |
+51 | pub fn save_list(list: &List) -> Result<()> {
+   |        ^^^^^^^^^
+
+warning: `lst-cli` (bin "lst") generated 9 warnings
+   Compiling lst-server v0.1.1 (/Users/tommyfalkowski/Code/rust/lst/crates/lst-server)
+warning: field `last_sync` is never read
+  --> crates/lst-syncd/src/sync.rs:12:5
+   |
+9  | pub struct SyncManager {
+   |            ----------- field in this struct
+...
+12 |     last_sync: Instant,
+   |     ^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: `lst-syncd` (bin "lst-syncd") generated 1 warning
+error[E0432]: unresolved import `sqlx::sqlite`
+  --> crates/lst-server/src/main.rs:23:11
+   |
+23 | use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
+   |           ^^^^^^ could not find `sqlite` in `sqlx`
+   |
+note: found an item that was configured out
+  --> /Users/tommyfalkowski/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlx-0.8.6/src/lib.rs:63:13
+   |
+63 |     self as sqlite, Sqlite, SqliteConnection, SqliteExecutor, SqlitePool, SqliteTransaction,
+   |             ^^^^^^
+note: the item is gated behind the `_sqlite` feature
+  --> /Users/tommyfalkowski/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlx-0.8.6/src/lib.rs:59:7
+   |
+59 | #[cfg(feature = "_sqlite")]
+   |       ^^^^^^^^^^^^^^^^^^^
+
+error[E0433]: failed to resolve: could not find `sqlite` in `sqlx`
+   --> crates/lst-server/src/main.rs:212:34
+    |
+212 |         let result: Option<sqlx::sqlite::SqliteRow> = sqlx::query(
+    |                                  ^^^^^^ could not find `sqlite` in `sqlx`
+    |
+note: found an item that was configured out
+   --> /Users/tommyfalkowski/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlx-0.8.6/src/lib.rs:63:13
+    |
+63  |     self as sqlite, Sqlite, SqliteConnection, SqliteExecutor, SqlitePool, SqliteTransaction,
+    |             ^^^^^^
+note: the item is gated behind the `_sqlite` feature
+   --> /Users/tommyfalkowski/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlx-0.8.6/src/lib.rs:59:7
+    |
+59  | #[cfg(feature = "_sqlite")]
+    |       ^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `delete` and `put`
+ --> crates/lst-server/src/main.rs:9:15
+  |
+9 |     routing::{delete, get, post, put},
+  |               ^^^^^^             ^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `tokio::fs as tokio_fs`
+  --> crates/lst-server/src/main.rs:29:5
+   |
+29 | use tokio::fs as tokio_fs; // For async file operations in content handlers
+   |     ^^^^^^^^^^^^^^^^^^^^^
+
+error[E0107]: struct takes 0 generic arguments but 1 generic argument was supplied
+   --> crates/lst-server/src/main.rs:558:56
+    |
+558 | async fn jwt_auth_middleware<B>(req: Request<B>, next: Next<B>) -> Result<Response, StatusCode> {
+    |                                                        ^^^^--- help: remove the unnecessary generics
+    |                                                        |
+    |                                                        expected 0 generic arguments
+    |
+note: struct defined here, with 0 generic parameters
+   --> /Users/tommyfalkowski/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/axum-0.8.4/src/middleware/from_fn.rs:338:12
+    |
+338 | pub struct Next {
+    |            ^^^^
+
+error[E0277]: the trait bound `DateTime<Utc>: sqlx::Encode<'_, sqlx::Any>` is not satisfied
+  --> crates/lst-server/src/main.rs:93:19
+   |
+93 |             .bind(expires_at_chrono)
+   |              ---- ^^^^^^^^^^^^^^^^^ the trait `sqlx::Encode<'_, sqlx::Any>` is not implemented for `DateTime<Utc>`
+   |              |
+   |              required by a bound introduced by this call
+   |
+   = help: the following other types implement trait `sqlx::Encode<'q, DB>`:
+             `&'a str` implements `sqlx::Encode<'a, sqlx::Any>`
+             `&'q [u8]` implements `sqlx::Encode<'q, sqlx::Any>`
+             `&T` implements `sqlx::Encode<'q, DB>`
+             `JsonValue` implements `sqlx::Encode<'q, DB>`
+             `NonZero<i16>` implements `sqlx::Encode<'q, DB>`
+             `NonZero<i32>` implements `sqlx::Encode<'q, DB>`
+             `NonZero<i64>` implements `sqlx::Encode<'q, DB>`
+             `NonZero<i8>` implements `sqlx::Encode<'q, DB>`
+           and 13 others
+note: required by a bound in `sqlx::query::Query::<'q, DB, <DB as sqlx::Database>::Arguments<'q>>::bind`
+  --> /Users/tommyfalkowski/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlx-core-0.8.6/src/query.rs:86:25
+   |
+86 |     pub fn bind<T: 'q + Encode<'q, DB> + Type<DB>>(mut self, value: T) -> Self {
+   |                         ^^^^^^^^^^^^^^ required by this bound in `Query::<'q, DB, <DB as Database>::Arguments<'q>>::bind`
+
+error[E0277]: the trait bound `DateTime<Utc>: Type<sqlx::Any>` is not satisfied
+  --> crates/lst-server/src/main.rs:93:19
+   |
+93 |             .bind(expires_at_chrono)
+   |              ---- ^^^^^^^^^^^^^^^^^ the trait `Type<sqlx::Any>` is not implemented for `DateTime<Utc>`
+   |              |
+   |              required by a bound introduced by this call
+   |
+   = help: the following other types implement trait `Type<DB>`:
+             `&T` implements `Type<DB>`
+             `JsonRawValue` implements `Type<DB>`
+             `JsonValue` implements `Type<DB>`
+             `NonZero<i16>` implements `Type<DB>`
+             `NonZero<i32>` implements `Type<DB>`
+             `NonZero<i64>` implements `Type<DB>`
+             `NonZero<i8>` implements `Type<DB>`
+             `NonZero<u16>` implements `Type<DB>`
+           and 14 others
+note: required by a bound in `sqlx::query::Query::<'q, DB, <DB as sqlx::Database>::Arguments<'q>>::bind`
+  --> /Users/tommyfalkowski/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlx-core-0.8.6/src/query.rs:86:42
+   |
+86 |     pub fn bind<T: 'q + Encode<'q, DB> + Type<DB>>(mut self, value: T) -> Self {
+   |                                          ^^^^^^^^ required by this bound in `Query::<'q, DB, <DB as Database>::Arguments<'q>>::bind`
+
+error[E0599]: no method named `is_unique_constraint_violation` found for reference `&dyn DatabaseError` in the current scope
+   --> crates/lst-server/src/main.rs:469:27
+    |
+469 |                 if db_err.is_unique_constraint_violation() {
+    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: there is a method `is_unique_violation` with a similar name
+    |
+469 -                 if db_err.is_unique_constraint_violation() {
+469 +                 if db_err.is_unique_violation() {
+    |
+
+error[E0308]: mismatched types
+   --> crates/lst-server/src/main.rs:568:40
+    |
+558 | async fn jwt_auth_middleware<B>(req: Request<B>, next: Next<B>) -> Result<Response, StatusCode> {
+    |                              - found this type parameter
+...
+568 |                     return Ok(next.run(req).await);
+    |                                    --- ^^^ expected `Request<Body>`, found `Request<B>`
+    |                                    |
+    |                                    arguments to this method are incorrect
+    |
+    = note: expected struct `axum::http::Request<axum::body::Body>`
+               found struct `axum::http::Request<B>`
+note: method defined here
+   --> /Users/tommyfalkowski/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/axum-0.8.4/src/middleware/from_fn.rs:344:18
+    |
+344 |     pub async fn run(mut self, req: Request) -> Response {
+    |                  ^^^
+
+Some errors have detailed explanations: E0107, E0277, E0308, E0432, E0433, E0599.
+For more information about an error, try `rustc --explain E0107`.
+warning: `lst-server` (bin "lst-server") generated 2 warnings
+error: could not compile `lst-server` (bin "lst-server") due to 7 previous errors; 2 warnings emitted

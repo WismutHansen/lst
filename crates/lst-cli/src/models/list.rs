@@ -1,9 +1,10 @@
+use crate::storage::get_lists_dir;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use rand::distributions::{Alphanumeric, DistString};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 pub fn generate_anchor() -> String {
@@ -93,7 +94,6 @@ impl List {
         self.items.last().unwrap()
     }
 
-
     /// Find an item by its anchor
     pub fn find_by_anchor(&self, anchor: &str) -> Option<usize> {
         self.items.iter().position(|item| item.anchor == anchor)
@@ -117,6 +117,11 @@ impl List {
             "{}.md",
             self.metadata.title.to_lowercase().replace(' ', "-")
         )
+    }
+    /// Get the file path (currently just returns the file name; prepend a dir if needed)
+    pub fn file_path(&self) -> PathBuf {
+        let lists_dir = get_lists_dir().unwrap();
+        lists_dir.join(self.file_name())
     }
 }
 

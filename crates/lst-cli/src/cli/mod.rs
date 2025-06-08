@@ -23,6 +23,13 @@ pub enum Commands {
         list: Option<String>,
     },
 
+    /// Create and open a new list
+    #[clap(name = "new")]
+    New {
+        /// Name of the list
+        list: String,
+    },
+
     /// Add an item to a list
     #[clap(name = "add")]
     Add {
