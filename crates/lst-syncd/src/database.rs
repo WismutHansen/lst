@@ -43,4 +43,11 @@ impl LocalDb {
         )?;
         Ok(())
     }
+
+    /// Delete a document by id
+    pub fn delete_document(&self, doc_id: &str) -> Result<()> {
+        self.conn
+            .execute("DELETE FROM documents WHERE doc_id = ?1", params![doc_id])?;
+        Ok(())
+    }
 }
