@@ -101,6 +101,26 @@ pub enum Commands {
     /// Sync daemon commands
     #[clap(subcommand, name = "sync")]
     Sync(SyncCommands),
+
+    /// Share a document with other devices
+    #[clap(name = "share")]
+    Share {
+        /// Document path or identifier
+        document: String,
+        /// Comma separated list of writer device IDs
+        #[clap(long)]
+        writers: Option<String>,
+        /// Comma separated list of reader device IDs
+        #[clap(long)]
+        readers: Option<String>,
+    },
+
+    /// Remove sharing information from a document
+    #[clap(name = "unshare")]
+    Unshare {
+        /// Document path or identifier
+        document: String,
+    },
 }
 
 #[derive(Subcommand)]

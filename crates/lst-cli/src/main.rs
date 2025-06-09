@@ -101,6 +101,12 @@ fn main() -> Result<()> {
                 eprintln!("Image commands not implemented yet");
             }
         },
+        Commands::Share { document, writers, readers } => {
+            cli::commands::share_document(document, writers.as_deref(), readers.as_deref())?;
+        }
+        Commands::Unshare { document } => {
+            cli::commands::unshare_document(document)?;
+        }
     }
 
     Ok(())
