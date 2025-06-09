@@ -2,6 +2,7 @@ use anyhow::{anyhow, Context, Result};
 use chacha20poly1305::aead::{Aead, KeyInit};
 use chacha20poly1305::{XChaCha20Poly1305, Key, XNonce};
 use rand::RngCore;
+use base64::{engine::general_purpose, Engine as _};
 use std::fs;
 use std::path::Path;
 
@@ -25,7 +26,7 @@ pub fn load_key(path: &Path) -> Result<[u8; 32]> {
         let decoded = if data.len() == 32 {
             data
         } else {
-            base64::decode(&data)?
+            general_purpose::STANDARD.decode(&data)?
         };
         if decoded.len() != 32 {
             return Err(anyhow!("Invalid key length"));
@@ -40,7 +41,7 @@ pub fn load_key(path: &Path) -> Result<[u8; 32]> {
             fs::create_dir_all(parent)
                 .with_context(|| format!("Failed to create key directory: {}", parent.display()))?;
         }
-        fs::write(&expanded, base64::encode(key))
+        fs::write(&expanded, general_purpose::STANDARD.encode(key))
             .with_context(|| format!("Failed to write key file: {}", expanded.display()))?;
         Ok(key)
     }

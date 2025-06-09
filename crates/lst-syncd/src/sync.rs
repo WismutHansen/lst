@@ -4,7 +4,7 @@ use crate::crypto;
 use anyhow::{Context, Result};
 use automerge::{
     transaction::Transactable as _,
-    Automerge, Change, ObjType, ReadDoc, ScalarValue, Value,
+    Automerge, Change, ObjType, ReadDoc, ScalarValue, Value, ObjId,
 };
 use notify::Event;
 use sha2::{Digest, Sha256};
@@ -26,28 +26,23 @@ fn detect_doc_type(path: &std::path::Path) -> &str {
 
 fn update_note_doc(doc: &mut Automerge, content: &str) -> Result<()> {
     let mut tx = doc.transaction();
-    tx.put(automerge::ROOT, "content", "").ok();
-    tx.update_text(automerge::ROOT, "content", content)?;
+    tx.put(&automerge::ROOT, "content", "")?;
+    tx.update_text(&automerge::ROOT, content)?;
     tx.commit();
     Ok(())
 }
 
 fn update_list_doc(doc: &mut Automerge, content: &str) -> Result<()> {
     let mut tx = doc.transaction();
-    let items = match doc.get(automerge::ROOT, "items")? {
-        Some((id, _)) => id,
-        None => tx.put_object(automerge::ROOT, "items", ObjType::List)?,
-    };
-
-    let len = doc.length(items);
-    for idx in (0..len).rev() {
-        tx.delete(items, idx)?;
-    }
+    
+    // Create or recreate the list
+    tx.delete(&automerge::ROOT, "items").ok(); // Ignore error if doesn't exist
+    let items_id = tx.put_object(&automerge::ROOT, "items", ObjType::List)?;
 
     for (idx, line) in content.lines().enumerate() {
         let line = line.trim();
         if !line.is_empty() {
-            tx.insert(items, idx, ScalarValue::Str(line.into()))?;
+            tx.insert(&items_id, idx, ScalarValue::Str(line.into()))?;
         }
     }
 
@@ -97,7 +92,7 @@ impl SyncManager {
             .as_ref()
             .and_then(|s| s.encryption_key_ref.as_ref())
             .expect("encryption_key_ref must be set in syncd config");
-        let encryption_key = crypto::load_key(key_path)?;
+        let encryption_key = crypto::load_key(std::path::Path::new(key_path))?;
 
         Ok(Self {
             config,
@@ -166,7 +161,7 @@ impl SyncManager {
                 }
 
                 let mut doc = Automerge::load(&state)?;
-                let old_heads = doc.get_heads();
+                let old_heads = doc.get_heads().into_iter().collect::<Vec<_>>();
 
                 if doc_type == "list" {
                     update_list_doc(&mut doc, &new_content)?;
@@ -187,8 +182,8 @@ impl SyncManager {
                     readers.as_deref(),
                 )?;
 
-                let changes = doc
-                    .get_changes_added(&old_heads)
+                let new_doc = Automerge::load(&new_state)?;
+                let changes = new_doc.get_changes(&old_heads)
                     .into_iter()
                     .map(|c| c.raw_bytes().to_vec())
                     .collect::<Vec<_>>();
@@ -199,7 +194,7 @@ impl SyncManager {
                     .extend(changes);
             } else {
                 let mut doc = Automerge::new();
-                let old_heads = doc.get_heads();
+                let old_heads = doc.get_heads().into_iter().collect::<Vec<_>>();
 
                 if doc_type == "list" {
                     update_list_doc(&mut doc, &new_content)?;
@@ -220,8 +215,8 @@ impl SyncManager {
                     None,
                 )?;
 
-                let changes = doc
-                    .get_changes_added(&old_heads)
+                let new_doc = Automerge::load(&new_state)?;
+                let changes = new_doc.get_changes(&old_heads)
                     .into_iter()
                     .map(|c| c.raw_bytes().to_vec())
                     .collect::<Vec<_>>();
@@ -250,7 +245,7 @@ impl SyncManager {
             let mut change_objs = Vec::new();
             for raw in changes {
                 let decrypted = crypto::decrypt(&raw, &self.encryption_key)?;
-                let change = Change::from_bytes(&decrypted)?;
+                let change = Change::from_bytes(decrypted)?;
                 change_objs.push(change);
             }
 
@@ -259,28 +254,49 @@ impl SyncManager {
             let new_state = doc.save();
 
             let content = if doc_type == "list" {
-                if let Some((items, _)) = doc.get(automerge::ROOT, "items")? {
-                    let mut lines = Vec::new();
-                    for i in 0..doc.length(items) {
-                        if let Some((_id, val)) = doc.get(items, i)? {
-                            match val {
-                                Value::Text(t) => lines.push(t.to_string()),
-                                Value::Scalar(ScalarValue::Str(s)) => lines.push(s.to_string()),
-                                _ => {}
+                if let Some((items_val, items_id)) = doc.get(automerge::ROOT, "items")? {
+                    if let Value::Object(_) = items_val {
+                        let mut lines = Vec::new();
+                        let len = doc.length(&items_id);
+                        for i in 0..len {
+                            if let Some((val, _)) = doc.get(&items_id, i)? {
+                                match val {
+                                    Value::Scalar(s) => {
+                                        if let ScalarValue::Str(text) = s.as_ref() {
+                                            lines.push(text.to_string());
+                                        }
+                                    },
+                                    _ => {}
+                                }
                             }
                         }
+                        lines.join("\n")
+                    } else {
+                        String::new()
                     }
-                    lines.join("\n")
                 } else {
                     String::new()
                 }
-            } else if let Some((_id, value)) = doc.get(automerge::ROOT, "content")? {
-                match value {
-                    Value::Text(t) => t.to_string(),
-                    _ => String::new(),
-                }
             } else {
-                String::new()
+                // For text content, try to get it as text object first, then as scalar
+                if let Some((content_val, content_id)) = doc.get(automerge::ROOT, "content")? {
+                    match content_val {
+                        Value::Object(_) => {
+                            // Try to get as text first
+                            doc.text(&content_id).unwrap_or_default()
+                        },
+                        Value::Scalar(s) => {
+                            if let ScalarValue::Str(text) = s.as_ref() {
+                                text.to_string()
+                            } else {
+                                String::new()
+                            }
+                        },
+                        _ => String::new(),
+                    }
+                } else {
+                    String::new()
+                }
             };
 
             tokio::fs::write(&file_path, &content)
