@@ -777,3 +777,53 @@ pub fn list_daily_lists(json: bool) -> Result<()> {
 
     Ok(())
 }
+
+/// Share a document by updating writers and readers in the local sync database
+pub fn share_document(doc: &str, writers: Option<&str>, readers: Option<&str>) -> Result<()> {
+    use rusqlite::Connection;
+    use uuid::Uuid;
+
+    let config = get_config();
+    let db_path = config
+        .syncd
+        .as_ref()
+        .and_then(|s| s.database_path.as_ref())
+        .context("syncd.database_path not configured")?;
+
+    // Resolve document path (list or note)
+    let key = doc.trim_end_matches(".md");
+    let (path, kind) = match resolve_list(key) {
+        Ok(p) => {
+            let lists_dir = storage::get_lists_dir()?;
+            (lists_dir.join(format!("{}.md", p)), "list")
+        }
+        Err(_) => {
+            let note = resolve_note(key)?;
+            let notes_dir = storage::get_notes_dir()?;
+            (notes_dir.join(format!("{}.md", note)), "note")
+        }
+    };
+
+    if !path.exists() {
+        bail!("{} '{}' does not exist", kind, doc);
+    }
+
+    let doc_id = Uuid::new_v5(&Uuid::NAMESPACE_OID, path.to_string_lossy().as_bytes()).to_string();
+    let conn = Connection::open(db_path)?;
+    let affected = conn.execute(
+        "UPDATE documents SET writers = ?2, readers = ?3 WHERE doc_id = ?1",
+        rusqlite::params![doc_id, writers, readers],
+    )?;
+
+    if affected == 0 {
+        bail!("Document not tracked in sync database: {}", doc);
+    }
+
+    println!("Updated share info for {}", doc);
+    Ok(())
+}
+
+/// Remove sharing information from a document in the local sync database
+pub fn unshare_document(doc: &str) -> Result<()> {
+    share_document(doc, None, None)
+}

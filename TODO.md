@@ -69,7 +69,7 @@
 - [x] Support directory structures (e.g. groceries/pharmacy.md) while still supporting fuzzy search only by name (without having to always specify the directory)
 - [x] Implement daily list commands (`dl add`, `dl done`, `dl undone`, `dl ls`, `dl rm`) with automatic organization in `daily_lists/` subdirectory
 - [x] Implement daily note command (`dn`) with automatic organization in `daily_notes/` subdirectory
-- [ ] Add `share` and `unshare` commands to manage document members (will involve key exchange mechanisms)
+- [x] Add `share` and `unshare` commands to manage document members (will involve key exchange mechanisms)
 - [ ] **Improvements & Polish:**
   - [ ] Improve `fuzzy_find` beyond simple "contains"
   - [ ] Enhance error handling: replace `unwrap()`/`expect()` with user-friendly messages and proper error propagation
