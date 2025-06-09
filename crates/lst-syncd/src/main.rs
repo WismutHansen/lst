@@ -1,4 +1,5 @@
 mod config;
+mod crypto;
 mod sync;
 mod watcher;
 mod database;
