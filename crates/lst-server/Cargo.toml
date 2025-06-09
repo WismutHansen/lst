@@ -21,6 +21,7 @@ clap = { workspace = true }
 axum = { workspace = true }
 hyper = { workspace = true }
 tokio = { workspace = true }
+futures-util = { workspace = true }
 
 # Serialization
 serde = { workspace = true }

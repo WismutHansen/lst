@@ -1,8 +1,9 @@
 mod config;
 mod wordlist;
+mod sync_db;
 
 use axum::{
-    extract::{Path, Request},
+    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, Path, Request, State},
     http::{header, HeaderMap, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -27,6 +28,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use std::path::Path as StdPath;
+use tokio::sync::broadcast;
+use futures_util::{StreamExt, SinkExt};
 
 
 // --- Structs for API Payloads and Responses ---
@@ -259,6 +262,12 @@ impl SqliteContentStore {
 
 type ContentStore = Arc<SqliteContentStore>;
 
+#[derive(Clone)]
+struct AppState {
+    db: sync_db::SyncDb,
+    tx: broadcast::Sender<(String, lst_proto::ServerMessage)>,
+}
+
 #[derive(Deserialize)]
 struct AuthRequest {
     email: String,
@@ -310,6 +319,12 @@ async fn main() {
             .expect("Failed to initialize content store"),
     );
 
+    let sync_db = sync_db::SyncDb::new(server_data_base_dir.clone())
+        .await
+        .expect("Failed to initialize sync db");
+    let (tx, _) = broadcast::channel(100);
+    let app_state = Arc::new(AppState { db: sync_db, tx });
+
     // Router for content API (protected)
     // The handlers (e.g., create_content_handler) will be updated next to accept ContentStore
     let content_api_router = Router::new()
@@ -352,9 +367,14 @@ async fn main() {
             let ts = token_store.clone();
             move |j| auth_verify_handler(j, ts)
         }))
-        .nest("/content", content_api_router);
-
-    let app = Router::new().nest("/api", api_router);
+        .nest("/content", content_api_router)
+        .route(
+            "/sync",
+            get(|ws: WebSocketUpgrade, State(state): State<Arc<AppState>>, headers: HeaderMap| async move {
+                ws_handler(ws, headers, state).await
+            }),
+        );
+    let app = Router::new().nest("/api", api_router).with_state(app_state.clone());
 
     let addr = SocketAddr::new(settings.lst_server.host.parse::<IpAddr>().unwrap(), settings.lst_server.port);
     println!("lst-server listening on http://{}", addr);
@@ -551,6 +571,95 @@ async fn delete_content_handler(
             ))
         }
     }
+}
+
+async fn ws_handler(
+    ws: WebSocketUpgrade,
+    headers: HeaderMap,
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    if let Some(auth) = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+    {
+        let decoding_key = DecodingKey::from_secret(JWT_SECRET);
+        let validation = Validation::default();
+        if let Ok(token_data) = decode::<Claims>(auth, &decoding_key, &validation) {
+            let user = token_data.claims.sub;
+            return ws.on_upgrade(move |socket| handle_ws(socket, state, user));
+        }
+    }
+    (StatusCode::UNAUTHORIZED, "unauthorized")
+}
+
+async fn handle_ws(stream: WebSocket, state: Arc<AppState>, user: String) {
+    let (mut sender, mut receiver) = stream.split();
+
+    let _ = sender
+        .send(Message::Text(
+            serde_json::to_string(&lst_proto::ServerMessage::Authenticated { success: true }).unwrap(),
+        ))
+        .await;
+
+    let mut rx = state.tx.subscribe();
+    let send_task = tokio::spawn(async move {
+        while let Ok((target, msg)) = rx.recv().await {
+            if target == user {
+                if let Ok(txt) = serde_json::to_string(&msg) {
+                    if sender.send(Message::Text(txt)).await.is_err() {
+                        break;
+                    }
+                }
+            }
+        }
+    });
+
+    while let Some(Ok(msg)) = receiver.next().await {
+        if let Message::Text(text) = msg {
+            if let Ok(cmsg) = serde_json::from_str::<lst_proto::ClientMessage>(&text) {
+                match cmsg {
+                    lst_proto::ClientMessage::RequestDocumentList => {
+                        if let Ok(list) = state.db.list_documents(&user).await {
+                            let resp = lst_proto::ServerMessage::DocumentList { documents: list };
+                            let _ = sender
+                                .send(Message::Text(serde_json::to_string(&resp).unwrap()))
+                                .await;
+                        }
+                    }
+                    lst_proto::ClientMessage::RequestSnapshot { doc_id } => {
+                        if let Ok(Some(snap)) = state.db.get_snapshot(&doc_id.to_string()).await {
+                            let resp = lst_proto::ServerMessage::Snapshot { doc_id, snapshot: snap };
+                            let _ = sender
+                                .send(Message::Text(serde_json::to_string(&resp).unwrap()))
+                                .await;
+                        }
+                    }
+                    lst_proto::ClientMessage::PushChanges { doc_id, device_id, changes } => {
+                        let _ = state
+                            .db
+                            .add_changes(&doc_id.to_string(), &device_id, &changes)
+                            .await;
+                        let msg = lst_proto::ServerMessage::NewChanges {
+                            doc_id,
+                            from_device_id: device_id,
+                            changes,
+                        };
+                        let _ = state.tx.send((user.clone(), msg));
+                    }
+                    lst_proto::ClientMessage::PushSnapshot { doc_id, snapshot } => {
+                        let _ = state
+                            .db
+                            .save_snapshot(&doc_id.to_string(), &user, &snapshot)
+                            .await;
+                    }
+                    lst_proto::ClientMessage::Authenticate { .. } => {}
+                }
+            }
+        }
+    }
+
+    send_task.abort();
 }
 
 // --- JWT Auth Middleware ---

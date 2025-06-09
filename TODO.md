@@ -12,33 +12,33 @@
 - [ ] **lst-syncd (Client-side Sync Daemon):**
   - [x] Scaffold `lst-syncd` daemon with file watching
   - [ ] **Integrate `automerge` crate for CRDT-based list and note synchronization:**
-    - [ ] Add `automerge` (with `rusqlite` feature), `rusqlite` (for `syncd.db`), and `uuid` dependencies to `lst-syncd/Cargo.toml`.
-    - [ ] **Implement `syncd.db` (SQLite) for local Automerge state management (`lst-syncd/src/database.rs` or similar):**
-      - [ ] Define `documents` table schema: `doc_id` (UUID PK), `file_path` (TEXT UNIQUE), `doc_type` (TEXT, e.g., 'list', 'note'), `last_sync_hash` (TEXT), `automerge_state` (BLOB for the full Automerge document).
-      - [ ] Implement function to initialize the database and table.
-    - [ ] **Develop logic for processing local file changes into Automerge documents (`lst-syncd/src/sync.rs` or similar):**
-      - [ ] On file change, read content and compare its hash with `last_sync_hash` from `syncd.db`.
-      - [ ] If different, load `automerge_state` for the file. If no state, create a new `Automerge` document.
-      - [ ] Generate Automerge changes:
+    - [x] Add `automerge` (with `rusqlite` feature), `rusqlite` (for `syncd.db`), and `uuid` dependencies to `lst-syncd/Cargo.toml`.
+    - [x] **Implement `syncd.db` (SQLite) for local Automerge state management (`lst-syncd/src/database.rs` or similar):**
+      - [x] Define `documents` table schema: `doc_id` (UUID PK), `file_path` (TEXT UNIQUE), `doc_type` (TEXT, e.g., 'list', 'note'), `last_sync_hash` (TEXT), `automerge_state` (BLOB for the full Automerge document), `owner` (TEXT), `writers` (TEXT), `readers` (TEXT).
+      - [x] Implement function to initialize the database and table.
+    - [x] **Develop logic for processing local file changes into Automerge documents (`lst-syncd/src/sync.rs` or similar):**
+      - [x] On file change, read content and compare its hash with `last_sync_hash` from `syncd.db`.
+      - [x] If different, load `automerge_state` for the file. If no state, create a new `Automerge` document.
+      - [x] Generate Automerge changes:
         - For lists: Apply line-by-line diffs to the Automerge document (or structured diff based on itemization).
-        - For notes: Use `tx.update_text()` on a root "content" field in an Automerge transaction.
-      - [ ] Save the updated full `automerge_state` back to `syncd.db` and update `last_sync_hash`.
-      - [ ] Extract compact Automerge changes/diffs (`Vec<u8>`) using `doc.get_changes_added()` for network transmission.
-    - [ ] **Develop logic for applying remote Automerge changes to local files:**
-      - [ ] After receiving an encrypted Automerge change set from `lst-server` and decrypting it:
-      - [ ] Load the corresponding `automerge_state` from `syncd.db`.
-      - [ ] Apply the decrypted Automerge changes to the document (`doc.apply_changes()`).
-      - [ ] Re-render the full Automerge document back into Markdown format (preserving frontmatter if possible).
-      - [ ] Overwrite the local Markdown file with the new content.
-      - [ ] Save the updated `automerge_state` to `syncd.db` and update `last_sync_hash`.
-  - [ ] **Implement client-side encryption (XChaCha20-Poly1305) for Automerge data sent to `lst-server`:**
-    - [ ] Encrypt generated Automerge change sets (`Vec<u8>`) before sending via WebSocket.
-    - [ ] Decrypt received Automerge change sets after receiving via WebSocket.
-    - [ ] Handle encryption of full Automerge snapshots for initial sync or compaction events as per `SPEC.md`.
-  - [ ] **Implement WebSocket networking to communicate with `lst-server` for Automerge sync (as per `SPEC.md`):**
-    - [ ] Connect to `/api/sync` WebSocket endpoint.
-    - [ ] Implement client-side message handling for `Authenticate`, `RequestDocumentList`, `RequestSnapshot`, `PushChanges`, `PushSnapshot`.
-    - [ ] Process incoming server messages: `Authenticated`, `DocumentList`, `Snapshot`, `NewChanges`, `RequestCompaction`.
+        - [x] For notes: Use `tx.update_text()` on a root "content" field in an Automerge transaction.
+      - [x] Save the updated full `automerge_state` back to `syncd.db` and update `last_sync_hash`.
+      - [x] Extract compact Automerge changes/diffs (`Vec<u8>`) using `doc.get_changes_added()` for network transmission.
+    - [x] **Develop logic for applying remote Automerge changes to local files:**
+      - [x] After receiving an encrypted Automerge change set from `lst-server` and decrypting it:
+      - [x] Load the corresponding `automerge_state` from `syncd.db`.
+      - [x] Apply the decrypted Automerge changes to the document (`doc.apply_changes()`).
+      - [x] Re-render the full Automerge document back into Markdown format (preserving frontmatter if possible).
+      - [x] Overwrite the local Markdown file with the new content.
+      - [x] Save the updated `automerge_state` to `syncd.db` and update `last_sync_hash`.
+  - [x] **Implement client-side encryption (XChaCha20-Poly1305) for Automerge data sent to `lst-server`:**
+    - [x] Encrypt generated Automerge change sets (`Vec<u8>`) before sending via WebSocket.
+    - [x] Decrypt received Automerge change sets after receiving via WebSocket.
+    - [x] Handle encryption of full Automerge snapshots for initial sync or compaction events as per `SPEC.md`.
+  - [x] **Implement WebSocket networking to communicate with `lst-server` for Automerge sync (as per `SPEC.md`):**
+    - [x] Connect to `/api/sync` WebSocket endpoint.
+    - [x] Implement client-side message handling for `Authenticate`, `RequestDocumentList`, `RequestSnapshot`, `PushChanges`, `PushSnapshot`.
+    - [x] Process incoming server messages: `Authenticated`, `DocumentList`, `Snapshot`, `NewChanges`, `RequestCompaction`.
   - [ ] Implement robust file event handling (debouncing, better temp/hidden file filtering).
   - [ ] Implement proper daemonization (beyond `--foreground` flag).
 - [ ] Create file format parsers for notes and posts
@@ -49,9 +49,9 @@
 - [x] Build Axum API server (auth part implemented)
 - [x] Implement authentication via human-friendly and QR passwordless login tokens
 - [ ] **Sync & Data Handling:**
-  - [ ] Add WebSocket endpoint for real-time sync message relay (handling **encrypted CRDT blobs**)
-  - [ ] Implement persistence for **encrypted CRDT list data blobs** (e.g., using sled or flat files)
-  - [ ] Implement logic for relaying encrypted CRDT blobs between connected `lst-syncd` clients (server is a "dumb pipe" for data content)
+  - [x] Add WebSocket endpoint for real-time sync message relay (handling **encrypted CRDT blobs**)
+  - [x] Implement persistence for **encrypted CRDT list data blobs** (e.g., using sled or flat files)
+  - [x] Implement logic for relaying encrypted CRDT blobs between connected `lst-syncd` clients (server is a "dumb pipe" for data content)
 - [ ] **Security & Configuration:**
   - [ ] Make JWT secret configurable (env var or config file) instead of hardcoded
 - [ ] Set up SMTP email delivery with lettre (currently logs to console)
@@ -114,31 +114,31 @@
 ## Next Immediate Tasks (Focus: Automerge-based Encrypted List Sync MVP)
 
 1.  **[Syncd] Setup Automerge Core & Local Persistence (`syncd.db`):**
-    *   [ ] Add `automerge` (with `rusqlite` feature), `rusqlite`, and `uuid` to `lst-syncd/Cargo.toml`.
-    *   [ ] Implement `syncd.db` (SQLite) initialization in `lst-syncd` with `documents` table (`doc_id` UUID PK, `file_path` TEXT UNIQUE, `doc_type` TEXT, `last_sync_hash` TEXT, `automerge_state` BLOB) as per `SPEC.md`.
+    *   [x] Add `automerge` (with `rusqlite` feature), `rusqlite`, and `uuid` to `lst-syncd/Cargo.toml`.
+    *   [x] Implement `syncd.db` (SQLite) initialization in `lst-syncd` with `documents` table (`doc_id` UUID PK, `file_path` TEXT UNIQUE, `doc_type` TEXT, `last_sync_hash` TEXT, `automerge_state` BLOB) as per `SPEC.md`.
 2.  **[Syncd] Implement Local File to Automerge Document Sync Logic:**
-    *   [ ] Develop logic to read Markdown files, load/create `Automerge` documents from/to `automerge_state` in `syncd.db`.
-    *   [ ] Implement conversion of file content changes (line-by-line for lists, text diffs for notes) into Automerge transactions.
-    *   [ ] Save updated `automerge_state` to `syncd.db` and calculate `last_sync_hash`.
-    *   [ ] Extract Automerge changes (`Vec<u8>`) for network sync using `doc.get_changes_added()`.
+    *   [x] Develop logic to read Markdown files, load/create `Automerge` documents from/to `automerge_state` in `syncd.db`.
+    *   [x] Implement conversion of file content changes (line-by-line for lists, text diffs for notes) into Automerge transactions.
+    *   [x] Save updated `automerge_state` to `syncd.db` and calculate `last_sync_hash`.
+    *   [x] Extract Automerge changes (`Vec<u8>`) for network sync using `doc.get_changes_added()`.
 3.  **[Syncd] Implement Client-Side Encryption/Decryption for Automerge Data:**
-    *   [ ] Integrate XChaCha20-Poly1305 (e.g., using `chacha20poly1305` crate or `ring`).
-    *   [ ] Encrypt Automerge changes/snapshots before sending to `lst-server`.
-    *   [ ] Decrypt received Automerge changes/snapshots from `lst-server`.
+    *   [x] Integrate XChaCha20-Poly1305 (e.g., using `chacha20poly1305` crate or `ring`).
+    *   [x] Encrypt Automerge changes/snapshots before sending to `lst-server`.
+    *   [x] Decrypt received Automerge changes/snapshots from `lst-server`.
     *   *(Key management is a separate, larger task; for MVP, a configurable/fixed key can be used for testing).*
 4.  **[Server] Implement WebSocket Sync Endpoint on `lst-server` for Encrypted Automerge Blobs:**
     *   [ ] Define/update `lst-proto` messages for Automerge sync based on `SPEC.md` (e.g., `Authenticate`, `RequestDocumentList`, `RequestSnapshot`, `PushChanges { doc_id, device_id, changes: Vec<Vec<u8>> }`, `PushSnapshot`, `NewChanges`, `RequestCompaction`).
     *   [ ] Implement WebSocket connection handling, authentication, and relay of these encrypted Automerge blobs (server remains zero-knowledge).
 5.  **[Syncd] Network `lst-syncd` with `lst-server` using Automerge Sync Protocol:**
-    *   [ ] Connect to the `lst-server` WebSocket endpoint (`/api/sync`).
-    *   [ ] Implement client-side handling for all `SPEC.md` sync protocol messages (sending encrypted changes/snapshots, requesting documents, responding to compaction).
+    *   [x] Connect to the `lst-server` WebSocket endpoint (`/api/sync`).
+    *   [x] Implement client-side handling for all `SPEC.md` sync protocol messages (sending encrypted changes/snapshots, requesting documents, responding to compaction).
 6.  **[Syncd] Implement Remote Automerge Change Application:**
-    *   [ ] After receiving and decrypting Automerge changes from the server, apply them to the local `Automerge` document loaded from `syncd.db`.
-    *   [ ] Re-render the Automerge document to Markdown and overwrite the local file.
-    *   [ ] Update `automerge_state` and `last_sync_hash` in `syncd.db`.
+    *   [x] After receiving and decrypting Automerge changes from the server, apply them to the local `Automerge` document loaded from `syncd.db`.
+    *   [x] Re-render the Automerge document to Markdown and overwrite the local file.
+    *   [x] Update `automerge_state` and `last_sync_hash` in `syncd.db`.
 7.  **[Server] Persistence for Encrypted Automerge Data on `lst-server`:**
-    *   [ ] Implement `content.db` schema on server (`documents` table: `doc_id`, `user_id`, `encrypted_snapshot`; `document_changes` table: `change_id`, `doc_id`, `device_id`, `encrypted_change`) as per `SPEC.md`.
-    *   [ ] Store received encrypted Automerge changes and snapshots. Handle compaction logic.
+    *   [x] Implement `content.db` schema on server (`documents` table: `doc_id`, `user_id`, `encrypted_snapshot`; `document_changes` table: `change_id`, `doc_id`, `device_id`, `encrypted_change`) as per `SPEC.md`.
+    *   [x] Store received encrypted Automerge changes and snapshots. Handle compaction logic.
 8.  **[Testing] Initial Automerge-based Encrypted Sync Tests:**
     *   [ ] Manual E2E tests: modify a list/note on one client, verify update on another via `lst-syncd` and `lst-server`, ensuring data is unreadable on the server.
     *   [ ] Add basic unit tests for Automerge document conversion, change application, encryption/decryption, and WebSocket message handling.
