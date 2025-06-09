@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use std::path::Path;
 
 /// Local SQLite database used by lst-syncd
@@ -22,23 +22,35 @@ impl LocalDb {
                 file_path TEXT NOT NULL UNIQUE,
                 doc_type TEXT NOT NULL,
                 last_sync_hash TEXT,
-                automerge_state BLOB NOT NULL
+                automerge_state BLOB NOT NULL,
+                owner TEXT NOT NULL,
+                writers TEXT,
+                readers TEXT,
             );",
-        )?
-        ;
+        )?;
         Ok(Self { conn })
     }
 
     /// Insert or update a document row
-    pub fn upsert_document(&self, doc_id: &str, file_path: &str, doc_type: &str, last_sync_hash: &str, state: &[u8]) -> Result<()> {
+    pub fn upsert_document(
+        &self,
+        doc_id: &str,
+        file_path: &str,
+        doc_type: &str,
+        last_sync_hash: &str,
+        state: &[u8],
+    ) -> Result<()> {
         self.conn.execute(
             "INSERT INTO documents (doc_id, file_path, doc_type, last_sync_hash, automerge_state)
-             VALUES (?1, ?2, ?3, ?4, ?5)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
              ON CONFLICT(doc_id) DO UPDATE SET
                 file_path = excluded.file_path,
                 doc_type = excluded.doc_type,
                 last_sync_hash = excluded.last_sync_hash,
-                automerge_state = excluded.automerge_state",
+                automerge_state = excluded.automerge_state,
+                owner = excluded.owner,
+                writers = excluded.writers,
+                readers = excluded.readers",
             params![doc_id, file_path, doc_type, last_sync_hash, state],
         )?;
         Ok(())
