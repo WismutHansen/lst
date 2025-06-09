@@ -12,10 +12,10 @@
 - [ ] **lst-syncd (Client-side Sync Daemon):**
   - [x] Scaffold `lst-syncd` daemon with file watching
   - [ ] **Integrate `automerge` crate for CRDT-based list and note synchronization:**
-    - [ ] Add `automerge` (with `rusqlite` feature), `rusqlite` (for `syncd.db`), and `uuid` dependencies to `lst-syncd/Cargo.toml`.
-    - [ ] **Implement `syncd.db` (SQLite) for local Automerge state management (`lst-syncd/src/database.rs` or similar):**
-      - [ ] Define `documents` table schema: `doc_id` (UUID PK), `file_path` (TEXT UNIQUE), `doc_type` (TEXT, e.g., 'list', 'note'), `last_sync_hash` (TEXT), `automerge_state` (BLOB for the full Automerge document).
-      - [ ] Implement function to initialize the database and table.
+    - [x] Add `automerge` (with `rusqlite` feature), `rusqlite` (for `syncd.db`), and `uuid` dependencies to `lst-syncd/Cargo.toml`.
+    - [x] **Implement `syncd.db` (SQLite) for local Automerge state management (`lst-syncd/src/database.rs` or similar):**
+      - [x] Define `documents` table schema: `doc_id` (UUID PK), `file_path` (TEXT UNIQUE), `doc_type` (TEXT, e.g., 'list', 'note'), `last_sync_hash` (TEXT), `automerge_state` (BLOB for the full Automerge document), `owner` (TEXT), `writers` (TEXT), `readers` (TEXT).
+      - [x] Implement function to initialize the database and table.
     - [ ] **Develop logic for processing local file changes into Automerge documents (`lst-syncd/src/sync.rs` or similar):**
       - [ ] On file change, read content and compare its hash with `last_sync_hash` from `syncd.db`.
       - [ ] If different, load `automerge_state` for the file. If no state, create a new `Automerge` document.

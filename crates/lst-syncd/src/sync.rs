@@ -94,8 +94,24 @@ impl SyncManager {
                 .and_then(|e| e.to_str())
                 .unwrap_or("unknown");
 
-            self.db
-                .upsert_document(&doc_id, &path.to_string_lossy(), doc_type, &hash, &data)?;
+            let owner = self
+                .config
+                .syncd
+                .as_ref()
+                .and_then(|s| s.device_id.as_ref())
+                .map(String::as_str)
+                .unwrap_or("local");
+
+            self.db.upsert_document(
+                &doc_id,
+                &path.to_string_lossy(),
+                doc_type,
+                &hash,
+                &data,
+                owner,
+                None,
+                None,
+            )?;
 
             self.pending_changes
                 .entry(doc_id)
