@@ -34,7 +34,7 @@ chrono = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 dirs = { workspace = true }
-automerge = { workspace = true }
+automerge = { workspace = true, features = ["rusqlite"] }
 rusqlite = { workspace = true }
 sha2 = { workspace = true }
 
