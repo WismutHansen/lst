@@ -3,7 +3,7 @@ mod wordlist;
 mod sync_db;
 
 use axum::{
-    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, Path, Request, State},
+    extract::{ws::{Message as WsMessage, WebSocket, WebSocketUpgrade}, Path, Request, State},
     http::{header, HeaderMap, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -16,7 +16,7 @@ use config::Settings;
 use image::Luma;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use lettre::transport::smtp::authentication::Credentials;
-use lettre::{message::Message, AsyncSmtpTransport, AsyncTransport, Tokio1Executor};
+use lettre::{message::Message as EmailMessage, AsyncSmtpTransport, AsyncTransport, Tokio1Executor};
 use qrcode::QrCode;
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -371,7 +371,7 @@ async fn main() {
         .route(
             "/sync",
             get(|ws: WebSocketUpgrade, State(state): State<Arc<AppState>>, headers: HeaderMap| async move {
-                ws_handler(ws, headers, state).await
+                ws_handler(ws, headers, State(state)).await
             }),
         );
     let app = Router::new().nest("/api", api_router).with_state(app_state.clone());
@@ -405,7 +405,7 @@ async fn auth_request_handler(Json(req): Json<AuthRequest>, token_store: TokenSt
     }
     let base64_png = general_purpose::STANDARD.encode(buf.get_ref());
     if let Some(email_cfg) = &settings.email {
-        let email_message = Message::builder()
+        let email_message = EmailMessage::builder()
             .from(email_cfg.sender.parse().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("invalid sender address: {}", e)))?)
             .to(req.email.parse().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("invalid recipient address: {}", e)))?)
             .subject("Your lst login link")
@@ -590,49 +590,60 @@ async fn ws_handler(
             return ws.on_upgrade(move |socket| handle_ws(socket, state, user));
         }
     }
-    (StatusCode::UNAUTHORIZED, "unauthorized")
+    (StatusCode::UNAUTHORIZED, "unauthorized").into_response()
 }
 
 async fn handle_ws(stream: WebSocket, state: Arc<AppState>, user: String) {
     let (mut sender, mut receiver) = stream.split();
 
     let _ = sender
-        .send(Message::Text(
-            serde_json::to_string(&lst_proto::ServerMessage::Authenticated { success: true }).unwrap(),
+        .send(WsMessage::Text(
+            serde_json::to_string(&lst_proto::ServerMessage::Authenticated { success: true }).unwrap().into(),
         ))
         .await;
 
+    let user_clone = user.clone();
     let mut rx = state.tx.subscribe();
+    let (tx, mut rx_local) = tokio::sync::mpsc::channel::<WsMessage>(100);
+    
     let send_task = tokio::spawn(async move {
-        while let Ok((target, msg)) = rx.recv().await {
-            if target == user {
-                if let Ok(txt) = serde_json::to_string(&msg) {
-                    if sender.send(Message::Text(txt)).await.is_err() {
+        loop {
+            tokio::select! {
+                // Handle broadcast messages
+                Ok((target, msg)) = rx.recv() => {
+                    if target == user_clone {
+                        if let Ok(txt) = serde_json::to_string(&msg) {
+                            if sender.send(WsMessage::Text(txt.into())).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                // Handle direct messages from main task
+                Some(msg) = rx_local.recv() => {
+                    if sender.send(msg).await.is_err() {
                         break;
                     }
                 }
+                else => break,
             }
         }
     });
 
     while let Some(Ok(msg)) = receiver.next().await {
-        if let Message::Text(text) = msg {
+        if let WsMessage::Text(text) = msg {
             if let Ok(cmsg) = serde_json::from_str::<lst_proto::ClientMessage>(&text) {
                 match cmsg {
                     lst_proto::ClientMessage::RequestDocumentList => {
                         if let Ok(list) = state.db.list_documents(&user).await {
                             let resp = lst_proto::ServerMessage::DocumentList { documents: list };
-                            let _ = sender
-                                .send(Message::Text(serde_json::to_string(&resp).unwrap()))
-                                .await;
+                            let _ = tx.send(WsMessage::Text(serde_json::to_string(&resp).unwrap().into())).await;
                         }
                     }
                     lst_proto::ClientMessage::RequestSnapshot { doc_id } => {
                         if let Ok(Some(snap)) = state.db.get_snapshot(&doc_id.to_string()).await {
                             let resp = lst_proto::ServerMessage::Snapshot { doc_id, snapshot: snap };
-                            let _ = sender
-                                .send(Message::Text(serde_json::to_string(&resp).unwrap()))
-                                .await;
+                            let _ = tx.send(WsMessage::Text(serde_json::to_string(&resp).unwrap().into())).await;
                         }
                     }
                     lst_proto::ClientMessage::PushChanges { doc_id, device_id, changes } => {
