@@ -22,10 +22,7 @@ impl LocalDb {
                 file_path TEXT NOT NULL UNIQUE,
                 doc_type TEXT NOT NULL,
                 last_sync_hash TEXT,
-                automerge_state BLOB NOT NULL,
-                owner TEXT NOT NULL,
-                writers TEXT,
-                readers TEXT,
+                automerge_state BLOB NOT NULL
             );",
         )?;
         Ok(Self { conn })
@@ -42,18 +39,33 @@ impl LocalDb {
     ) -> Result<()> {
         self.conn.execute(
             "INSERT INTO documents (doc_id, file_path, doc_type, last_sync_hash, automerge_state)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT(doc_id) DO UPDATE SET
                 file_path = excluded.file_path,
                 doc_type = excluded.doc_type,
                 last_sync_hash = excluded.last_sync_hash,
-                automerge_state = excluded.automerge_state,
-                owner = excluded.owner,
-                writers = excluded.writers,
-                readers = excluded.readers",
+                automerge_state = excluded.automerge_state",
             params![doc_id, file_path, doc_type, last_sync_hash, state],
         )?;
         Ok(())
+    }
+
+    /// Fetch a document row by doc_id
+    pub fn get_document(&self, doc_id: &str) -> Result<Option<(String, String, String, Vec<u8>)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT file_path, doc_type, last_sync_hash, automerge_state FROM documents WHERE doc_id = ?1",
+        )?;
+        let mut rows = stmt.query(params![doc_id])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+            )))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Delete a document by id
