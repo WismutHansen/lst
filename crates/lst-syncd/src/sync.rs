@@ -1,11 +1,54 @@
 use crate::config::Config;
 use crate::database::LocalDb;
 use anyhow::{Context, Result};
-use automerge::{Automerge, Change, ReadDoc, Transactable};
+use automerge::{
+    transaction::Transactable as _,
+    Automerge, Change, ObjType, ReadDoc, ScalarValue, Value,
+};
 use notify::Event;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use tokio::time::Instant;
+
+fn detect_doc_type(path: &std::path::Path) -> &str {
+    let s = path.to_string_lossy();
+    if s.contains("/lists/") || s.contains("daily_lists") {
+        "list"
+    } else {
+        "note"
+    }
+}
+
+fn update_note_doc(doc: &mut Automerge, content: &str) -> Result<()> {
+    let mut tx = doc.transaction();
+    tx.put(automerge::ROOT, "content", "").ok();
+    tx.update_text(automerge::ROOT, "content", content)?;
+    tx.commit();
+    Ok(())
+}
+
+fn update_list_doc(doc: &mut Automerge, content: &str) -> Result<()> {
+    let mut tx = doc.transaction();
+    let items = match doc.get(automerge::ROOT, "items")? {
+        Some((id, _)) => id,
+        None => tx.put_object(automerge::ROOT, "items", ObjType::List)?,
+    };
+
+    let len = doc.length(items);
+    for idx in (0..len).rev() {
+        tx.delete(items, idx)?;
+    }
+
+    for (idx, line) in content.lines().enumerate() {
+        let line = line.trim();
+        if !line.is_empty() {
+            tx.insert(items, idx, ScalarValue::Str(line.into()))?;
+        }
+    }
+
+    tx.commit();
+    Ok(())
+}
 
 pub struct SyncManager {
     config: Config,
@@ -89,18 +132,160 @@ impl SyncManager {
             hasher.update(&data);
             let hash = hex::encode(hasher.finalize());
 
-            let doc_type = path
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("unknown");
+            let doc_type = detect_doc_type(&path);
 
-            self.db
-                .upsert_document(&doc_id, &path.to_string_lossy(), doc_type, &hash, &data)?;
+            let owner = self
+                .config
+                .syncd
+                .as_ref()
+                .and_then(|s| s.device_id.as_ref())
+                .map(String::as_str)
+                .unwrap_or("local");
 
-            self.pending_changes
-                .entry(doc_id)
-                .or_insert_with(Vec::new)
-                .push(data);
+            let new_content = String::from_utf8_lossy(&data);
+
+            if let Some((_, _, last_hash, state, existing_owner, writers, readers)) =
+                self.db.get_document(&doc_id)?
+            {
+                if last_hash == hash {
+                    continue;
+                }
+
+                let mut doc = Automerge::load(&state)?;
+                let old_heads = doc.get_heads();
+
+                if doc_type == "list" {
+                    update_list_doc(&mut doc, &new_content)?;
+                } else {
+                    update_note_doc(&mut doc, &new_content)?;
+                }
+
+                let new_state = doc.save();
+
+                self.db.upsert_document(
+                    &doc_id,
+                    &path.to_string_lossy(),
+                    doc_type,
+                    &hash,
+                    &new_state,
+                    &existing_owner,
+                    writers.as_deref(),
+                    readers.as_deref(),
+                )?;
+
+                let changes = doc
+                    .get_changes_added(&old_heads)
+                    .into_iter()
+                    .map(|c| c.raw_bytes().to_vec())
+                    .collect::<Vec<_>>();
+
+                self.pending_changes
+                    .entry(doc_id)
+                    .or_insert_with(Vec::new)
+                    .extend(changes);
+            } else {
+                let mut doc = Automerge::new();
+                let old_heads = doc.get_heads();
+
+                if doc_type == "list" {
+                    update_list_doc(&mut doc, &new_content)?;
+                } else {
+                    update_note_doc(&mut doc, &new_content)?;
+                }
+
+                let new_state = doc.save();
+
+                self.db.upsert_document(
+                    &doc_id,
+                    &path.to_string_lossy(),
+                    doc_type,
+                    &hash,
+                    &new_state,
+                    owner,
+                    None,
+                    None,
+                )?;
+
+                let changes = doc
+                    .get_changes_added(&old_heads)
+                    .into_iter()
+                    .map(|c| c.raw_bytes().to_vec())
+                    .collect::<Vec<_>>();
+
+                self.pending_changes
+                    .entry(doc_id)
+                    .or_insert_with(Vec::new)
+                    .extend(changes);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Apply remote Automerge changes to the local document and file
+    pub async fn apply_remote_changes(
+        &mut self,
+        doc_id: &str,
+        changes: Vec<Vec<u8>>,
+    ) -> Result<()> {
+        if let Some((file_path, doc_type, _last_hash, state, owner, writers, readers)) =
+            self.db.get_document(doc_id)?
+        {
+            let mut doc = Automerge::load(&state)?;
+
+            let mut change_objs = Vec::new();
+            for raw in changes {
+                let change = Change::from_bytes(&raw)?;
+                change_objs.push(change);
+            }
+
+            doc.apply_changes(change_objs)?;
+
+            let new_state = doc.save();
+
+            let content = if doc_type == "list" {
+                if let Some((items, _)) = doc.get(automerge::ROOT, "items")? {
+                    let mut lines = Vec::new();
+                    for i in 0..doc.length(items) {
+                        if let Some((_id, val)) = doc.get(items, i)? {
+                            match val {
+                                Value::Text(t) => lines.push(t.to_string()),
+                                Value::Scalar(ScalarValue::Str(s)) => lines.push(s.to_string()),
+                                _ => {}
+                            }
+                        }
+                    }
+                    lines.join("\n")
+                } else {
+                    String::new()
+                }
+            } else if let Some((_id, value)) = doc.get(automerge::ROOT, "content")? {
+                match value {
+                    Value::Text(t) => t.to_string(),
+                    _ => String::new(),
+                }
+            } else {
+                String::new()
+            };
+
+            tokio::fs::write(&file_path, &content)
+                .await
+                .with_context(|| format!("Failed to write updated file: {}", file_path))?;
+
+            let mut hasher = Sha256::new();
+            hasher.update(content.as_bytes());
+            let new_hash = hex::encode(hasher.finalize());
+
+            self.db.upsert_document(
+                doc_id,
+                &file_path,
+                &doc_type,
+                &new_hash,
+                &new_state,
+                &owner,
+                writers.as_deref(),
+                readers.as_deref(),
+            )?;
         }
 
         Ok(())

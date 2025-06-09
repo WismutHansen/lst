@@ -12,25 +12,25 @@
 - [ ] **lst-syncd (Client-side Sync Daemon):**
   - [x] Scaffold `lst-syncd` daemon with file watching
   - [ ] **Integrate `automerge` crate for CRDT-based list and note synchronization:**
-    - [ ] Add `automerge` (with `rusqlite` feature), `rusqlite` (for `syncd.db`), and `uuid` dependencies to `lst-syncd/Cargo.toml`.
-    - [ ] **Implement `syncd.db` (SQLite) for local Automerge state management (`lst-syncd/src/database.rs` or similar):**
-      - [ ] Define `documents` table schema: `doc_id` (UUID PK), `file_path` (TEXT UNIQUE), `doc_type` (TEXT, e.g., 'list', 'note'), `last_sync_hash` (TEXT), `automerge_state` (BLOB for the full Automerge document).
-      - [ ] Implement function to initialize the database and table.
-    - [ ] **Develop logic for processing local file changes into Automerge documents (`lst-syncd/src/sync.rs` or similar):**
-      - [ ] On file change, read content and compare its hash with `last_sync_hash` from `syncd.db`.
-      - [ ] If different, load `automerge_state` for the file. If no state, create a new `Automerge` document.
-      - [ ] Generate Automerge changes:
+    - [x] Add `automerge` (with `rusqlite` feature), `rusqlite` (for `syncd.db`), and `uuid` dependencies to `lst-syncd/Cargo.toml`.
+    - [x] **Implement `syncd.db` (SQLite) for local Automerge state management (`lst-syncd/src/database.rs` or similar):**
+      - [x] Define `documents` table schema: `doc_id` (UUID PK), `file_path` (TEXT UNIQUE), `doc_type` (TEXT, e.g., 'list', 'note'), `last_sync_hash` (TEXT), `automerge_state` (BLOB for the full Automerge document), `owner` (TEXT), `writers` (TEXT), `readers` (TEXT).
+      - [x] Implement function to initialize the database and table.
+    - [x] **Develop logic for processing local file changes into Automerge documents (`lst-syncd/src/sync.rs` or similar):**
+      - [x] On file change, read content and compare its hash with `last_sync_hash` from `syncd.db`.
+      - [x] If different, load `automerge_state` for the file. If no state, create a new `Automerge` document.
+      - [x] Generate Automerge changes:
         - For lists: Apply line-by-line diffs to the Automerge document (or structured diff based on itemization).
-        - For notes: Use `tx.update_text()` on a root "content" field in an Automerge transaction.
-      - [ ] Save the updated full `automerge_state` back to `syncd.db` and update `last_sync_hash`.
-      - [ ] Extract compact Automerge changes/diffs (`Vec<u8>`) using `doc.get_changes_added()` for network transmission.
-    - [ ] **Develop logic for applying remote Automerge changes to local files:**
-      - [ ] After receiving an encrypted Automerge change set from `lst-server` and decrypting it:
-      - [ ] Load the corresponding `automerge_state` from `syncd.db`.
-      - [ ] Apply the decrypted Automerge changes to the document (`doc.apply_changes()`).
-      - [ ] Re-render the full Automerge document back into Markdown format (preserving frontmatter if possible).
-      - [ ] Overwrite the local Markdown file with the new content.
-      - [ ] Save the updated `automerge_state` to `syncd.db` and update `last_sync_hash`.
+        - [x] For notes: Use `tx.update_text()` on a root "content" field in an Automerge transaction.
+      - [x] Save the updated full `automerge_state` back to `syncd.db` and update `last_sync_hash`.
+      - [x] Extract compact Automerge changes/diffs (`Vec<u8>`) using `doc.get_changes_added()` for network transmission.
+    - [x] **Develop logic for applying remote Automerge changes to local files:**
+      - [x] After receiving an encrypted Automerge change set from `lst-server` and decrypting it:
+      - [x] Load the corresponding `automerge_state` from `syncd.db`.
+      - [x] Apply the decrypted Automerge changes to the document (`doc.apply_changes()`).
+      - [x] Re-render the full Automerge document back into Markdown format (preserving frontmatter if possible).
+      - [x] Overwrite the local Markdown file with the new content.
+      - [x] Save the updated `automerge_state` to `syncd.db` and update `last_sync_hash`.
   - [ ] **Implement client-side encryption (XChaCha20-Poly1305) for Automerge data sent to `lst-server`:**
     - [ ] Encrypt generated Automerge change sets (`Vec<u8>`) before sending via WebSocket.
     - [ ] Decrypt received Automerge change sets after receiving via WebSocket.
