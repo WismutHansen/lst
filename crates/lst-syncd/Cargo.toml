@@ -47,3 +47,4 @@ reqwest = { workspace = true }
 # Internal dependencies
 lst-proto = { path = "../lst-proto", version = "0.1.1" }
 lst-cli = { path = "../lst-cli", version = "0.1.1" }
+hex = "0.4.3"

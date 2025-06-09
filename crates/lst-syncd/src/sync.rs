@@ -1,12 +1,11 @@
+use crate::config::Config;
+use crate::database::LocalDb;
 use anyhow::{Context, Result};
+use automerge::{Automerge, Change, ReadDoc, Transactable};
 use notify::Event;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use tokio::time::Instant;
-
-use crate::config::Config;
-use crate::database::LocalDb;
-use lst_proto::ClientMessage;
 
 pub struct SyncManager {
     config: Config,
@@ -28,7 +27,12 @@ impl SyncManager {
         if let Some(ref storage) = config.storage {
             tokio::fs::create_dir_all(&storage.crdt_dir)
                 .await
-                .with_context(|| format!("Failed to create CRDT directory: {}", storage.crdt_dir.display()))?;
+                .with_context(|| {
+                    format!(
+                        "Failed to create CRDT directory: {}",
+                        storage.crdt_dir.display()
+                    )
+                })?;
         }
 
         let db_path = config
@@ -47,7 +51,7 @@ impl SyncManager {
             pending_changes: HashMap::new(),
         })
     }
-    
+
     pub async fn handle_file_event(&mut self, event: Event) -> Result<()> {
         for path in event.paths {
             if let Some(filename) = path.file_name() {
@@ -61,7 +65,11 @@ impl SyncManager {
                 }
             }
 
-            let doc_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, path.to_string_lossy().as_bytes()).to_string();
+            let doc_id = uuid::Uuid::new_v5(
+                &uuid::Uuid::NAMESPACE_OID,
+                path.to_string_lossy().as_bytes(),
+            )
+            .to_string();
 
             if matches!(event.kind, notify::EventKind::Remove(_)) {
                 self.db.delete_document(&doc_id)?;
