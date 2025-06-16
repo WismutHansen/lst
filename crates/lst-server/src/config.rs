@@ -1,6 +1,6 @@
-use serde::Deserialize;
 use anyhow::Context;
-use std::{env, fs, path::Path};
+use serde::Deserialize;
+use std::{env, fs, path::{Path, PathBuf}};
 
 /// Server configuration loaded from TOML file
 #[derive(Debug, Deserialize, Clone)]
@@ -11,6 +11,8 @@ pub struct Settings {
     pub email: Option<EmailSettings>,
     #[serde(default)]
     pub paths: PathsSettings,
+    #[serde(default)]
+    pub database: DatabaseSettings,
 }
 
 /// Network settings for the HTTP server
@@ -29,7 +31,7 @@ fn default_host() -> String {
 }
 
 fn default_port() -> u16 {
-    3000
+    5673
 }
 
 /// SMTP relay settings for sending login emails
@@ -52,6 +54,39 @@ pub struct PathsSettings {
     pub media_dir: Option<String>,
 }
 
+/// Database configuration for the server
+#[derive(Debug, Deserialize, Clone)]
+pub struct DatabaseSettings {
+    /// Directory where server databases are stored
+    #[serde(default = "default_database_dir")]
+    pub data_dir: String,
+    /// Path to tokens database file (relative to data_dir if not absolute)
+    #[serde(default = "default_tokens_db")]
+    pub tokens_db: String,
+    /// Path to content database file (relative to data_dir if not absolute)
+    #[serde(default = "default_content_db")]
+    pub content_db: String,
+    /// Path to sync database file (relative to data_dir if not absolute)
+    #[serde(default = "default_sync_db")]
+    pub sync_db: String,
+}
+
+fn default_database_dir() -> String {
+    "~/.config/lst/lst_server_data".to_string()
+}
+
+fn default_tokens_db() -> String {
+    "tokens.db".to_string()
+}
+
+fn default_content_db() -> String {
+    "content.db".to_string()
+}
+
+fn default_sync_db() -> String {
+    "sync.db".to_string()
+}
+
 impl Default for ServerSettings {
     fn default() -> Self {
         Self {
@@ -67,6 +102,17 @@ impl Default for PathsSettings {
             content_dir: None,
             kinds: None,
             media_dir: None,
+        }
+    }
+}
+
+impl Default for DatabaseSettings {
+    fn default() -> Self {
+        Self {
+            data_dir: default_database_dir(),
+            tokens_db: default_tokens_db(),
+            content_db: default_content_db(),
+            sync_db: default_sync_db(),
         }
     }
 }
@@ -96,3 +142,46 @@ impl Settings {
         Self::from_file(&config_path)
     }
 }
+
+impl DatabaseSettings {
+    /// Resolve the data directory path, expanding ~ to home directory
+    pub fn resolve_data_dir(&self) -> anyhow::Result<PathBuf> {
+        if self.data_dir.starts_with("~/") {
+            let home_dir = dirs::home_dir().context("Could not determine home directory")?;
+            Ok(home_dir.join(&self.data_dir[2..]))
+        } else {
+            Ok(PathBuf::from(&self.data_dir))
+        }
+    }
+
+    /// Get the full path to the tokens database
+    pub fn tokens_db_path(&self) -> anyhow::Result<PathBuf> {
+        let base_dir = self.resolve_data_dir()?;
+        if Path::new(&self.tokens_db).is_absolute() {
+            Ok(PathBuf::from(&self.tokens_db))
+        } else {
+            Ok(base_dir.join(&self.tokens_db))
+        }
+    }
+
+    /// Get the full path to the content database
+    pub fn content_db_path(&self) -> anyhow::Result<PathBuf> {
+        let base_dir = self.resolve_data_dir()?;
+        if Path::new(&self.content_db).is_absolute() {
+            Ok(PathBuf::from(&self.content_db))
+        } else {
+            Ok(base_dir.join(&self.content_db))
+        }
+    }
+
+    /// Get the full path to the sync database  
+    pub fn sync_db_path(&self) -> anyhow::Result<PathBuf> {
+        let base_dir = self.resolve_data_dir()?;
+        if Path::new(&self.sync_db).is_absolute() {
+            Ok(PathBuf::from(&self.sync_db))
+        } else {
+            Ok(base_dir.join(&self.sync_db))
+        }
+    }
+}
+
