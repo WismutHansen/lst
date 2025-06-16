@@ -5,6 +5,8 @@ members = [
   "crates/lst-proto",
   "crates/lst-server",
   "crates/lst-syncd",
+  "apps/lst-desktop/src-tauri",
+  "apps/lst-mobile/src-tauri",
 ]
 resolver = "2"
 package.repository = "https://github.com/WismutHansen/lst.git"
@@ -15,6 +17,8 @@ clap = { version = "4.5.3", features = ["derive"] }
 colored = "2.1.0"
 dialoguer = "0.11.0"
 console = "0.15.8"
+specta = { version = "2.0.0-rc.22" }
+specta-typescript = { version = "*" }
 
 # Storage & sync
 serde = { version = "1.0.197", features = ["derive"] }

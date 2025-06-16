@@ -1,68 +1,161 @@
-# Unified lst configuration file
+# Complete configuration example for lst
 # This file should be placed at ~/.config/lst/lst.toml
-# All lst components (CLI, server, syncd) read from this single file
+# All sections are optional and will use defaults if not specified
 
-# ===== CLI Configuration =====
-[server]
-# URL of the sync server API (required for syncing)
-url = "https://lists.example.com/api"
-# Authentication token (obtained via magic link flow)
-auth_token = "your-auth-token"
-# Server host/interface to bind to (server only)
-host = "127.0.0.1"
-# Server port to listen on (server only)
-port = 3000
-
+# =============================================================================
+# UI Configuration
+# =============================================================================
 [ui]
-# Order in which to try different methods when resolving item targets
-# Valid values: "anchor", "exact", "fuzzy", "index", "interactive"
-resolution_order = ["anchor", "exact", "fuzzy", "index", "interactive"]
+# Order for resolving list/note names (first match wins)
+# Options: "anchor", "exact", "fuzzy", "index", "interactive"
+resolution_order = [
+  "anchor",      # Match items with anchor tags (#tag)
+  "exact",       # Exact string match
+  "fuzzy",       # Fuzzy string matching
+  "index",       # Match by numeric index
+  "interactive", # Interactive selection prompt
+]
 
+# =============================================================================
+# Fuzzy Search Configuration
+# =============================================================================
 [fuzzy]
-# Similarity threshold for fuzzy matching (0.0 to 1.0)
-# Higher values require closer matches
+# Threshold for fuzzy matching (0.0 = accept all, 1.0 = exact match only)
 threshold = 0.75
-# Maximum number of suggestions to show in interactive mode
+# Maximum number of suggestions to show
 max_suggestions = 7
 
+# =============================================================================
+# Path Configuration
+# =============================================================================
 [paths]
-# Base directory for all content (lists, notes, posts, media)
-# Default: "./content" in current working directory
-content_dir = "~/Documents/lst"
-# Document kinds (e.g. ["lists", "notes", "posts"])
-kinds = ["lists", "notes", "posts"]
-# Subdirectory for media files under content root
-# Default: "media" (relative to content_dir)
+# Root directory for all content (lists, notes, posts)
+# Supports ~ for home directory expansion
+content_dir = "~/Documents/lst-content"
+# Alternative: absolute path
+# content_dir = "/Users/username/Documents/lst-content"
+
+# Subdirectory for media files (relative to content_dir)
 media_dir = "media"
 
-# ===== Server Configuration =====
-# [email]
-# SMTP relay settings for sending login emails (server only)
-# If this section is commented out or missing, login links will be logged to stdout
-# smtp_host = "smtp.example.com"
-# smtp_user = "your-smtp-user"
-# smtp_pass = "${SMTP_PASSWORD}"  # Environment variable
-# sender = "noreply@example.com"
+# Document types to recognize
+kinds = ["lists", "notes", "posts"]
 
-# ===== Sync Daemon Configuration =====
+# =============================================================================
+# Server Connection (Client-side)
+# =============================================================================
+[server]
+# URL of the lst server for syncing
+url = "https://lst.example.com/api"
+# Authentication token for server access
+auth_token = "your-server-auth-token-here"
+
+# =============================================================================
+# Sync Daemon Configuration  
+# =============================================================================
 [syncd]
-# Server URL for remote sync (syncd only) - if None, runs in local-only mode
-url = "https://lists.example.com/api"
-# Authentication token for server (syncd only)
-auth_token = "your-auth-token"
-# Device identifier (syncd only) - auto-generated if missing
-# device_id = "auto-generated-uuid"
+# Server URL for sync daemon
+url = "https://lst.example.com/api"
+# Authentication token for sync daemon
+auth_token = "your-syncd-auth-token-here"
+# Unique device identifier (auto-generated if not specified)
+device_id = "my-laptop-12345"
+# Local database path for sync state
+database_path = "~/.lst/syncd.db"
+# Keychain reference for encryption key (macOS/Linux keyring)
+encryption_key_ref = "lst-master-key"
 
-[sync]
-# Sync interval in seconds (syncd only)
-interval_seconds = 30
-# Maximum file size to sync in bytes (syncd only)
-max_file_size = 10485760  # 10MB
-# File patterns to exclude from sync (syncd only)
-exclude_patterns = [".*", "*.tmp", "*.swp"]
-
+# =============================================================================
+# Storage Configuration
+# =============================================================================
 [storage]
-# CRDT storage settings (syncd only)
+# Directory for CRDT (Conflict-free Replicated Data Type) storage
 crdt_dir = "~/.config/lst/crdt"
-# Maximum number of CRDT snapshots to keep (syncd only)
+# Maximum number of snapshots to retain
 max_snapshots = 100
+
+# =============================================================================
+# Sync Behavior Settings
+# =============================================================================
+[sync]
+# How often to check for changes (in seconds)
+interval_seconds = 30
+# Maximum file size to sync (in bytes, 10MB default)
+max_file_size = 10485760
+# File patterns to exclude from syncing
+exclude_patterns = [
+  ".*",              # Hidden files
+  "*.tmp",           # Temporary files
+  "*.swp",           # Vim swap files
+  "*.bak",           # Backup files
+  "*~",              # Emacs backup files
+  "node_modules/**", # Node.js dependencies
+  ".git/**",         # Git repository data
+]
+
+# =============================================================================
+# Server Configuration (Server Process Only)
+# =============================================================================
+[lst_server]
+# Network interface to bind to
+host = "127.0.0.1" # localhost only
+# host = "0.0.0.0"   # all interfaces
+
+# Port to listen on
+port = 5673
+
+# =============================================================================
+# Email Configuration (Server Process Only)
+# =============================================================================
+[email]
+# SMTP server hostname
+smtp_host = "smtp.gmail.com"
+# SMTP username
+smtp_user = "your-email@gmail.com"
+# SMTP password (can use environment variable)
+smtp_pass = "${SMTP_PASSWORD}" # reads from environment variable
+# Alternative: direct password (not recommended)
+# smtp_pass = "your-app-password"
+# From address for sent emails
+sender = "lst-server@yourdomain.com"
+
+# =============================================================================
+# Database Configuration (Server Process Only)
+# =============================================================================
+[database]
+# Base directory for all server databases
+data_dir = "~/.lst"
+# Alternative: absolute path
+# data_dir = "/var/lib/lst"
+
+# Individual database file names (relative to data_dir unless absolute)
+tokens_db = "tokens.db"   # User authentication tokens
+content_db = "content.db" # Content storage
+sync_db = "sync.db"       # CRDT sync data
+
+# Alternative: absolute paths
+# tokens_db = "/var/lib/lst/tokens.db"
+# content_db = "/var/lib/lst/content.db"  
+# sync_db = "/var/lib/lst/sync.db"
+
+# =============================================================================
+# Example Production Server Configuration
+# =============================================================================
+# Uncomment and modify for production deployment:
+#
+# [lst_server]
+# host = "0.0.0.0"
+# port = 8080
+#
+# [database]
+# data_dir = "/var/lib/lst"
+# tokens_db = "tokens.db"
+# content_db = "content.db"
+# sync_db = "sync.db"
+#
+# [email]
+# smtp_host = "smtp.sendgrid.net"
+# smtp_user = "apikey"
+# smtp_pass = "${SENDGRID_API_KEY}"
+# sender = "noreply@yourdomain.com"
+

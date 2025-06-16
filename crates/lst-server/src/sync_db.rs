@@ -11,12 +11,14 @@ pub struct SyncDb {
 }
 
 impl SyncDb {
-    pub async fn new(mut base_dir: PathBuf) -> Result<Self> {
-        if !base_dir.exists() {
-            std::fs::create_dir_all(&base_dir)?;
+    pub async fn new(db_path: PathBuf) -> Result<Self> {
+        // Ensure parent directory exists
+        if let Some(parent) = db_path.parent() {
+            if !parent.exists() {
+                std::fs::create_dir_all(parent)?;
+            }
         }
-        base_dir.push("content.db");
-        let db_url = format!("sqlite://{}", base_dir.to_string_lossy());
+        let db_url = format!("sqlite://{}?mode=rwc", db_path.to_string_lossy());
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
             .connect(&db_url)
@@ -27,6 +29,19 @@ impl SyncDb {
                 user_id TEXT NOT NULL,
                 encrypted_snapshot BLOB NOT NULL,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )"#,
+        )
+        .execute(&pool)
+        .await?;
+        
+        sqlx::query(
+            r#"CREATE TABLE IF NOT EXISTS document_permissions (
+                doc_id TEXT NOT NULL,
+                user_email TEXT NOT NULL,
+                permission_type TEXT NOT NULL,
+                granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (doc_id, user_email),
+                FOREIGN KEY (doc_id) REFERENCES documents(doc_id) ON DELETE CASCADE
             )"#,
         )
         .execute(&pool)
@@ -45,11 +60,14 @@ impl SyncDb {
         Ok(SyncDb { pool })
     }
 
-    pub async fn list_documents(&self, user_id: &str) -> Result<Vec<DocumentInfo>> {
+    pub async fn list_documents(&self, user_email: &str) -> Result<Vec<DocumentInfo>> {
         let rows = sqlx::query(
-            "SELECT doc_id, updated_at FROM documents WHERE user_id = ?",
+            r#"SELECT DISTINCT d.doc_id, d.updated_at 
+               FROM documents d
+               JOIN document_permissions p ON d.doc_id = p.doc_id
+               WHERE p.user_email = ?"#,
         )
-        .bind(user_id)
+        .bind(user_email)
         .fetch_all(&self.pool)
         .await?;
         Ok(rows
@@ -75,6 +93,8 @@ impl SyncDb {
         user_id: &str,
         snapshot: &[u8],
     ) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+        
         sqlx::query(
             r#"INSERT INTO documents (doc_id, user_id, encrypted_snapshot)
                VALUES (?, ?, ?)
@@ -85,8 +105,19 @@ impl SyncDb {
         .bind(doc_id)
         .bind(user_id)
         .bind(snapshot)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
+        
+        sqlx::query(
+            r#"INSERT OR IGNORE INTO document_permissions (doc_id, user_email, permission_type)
+               VALUES (?, ?, 'owner')"#,
+        )
+        .bind(doc_id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+        
+        tx.commit().await?;
         Ok(())
     }
 
@@ -106,6 +137,55 @@ impl SyncDb {
             .execute(&self.pool)
             .await?;
         }
+        Ok(())
+    }
+
+    pub async fn has_access(&self, doc_id: &str, user_email: &str, required_permission: &str) -> Result<bool> {
+        let permissions = ["owner", "writer", "reader"];
+        let required_level = permissions.iter().position(|&p| p == required_permission).unwrap_or(2);
+        
+        let row = sqlx::query(
+            "SELECT permission_type FROM document_permissions WHERE doc_id = ? AND user_email = ?"
+        )
+        .bind(doc_id)
+        .bind(user_email)
+        .fetch_optional(&self.pool)
+        .await?;
+        
+        match row {
+            Some(row) => {
+                let user_permission: String = row.get("permission_type");
+                let user_level = permissions.iter().position(|&p| p == user_permission).unwrap_or(2);
+                Ok(user_level <= required_level)
+            }
+            None => Ok(false)
+        }
+    }
+
+    pub async fn grant_access(&self, doc_id: &str, user_email: &str, permission_type: &str) -> Result<()> {
+        sqlx::query(
+            r#"INSERT INTO document_permissions (doc_id, user_email, permission_type)
+               VALUES (?, ?, ?)
+               ON CONFLICT(doc_id, user_email) DO UPDATE SET
+                   permission_type = excluded.permission_type,
+                   granted_at = CURRENT_TIMESTAMP"#,
+        )
+        .bind(doc_id)
+        .bind(user_email)
+        .bind(permission_type)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn revoke_access(&self, doc_id: &str, user_email: &str) -> Result<()> {
+        sqlx::query(
+            "DELETE FROM document_permissions WHERE doc_id = ? AND user_email = ? AND permission_type != 'owner'"
+        )
+        .bind(doc_id)
+        .bind(user_email)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 }

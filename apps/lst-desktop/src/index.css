@@ -1,0 +1,177 @@
+/* ------------------------------------------------------------------
+ * Omni-style global sheet  (Tailwind / CSS-in-JS compatible)
+ * ---------------------------------------------------------------- */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------
+ * 1 — Design tokens (HSL values so Tailwind’s hsl(var(--token)) works)
+ * ---------------------------------------------------------------- */
+@layer base {
+  :root {
+    /* Layout surfaces - matching your reference design */
+    --background: transparent;
+    --foreground: 246 246 246; /* #f6f6f6 */
+    --card: 80 80 80 / 0.70; /* rgba(80, 80, 80, 0.7) */
+    --card-foreground: 224 224 224; /* #e0e0e0 */
+    --popover: 44 44 46 / 0.90; /* rgba(44, 44, 46, 0.9) */
+    --popover-foreground: 246 246 246;
+
+    /* Brand / accent - darker refined colors */
+    --primary: 40 40 42 / 0.90; /* rgba(40, 40, 42, 0.9) */
+    --primary-foreground: 255 255 255;
+    --secondary: 44 44 46 / 0.70; /* rgba(44, 44, 46, 0.7) */
+    --secondary-foreground: 224 224 224;
+    --accent: 60 60 62 / 0.80; /* rgba(60, 60, 62, 0.8) */
+    --accent-foreground: 255 255 255;
+
+    /* States */
+    --muted: 44 44 46 / 0.70;
+    --muted-foreground: 160 160 165; /* #a0a0a5 */
+    --destructive: 0 85% 60%;
+    --destructive-foreground: 255 255 255;
+
+    /* Borders / rings - subtle white borders */
+    --border: 255 255 255 / 0.10;
+    --input: 40 40 42 / 0.90;
+    --ring: 255 255 255 / 0.20;
+
+    /* Radii - rounded like reference */
+    --radius: 0.625rem; /* 10px */
+
+    /* Sidebar */
+    --sidebar-background: 44 44 46 / 0.70;
+    --sidebar-foreground: 224 224 224;
+    --sidebar-primary: 50 50 50 / 0.70;
+    --sidebar-primary-foreground: 255 255 255;
+    --sidebar-accent: 70 70 72 / 0.70;
+    --sidebar-accent-foreground: 255 255 255;
+    --sidebar-border: 255 255 255 / 0.08;
+    --sidebar-ring: 255 255 255 / 0.20;
+  }
+
+  /* Dark mode keeps the same palette for consistency */
+  .dark {
+    --background: transparent;
+    --foreground: 246 246 246;
+    --card: 80 80 80 / 0.70;
+    --card-foreground: 224 224 224;
+    --popover: 44 44 46 / 0.90;
+    --popover-foreground: 246 246 246;
+    --primary: 40 40 42 / 0.90;
+    --primary-foreground: 255 255 255;
+    --secondary: 44 44 46 / 0.70;
+    --secondary-foreground: 224 224 224;
+    --accent: 60 60 62 / 0.80;
+    --accent-foreground: 255 255 255;
+    --muted: 44 44 46 / 0.70;
+    --muted-foreground: 160 160 165;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 255 255 255;
+    --border: 255 255 255 / 0.10;
+    --input: 40 40 42 / 0.90;
+    --ring: 255 255 255 / 0.20;
+    --sidebar-background: 44 44 46 / 0.70;
+    --sidebar-foreground: 224 224 224;
+    --sidebar-primary: 50 50 50 / 0.70;
+    --sidebar-primary-foreground: 255 255 255;
+    --sidebar-accent: 70 70 72 / 0.70;
+    --sidebar-accent-foreground: 255 255 255;
+    --sidebar-border: 255 255 255 / 0.08;
+    --sidebar-ring: 255 255 255 / 0.20;
+  }
+}
+
+/* ------------------------------------------------------------------
+ * 2 — Global resets & glass helpers
+ * ---------------------------------------------------------------- */
+@layer base {
+  *       { @apply border-border; }
+
+  html, body {
+    @apply text-foreground;
+    font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+    background: rgba(0, 0, 0, 0.1) !important;
+    height: 100%;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Re-usable blur utilities - matching reference design */
+  .glass {
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+  }
+
+  .glass-light {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+  }
+
+  /* Enhanced container styles */
+  .glass-container {
+    background-color: rgba(80, 80, 80, 0.7);
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    transition: all 0.2s ease-in-out;
+  }
+
+  .glass-item {
+    background-color: rgba(44, 44, 46, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    transition: all 0.15s ease;
+  }
+
+  .glass-item:hover {
+    background-color: rgba(60, 60, 62, 0.8);
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .glass-item.selected {
+    background-color: rgba(50, 50, 50, 0.7);
+    border-color: rgba(70, 70, 70, 0.9);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+    transform: scale(1.01);
+  }
+}
+
+/* ------------------------------------------------------------------
+ * 3 — Motion states for task / list items (unchanged but optimised)
+ * ---------------------------------------------------------------- */
+.task-item           { transition: all 0.2s ease-in-out; }
+.task-item.completed .task-text { @apply text-muted-foreground line-through; }
+
+.task-enter          { opacity: 0;   transform: translateY(10px); }
+.task-enter-active   { opacity: 1;   transform: translateY(0);    transition: opacity 300ms, transform 300ms; }
+.task-exit           { opacity: 1; }
+.task-exit-active    { opacity: 0;   transform: translateY(-10px);transition: opacity 300ms, transform 300ms; }
+
+/* ------------------------------------------------------------------
+ * 5 — Custom scrollbars
+ * ---------------------------------------------------------------- */
+::-webkit-scrollbar         { width: 6px; }
+::-webkit-scrollbar-track   { background: transparent; }
+::-webkit-scrollbar-thumb   { background-color: rgba(150, 150, 150, 0.4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background-color: rgba(150, 150, 150, 0.6); }
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(150, 150, 150, 0.4) transparent;
+}

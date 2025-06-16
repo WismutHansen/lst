@@ -65,13 +65,16 @@ struct StoredToken {
 }
 
 impl SqliteTokenStore {
-    pub async fn new(mut data_path: PathBuf) -> Result<Self, sqlx::Error> {
-        if !data_path.exists() {
-            std::fs::create_dir_all(&data_path)
-                .map_err(|e| sqlx::Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+    pub async fn new(db_path: PathBuf) -> Result<Self, sqlx::Error> {
+        // Ensure parent directory exists
+        if let Some(parent) = db_path.parent() {
+            if !parent.exists() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| sqlx::Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+            }
         }
-        data_path.push("tokens.db");
-        let db_url = format!("sqlite://{}", data_path.to_str().unwrap());
+        let db_url = format!("sqlite://{}?mode=rwc", db_path.to_str().unwrap());
+        eprintln!("DEBUG: Attempting to connect to tokens database at: {}", db_url);
         let pool = SqlitePoolOptions::new().max_connections(5).connect(&db_url).await?;
         sqlx::query(
             r#"
@@ -139,13 +142,16 @@ struct ContentRow {
 }
 
 impl SqliteContentStore {
-    pub async fn new(mut data_path: PathBuf) -> Result<Self, sqlx::Error> {
-        if !data_path.exists() {
-            std::fs::create_dir_all(&data_path)
-                .map_err(|e| sqlx::Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+    pub async fn new(db_path: PathBuf) -> Result<Self, sqlx::Error> {
+        // Ensure parent directory exists
+        if let Some(parent) = db_path.parent() {
+            if !parent.exists() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| sqlx::Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+            }
         }
-        data_path.push("content.db");
-        let db_url = format!("sqlite://{}", data_path.to_str().unwrap());
+        let db_url = format!("sqlite://{}?mode=rwc", db_path.to_str().unwrap());
+        eprintln!("DEBUG: Attempting to connect to content database at: {}", db_url);
 
         let pool = SqlitePoolOptions::new()
             .max_connections(10)
@@ -298,28 +304,24 @@ async fn main() {
     };
     let settings = Arc::new(Settings::from_file(&config_file_path_str).unwrap());
 
-    let mut server_data_base_dir = config_file_path_str.clone();
-    server_data_base_dir.pop();
-    server_data_base_dir.push("lst_server_data");
-
-    if !server_data_base_dir.exists() {
-        std::fs::create_dir_all(&server_data_base_dir).expect("Failed to create server data base directory");
-    }
+    // Get database paths from configuration
+    let tokens_db_path = settings.database.tokens_db_path().expect("Failed to resolve tokens database path");
+    let content_db_path = settings.database.content_db_path().expect("Failed to resolve content database path"); 
+    let sync_db_path = settings.database.sync_db_path().expect("Failed to resolve sync database path");
 
     let token_store = Arc::new(
-        SqliteTokenStore::new(server_data_base_dir.clone())
+        SqliteTokenStore::new(tokens_db_path)
             .await
             .expect("Failed to initialize token store"),
     );
 
-    // Initialize SQLite content store (content.db in server_data_base_dir)
     let content_store = Arc::new(
-        SqliteContentStore::new(server_data_base_dir.clone()) // Uses the same base data directory
+        SqliteContentStore::new(content_db_path)
             .await
             .expect("Failed to initialize content store"),
     );
 
-    let sync_db = sync_db::SyncDb::new(server_data_base_dir.clone())
+    let sync_db = sync_db::SyncDb::new(sync_db_path)
         .await
         .expect("Failed to initialize sync db");
     let (tx, _) = broadcast::channel(100);
@@ -337,7 +339,7 @@ async fn main() {
             }),
         )
         .route(
-            "/:kind/*path",
+            "/{kind}/{*path}",
             get({
                 let store = content_store.clone();
                 // Signature of read_content_handler will change
