@@ -1,4 +1,5 @@
 use anyhow::Result;
+use lst_cli::cli::commands::display_list;
 use lst_cli::storage::{list_lists, list_notes};
 use serde::{Deserialize, Serialize};
 use specta_typescript::Typescript;
@@ -50,8 +51,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_lists])
-        .invoke_handler(tauri::generate_handler![get_notes])
+        .invoke_handler(tauri::generate_handler![get_lists, get_notes])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

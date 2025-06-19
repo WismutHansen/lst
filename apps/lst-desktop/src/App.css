@@ -130,7 +130,21 @@ html, body, #root {
   height: 1.5rem;
   pointer-events: none;
 }
+.list-wrapper {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 
+.list-item {
+  margin-right: 10px;
+  margin-left: 10px;
+  background-color: #45475a;
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  border-radius: 10px;
+}
 .row {
   display: flex;
   justify-content: center;
