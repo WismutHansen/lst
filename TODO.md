@@ -105,7 +105,7 @@
   - [x] Inline editing for item text
   - [x] Delete confirmation for items
   - [x] Drag-and-drop reordering (if supported by backend)
-  - [ ] Multi-select for bulk operations
+  - [x] Multi-select for bulk operations
 
 #### Phase 3: Search and Navigation
 - [ ] **Search Integration (leveraging lst-cli fuzzy matching):**
