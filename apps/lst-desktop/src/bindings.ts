@@ -21,6 +21,14 @@ async getNotes() : Promise<Result<string[], string>> {
     else return { status: "error", error: e  as any };
 }
 }
+async getList(name: string) : Promise<Result<List, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_list", { name }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 }
 
 /** user-defined events **/
@@ -33,6 +41,19 @@ async getNotes() : Promise<Result<string[], string>> {
 
 /** user-defined types **/
 
+export interface ListItem {
+    text: string;
+    status: "Todo" | "Done";
+    anchor: string;
+}
+
+export interface List {
+    id: string;
+    title: string;
+    sharing: string[];
+    updated: string;
+    items: ListItem[];
+}
 
 
 /** tauri-specta globals **/
