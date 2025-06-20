@@ -148,6 +148,68 @@ html, body, #root {
 .list-item.selected {
   background-color: #6c7086;
 }
+
+.list-item.cursor {
+  outline: 2px dashed #a6e3a1;
+}
+
+.list-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.list-entry input[type="checkbox"] {
+  margin: 0;
+}
+
+.edit-input {
+  flex: 1;
+}
+
+.edit-btn {
+  margin-left: auto;
+}
+
+.delete-btn {
+  margin-left: 0.25rem;
+  background-color: #f38ba8;
+}
+
+.layout {
+  display: flex;
+  height: 100%;
+}
+
+.sidebar {
+  width: 200px;
+  border-right: 1px solid #494D51;
+  padding: 0.5rem;
+  overflow-y: auto;
+}
+
+.sidebar-item {
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+}
+
+.sidebar-item.selected,
+.sidebar-item:hover {
+  background-color: #6c7086;
+}
+
+.new-list-form,
+.add-item-form {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+
+.new-list-form input,
+.add-item-form input {
+  flex: 1;
+}
 .row {
   display: flex;
   justify-content: center;
