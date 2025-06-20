@@ -11,7 +11,7 @@ async getLists() : Promise<Result<string[], string>> {
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
-  }
+}
 },
 async getNotes() : Promise<Result<string[], string>> {
     try {
@@ -34,7 +34,7 @@ async createList(title: string) : Promise<Result<List, string>> {
     return { status: "ok", data: await TAURI_INVOKE("create_list", { title }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e as any };
+    else return { status: "error", error: e  as any };
 }
 },
 async addItem(list: string, text: string) : Promise<Result<List, string>> {
@@ -42,7 +42,7 @@ async addItem(list: string, text: string) : Promise<Result<List, string>> {
     return { status: "ok", data: await TAURI_INVOKE("add_item", { list, text }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e as any };
+    else return { status: "error", error: e  as any };
 }
 },
 async toggleItem(list: string, target: string) : Promise<Result<List, string>> {
@@ -50,7 +50,7 @@ async toggleItem(list: string, target: string) : Promise<Result<List, string>> {
     return { status: "ok", data: await TAURI_INVOKE("toggle_item", { list, target }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e as any };
+    else return { status: "error", error: e  as any };
 }
 },
 async editItem(list: string, target: string, text: string) : Promise<Result<List, string>> {
@@ -58,7 +58,7 @@ async editItem(list: string, target: string, text: string) : Promise<Result<List
     return { status: "ok", data: await TAURI_INVOKE("edit_item", { list, target, text }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e as any };
+    else return { status: "error", error: e  as any };
 }
 },
 async removeItem(list: string, target: string) : Promise<Result<List, string>> {
@@ -66,7 +66,7 @@ async removeItem(list: string, target: string) : Promise<Result<List, string>> {
     return { status: "ok", data: await TAURI_INVOKE("remove_item", { list, target }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e as any };
+    else return { status: "error", error: e  as any };
 }
 },
 async reorderItem(list: string, target: string, newIndex: number) : Promise<Result<List, string>> {
@@ -74,15 +74,15 @@ async reorderItem(list: string, target: string, newIndex: number) : Promise<Resu
     return { status: "ok", data: await TAURI_INVOKE("reorder_item", { list, target, newIndex }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e as any };
+    else return { status: "error", error: e  as any };
 }
 },
-async saveList(list: List) : Promise<Result<void, string>> {
+async saveList(list: List) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("save_list", { list }) };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e as any };
+    else return { status: "error", error: e  as any };
 }
 },
 async getUiConfig() : Promise<Result<UiConfig, string>> {
@@ -90,10 +90,10 @@ async getUiConfig() : Promise<Result<UiConfig, string>> {
     return { status: "ok", data: await TAURI_INVOKE("get_ui_config") };
 } catch (e) {
     if(e instanceof Error) throw e;
-    else return { status: "error", error: e as any };
+    else return { status: "error", error: e  as any };
 }
-},
-};
+}
+}
 
 /** user-defined events **/
 
@@ -140,7 +140,7 @@ items?: ListItem[] }
 /**
  * Represents a single item in a list
  */
-export type ListItem = {
+export type ListItem = { 
 /**
  * The text content of the item
  */
@@ -153,12 +153,15 @@ status: ItemStatus;
  * Unique anchor identifier for the item
  */
 anchor: string }
-
-export type UiConfig = {
-resolution_order: string[];
-vim_mode: boolean;
-leader_key: string;
-}
+export type UiConfig = { resolution_order?: string[]; 
+/**
+ * Enable Vim-like keybindings in the frontend
+ */
+vim_mode?: boolean; 
+/**
+ * Leader key used for command sequences (defaults to space)
+ */
+leader_key?: string }
 
 /** tauri-specta globals **/
 

@@ -1,11 +1,10 @@
 use anyhow::Result;
 use lst_cli::config::{get_config, UiConfig};
-use lst_cli::models::{fuzzy_find, is_valid_anchor, ItemStatus, List, ListItem};
+use lst_cli::models::{fuzzy_find, is_valid_anchor, ItemStatus, List};
 use lst_cli::storage::{
     list_lists, list_notes,
     markdown::{self, load_list},
 };
-use serde::{Deserialize, Serialize};
 use specta_typescript::Typescript;
 use tauri::tray::TrayIconBuilder;
 use tauri::Manager;
@@ -118,8 +117,8 @@ fn edit_item(list: String, target: String, text: String) -> Result<List, String>
 
 #[tauri::command]
 #[specta::specta]
-fn reorder_item(list: String, target: String, new_index: usize) -> Result<List, String> {
-    markdown::reorder_item(&list, &target, new_index).map_err(|e| e.to_string())?;
+fn reorder_item(list: String, target: String, new_index: u32) -> Result<List, String> {
+    markdown::reorder_item(&list, &target, new_index as usize).map_err(|e| e.to_string())?;
     load_list(&list).map_err(|e| e.to_string())
 }
 
@@ -155,8 +154,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let tray = TrayIconBuilder::new().build(app)?;
-            let window = app.get_webview_window("main").unwrap();
+            let _tray = TrayIconBuilder::new().build(app)?;
+            let _window = app.get_webview_window("main").unwrap();
 
             // #[cfg(target_os = "macos")]
             // window_vibrancy::apply_vibrancy(
