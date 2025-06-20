@@ -145,6 +145,9 @@ html, body, #root {
   border-bottom: 1px solid var(--border-color);
   border-radius: 10px;
 }
+.list-item.selected {
+  background-color: #6c7086;
+}
 .row {
   display: flex;
   justify-content: center;
