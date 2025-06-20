@@ -20,7 +20,7 @@ async getNotes() : Promise<Result<string[], string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
-}
+},
 async getList(name: string) : Promise<Result<List, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_list", { name }) };
@@ -28,7 +28,7 @@ async getList(name: string) : Promise<Result<List, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
-},
+}
 }
 
 /** user-defined events **/
@@ -41,20 +41,54 @@ async getList(name: string) : Promise<Result<List, string>> {
 
 /** user-defined types **/
 
-export interface ListItem {
-    text: string;
-    status: "Todo" | "Done";
-    anchor: string;
-}
-
-export interface List {
-    id: string;
-    title: string;
-    sharing: string[];
-    updated: string;
-    items: ListItem[];
-}
-
+/**
+ * Represents the status of a list item (done or not)
+ */
+export type ItemStatus = "Todo" | "Done"
+/**
+ * Represents a complete list with metadata and items
+ */
+export type List = 
+/**
+ * Metadata for the list
+ */
+({ 
+/**
+ * Unique identifier for the list
+ */
+id?: string; 
+/**
+ * Human-readable title of the list
+ */
+title: string; 
+/**
+ * List of users who have access to the list
+ */
+sharing?: string[]; 
+/**
+ * When the list was last updated
+ */
+updated?: string }) & { 
+/**
+ * List items; stored in markdown body, not in frontmatter
+ */
+items?: ListItem[] }
+/**
+ * Represents a single item in a list
+ */
+export type ListItem = { 
+/**
+ * The text content of the item
+ */
+text: string; 
+/**
+ * The status of the item (todo or done)
+ */
+status: ItemStatus; 
+/**
+ * Unique anchor identifier for the item
+ */
+anchor: string }
 
 /** tauri-specta globals **/
 
