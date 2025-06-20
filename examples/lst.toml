@@ -15,6 +15,10 @@ resolution_order = [
   "index",       # Match by numeric index
   "interactive", # Interactive selection prompt
 ]
+# Enable Vim-style keyboard navigation in the desktop app
+vim_mode = false
+# Leader key for command sequences
+leader_key = " "
 
 # =============================================================================
 # Fuzzy Search Configuration
