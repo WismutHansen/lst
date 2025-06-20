@@ -178,7 +178,7 @@
   - [ ] Error handling and user feedback
 - [ ] **Accessibility & Usability:**
   - [x] Keyboard navigation support
-  - [ ] Optional Vim keybindings mode
+  - [x] Optional Vim keybindings mode
   - [ ] Screen reader compatibility
   - [ ] High contrast mode
   - [ ] Tooltips and help system
