@@ -1,6 +1,6 @@
 use anyhow::Result;
-use lst_cli::cli::commands::display_list;
-use lst_cli::storage::{list_lists, list_notes};
+use lst_cli::storage::{list_lists, list_notes, markdown::load_list};
+use lst_cli::models::List;
 use serde::{Deserialize, Serialize};
 use specta_typescript::Typescript;
 use tauri::tray::TrayIconBuilder;
@@ -19,11 +19,17 @@ fn get_notes() -> Result<Vec<String>, String> {
     list_notes().map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+#[specta::specta]
+fn get_list(name: String) -> Result<List, String> {
+    load_list(&name).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = Builder::<tauri::Wry>::new()
         // Then register them (separated by a comma)
-        .commands(collect_commands![get_lists, get_notes]);
+        .commands(collect_commands![get_lists, get_notes, get_list]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
     builder
@@ -51,7 +57,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_lists, get_notes])
+        .invoke_handler(tauri::generate_handler![get_lists, get_notes, get_list])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
