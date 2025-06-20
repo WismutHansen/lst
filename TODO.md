@@ -86,22 +86,22 @@
 - [x] Implement `get_lists()` command to list available lists
 - [x] Implement `get_list(name)` command to load specific list
 - [x] Implement `get_notes()` command to list available notes
-- [ ] **Core List Operations (leveraging lst-cli functions):**
-  - [ ] Add Tauri command for `create_list(title: String)` -> expose `List::new()`
-  - [ ] Add Tauri command for `add_item(list: String, text: String)` -> expose `lst_cli::cli::commands::add_item()`
-  - [ ] Add Tauri command for `toggle_item(list: String, target: String)` -> expose done/undone functionality
-  - [ ] Add Tauri command for `remove_item(list: String, target: String)` -> expose `lst_cli::cli::commands::remove_item()`
-  - [ ] Add Tauri command for `save_list(list: List)` -> expose `lst_cli::storage::markdown::save_list()`
+- [x] **Core List Operations (leveraging lst-cli functions):**
+  - [x] Add Tauri command for `create_list(title: String)` -> expose `List::new()`
+  - [x] Add Tauri command for `add_item(list: String, text: String)` -> expose `lst_cli::cli::commands::add_item()`
+  - [x] Add Tauri command for `toggle_item(list: String, target: String)` -> expose done/undone functionality
+  - [x] Add Tauri command for `remove_item(list: String, target: String)` -> expose `lst_cli::cli::commands::remove_item()`
+  - [x] Add Tauri command for `save_list(list: List)` -> expose `lst_cli::storage::markdown::save_list()`
 
 #### Phase 2: User Interface
 - [ ] **List Management UI:**
-  - [ ] Create list browser/sidebar showing all available lists
-  - [ ] Implement list view with checkboxes for todo items
-  - [ ] Add new list creation dialog
-  - [ ] Add item input field with quick-add functionality
-  - [ ] Support for directory structure visualization (nested lists)
+  - [x] Create list browser/sidebar showing all available lists
+  - [x] Implement list view with checkboxes for todo items
+  - [x] Add new list creation dialog
+  - [x] Add item input field with quick-add functionality
+  - [x] Support for directory structure visualization (nested lists)
 - [ ] **Item Management UI:**
-  - [ ] Checkbox interactions for marking items done/undone
+  - [x] Checkbox interactions for marking items done/undone
   - [ ] Inline editing for item text
   - [ ] Delete confirmation for items
   - [ ] Drag-and-drop reordering (if supported by backend)

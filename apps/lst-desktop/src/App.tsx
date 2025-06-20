@@ -2,6 +2,43 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import Logo from "./assets/logo.png";
 import "./App.css";
 import { commands, type List } from "./bindings";
+import { CommandPalette, PaletteCommand } from "./components/CommandPalette";
+
+interface ListNode {
+  name: string;
+  path: string;
+  isList: boolean;
+  children: ListNode[];
+}
+
+function buildListTree(paths: string[]): ListNode[] {
+  const root: Record<string, any> = {};
+  for (const p of paths) {
+    const parts = p.split("/");
+    let node = root;
+    let prefix = "";
+    parts.forEach((part, idx) => {
+      prefix = prefix ? `${prefix}/${part}` : part;
+      if (!node[part]) {
+        node[part] = { name: part, path: prefix, isList: false, children: {} };
+      }
+      if (idx === parts.length - 1) {
+        node[part].isList = true;
+      }
+      node = node[part].children;
+    });
+  }
+  const convert = (obj: Record<string, any>): ListNode[] =>
+    Object.values(obj)
+      .map((n: any) => ({
+        name: n.name,
+        path: n.path,
+        isList: n.isList,
+        children: convert(n.children),
+      }))
+      .sort((a: ListNode, b: ListNode) => a.name.localeCompare(b.name));
+  return convert(root);
+}
 
 function App() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -11,6 +48,11 @@ function App() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [currentList, setCurrentList] = useState<List | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [currentName, setCurrentName] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [newListName, setNewListName] = useState("");
+  const [newItem, setNewItem] = useState("");
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   async function fetchLists() {
     const res = await commands.getLists();
@@ -25,8 +67,35 @@ function App() {
     const res = await commands.getList(name);
     if (res.status === "ok") {
       setCurrentList(res.data);
+      setCurrentName(name);
       setShowSuggestions(false);
       setQuery("");
+    } else {
+      setError(res.error);
+    }
+  }
+
+  async function createNewList(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newListName.trim()) return;
+    const res = await commands.createList(newListName.trim());
+    if (res.status === "ok") {
+      await fetchLists();
+      loadList(res.data.title);
+      setNewListName("");
+      setCreating(false);
+    } else {
+      setError(res.error);
+    }
+  }
+
+  async function quickAddItem(e: React.FormEvent) {
+    e.preventDefault();
+    if (!currentName || !newItem.trim()) return;
+    const res = await commands.addItem(currentName, newItem.trim());
+    if (res.status === "ok") {
+      setCurrentList(res.data);
+      setNewItem("");
     } else {
       setError(res.error);
     }
@@ -36,6 +105,26 @@ function App() {
     if (query === "*") return lists;
     return lists.filter((l) => l.toLowerCase().includes(query.toLowerCase()));
   }, [query, lists]);
+
+  const listTree = useMemo(() => buildListTree(lists), [lists]);
+
+  const paletteCommands = useMemo<PaletteCommand[]>(
+    () => [
+      {
+        label: "New List",
+        action: () => setCreating(true),
+      },
+      ...lists.map((l) => ({
+        label: `Open ${l}`,
+        action: () => loadList(l),
+      })),
+    ],
+    [lists]
+  );
+
+  useEffect(() => {
+    fetchLists();
+  }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -62,6 +151,17 @@ function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [showSuggestions, filtered, selectedIndex]);
 
+  useEffect(() => {
+    function handlePalette(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    }
+    window.addEventListener("keydown", handlePalette);
+    return () => window.removeEventListener("keydown", handlePalette);
+  }, []);
+
   function handleFocus() {
     fetchLists();
     setShowSuggestions(true);
@@ -86,21 +186,83 @@ function App() {
 
   function renderCurrentList() {
     if (!currentList) return null;
+    async function toggle(anchor: string) {
+      if (!currentName) return;
+      const res = await commands.toggleItem(currentName, anchor);
+      if (res.status === "ok") {
+        setCurrentList(res.data);
+      } else {
+        setError(res.error);
+      }
+    }
+
     return (
       <div className="list-wrapper">
         <h2>{currentList.title}</h2>
         {currentList.items.map((it) => (
-          <div key={it.anchor} className="list-item">
-            {it.status === "Done" ? "[x]" : "[ ]"} {it.text}
-          </div>
+          <label key={it.anchor} className="list-item list-entry">
+            <input
+              type="checkbox"
+              checked={it.status === "Done"}
+              onChange={() => toggle(it.anchor)}
+            />
+            <span>{it.text}</span>
+          </label>
         ))}
+        <form className="add-item-form" onSubmit={quickAddItem}>
+          <input
+            type="text"
+            value={newItem}
+            onChange={(e) => setNewItem(e.currentTarget.value)}
+            placeholder="Add item"
+          />
+          <button type="submit">Add</button>
+        </form>
+      </div>
+    );
+  }
+
+  function renderSidebar() {
+    const renderNodes = (nodes: ListNode[], depth = 0): JSX.Element[] =>
+      nodes.flatMap((n) => [
+        <div
+          key={n.path}
+          className={
+            "sidebar-item" + (n.isList && n.path === currentName ? " selected" : "")
+          }
+          style={{ paddingLeft: depth * 12 }}
+          onClick={() => n.isList && loadList(n.path)}
+        >
+          {n.name}
+        </div>,
+        ...renderNodes(n.children, depth + 1),
+      ]);
+
+    return (
+      <div className="sidebar">
+        <h3>Lists</h3>
+        <button onClick={() => setCreating((c) => !c)}>+ New List</button>
+        {creating && (
+          <form className="new-list-form" onSubmit={createNewList}>
+            <input
+              type="text"
+              value={newListName}
+              onChange={(e) => setNewListName(e.currentTarget.value)}
+              placeholder="List name"
+            />
+            <button type="submit">Create</button>
+          </form>
+        )}
+        <div className="sidebar-items">{renderNodes(listTree)}</div>
       </div>
     );
   }
 
   return (
     <div className="background">
-      <main className="container">
+      <div className="layout">
+        {renderSidebar()}
+        <main className="container">
         <div className="row">
           <a href="https://github.com/WismutHansen/lst" target="_blank"></a>
         </div>
@@ -124,7 +286,13 @@ function App() {
         <div className="statusbar">
           <p>hello world</p>
         </div>
+        <CommandPalette
+          open={paletteOpen}
+          onClose={() => setPaletteOpen(false)}
+          commands={paletteCommands}
+        />
       </main>
+      </div>
     </div>
   );
 }

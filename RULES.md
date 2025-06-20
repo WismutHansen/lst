@@ -12,6 +12,11 @@ This file provides guidance to humans and AI Agents when working with code in th
 - Run: `cargo run`
 - Clippy (lint): `cargo clippy -- -D warnings`
 - Format: `cargo fmt --all`
+- For TypeScript apps use **bun**:
+  - Install dependencies: `bun install`
+  - Run dev server: `bun run dev`
+  - Build: `bun run build`
+  - Lint: `bun run lint`
 
 ### Code Style Guidelines
 

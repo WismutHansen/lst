@@ -11,7 +11,7 @@ async getLists() : Promise<Result<string[], string>> {
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
-}
+  }
 },
 async getNotes() : Promise<Result<string[], string>> {
     try {
@@ -28,8 +28,48 @@ async getList(name: string) : Promise<Result<List, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async createList(title: string) : Promise<Result<List, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_list", { title }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e as any };
 }
+},
+async addItem(list: string, text: string) : Promise<Result<List, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("add_item", { list, text }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e as any };
 }
+},
+async toggleItem(list: string, target: string) : Promise<Result<List, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("toggle_item", { list, target }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e as any };
+}
+},
+async removeItem(list: string, target: string) : Promise<Result<List, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("remove_item", { list, target }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e as any };
+}
+},
+async saveList(list: List) : Promise<Result<void, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_list", { list }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e as any };
+}
+},
+};
 
 /** user-defined events **/
 
