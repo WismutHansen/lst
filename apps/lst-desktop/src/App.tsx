@@ -55,6 +55,8 @@ function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [editingAnchor, setEditingAnchor] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+  const [multiSelect, setMultiSelect] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const [vimMode, setVimMode] = useState(false);
   const [leaderKey, setLeaderKey] = useState(" ");
@@ -290,7 +292,38 @@ function App() {
 
     return (
       <div className="list-wrapper">
-        <h2>{currentList.title}</h2>
+        <div className="row">
+          <h2 style={{ flex: 1 }}>{currentList.title}</h2>
+          <button type="button" onClick={() => {
+            setMultiSelect((v) => !v);
+            setSelected(new Set());
+          }}>
+            {multiSelect ? "Done" : "Select"}
+          </button>
+          {multiSelect && (
+            <>
+              <button type="button" onClick={async () => {
+                if (!currentName) return;
+                for (const a of Array.from(selected)) {
+                  await commands.toggleItem(currentName, a);
+                }
+                const res = await commands.getList(currentName);
+                if (res.status === "ok") setCurrentList(res.data);
+                setSelected(new Set());
+              }}>Mark Done</button>
+              <button type="button" onClick={async () => {
+                if (!currentName) return;
+                if (!window.confirm("Delete selected items?")) return;
+                for (const a of Array.from(selected)) {
+                  await commands.removeItem(currentName, a);
+                }
+                const res = await commands.getList(currentName);
+                if (res.status === "ok") setCurrentList(res.data);
+                setSelected(new Set());
+              }}>Delete</button>
+            </>
+          )}
+        </div>
         {currentList.items.map((it, idx) =>
           editingAnchor === it.anchor ? (
             <form
@@ -330,9 +363,25 @@ function App() {
               }}
               className={
                 "list-item list-entry" +
-                (vimMode && idx === cursorIndex ? " cursor" : "")
+                (vimMode && idx === cursorIndex ? " cursor" : "") +
+                (selected.has(it.anchor) ? " selected-item" : "")
               }
             >
+              {multiSelect && (
+                <input
+                  type="checkbox"
+                  className="select-box"
+                  checked={selected.has(it.anchor)}
+                  onChange={(e) => {
+                    setSelected((s) => {
+                      const copy = new Set(s);
+                      if (e.currentTarget.checked) copy.add(it.anchor);
+                      else copy.delete(it.anchor);
+                      return copy;
+                    });
+                  }}
+                />
+              )}
               <input
                 type="checkbox"
                 checked={it.status === "Done"}
