@@ -104,6 +104,13 @@ fn remove_item(list: String, target: String) -> Result<List, String> {
 
 #[tauri::command]
 #[specta::specta]
+fn edit_item(list: String, target: String, text: String) -> Result<List, String> {
+    markdown::edit_item_text(&list, &target, &text).map_err(|e| e.to_string())?;
+    load_list(&list).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
 fn save_list(list: List) -> Result<(), String> {
     markdown::save_list(&list).map_err(|e| e.to_string())
 }
@@ -119,6 +126,7 @@ pub fn run() {
             create_list,
             add_item,
             toggle_item,
+            edit_item,
             remove_item,
             save_list
         ]);
@@ -156,6 +164,7 @@ pub fn run() {
             create_list,
             add_item,
             toggle_item,
+            edit_item,
             remove_item,
             save_list
         ])

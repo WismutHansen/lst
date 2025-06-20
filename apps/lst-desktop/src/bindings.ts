@@ -53,6 +53,14 @@ async toggleItem(list: string, target: string) : Promise<Result<List, string>> {
     else return { status: "error", error: e as any };
 }
 },
+async editItem(list: string, target: string, text: string) : Promise<Result<List, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("edit_item", { list, target, text }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e as any };
+}
+},
 async removeItem(list: string, target: string) : Promise<Result<List, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("remove_item", { list, target }) };

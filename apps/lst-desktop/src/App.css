@@ -159,6 +159,14 @@ html, body, #root {
   margin: 0;
 }
 
+.edit-input {
+  flex: 1;
+}
+
+.edit-btn {
+  margin-left: auto;
+}
+
 .layout {
   display: flex;
   height: 100%;

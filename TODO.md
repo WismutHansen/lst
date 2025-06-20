@@ -102,7 +102,7 @@
   - [x] Support for directory structure visualization (nested lists)
 - [ ] **Item Management UI:**
   - [x] Checkbox interactions for marking items done/undone
-  - [ ] Inline editing for item text
+  - [x] Inline editing for item text
   - [ ] Delete confirmation for items
   - [ ] Drag-and-drop reordering (if supported by backend)
   - [ ] Multi-select for bulk operations

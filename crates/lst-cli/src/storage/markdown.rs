@@ -400,6 +400,28 @@ pub fn delete_item(list_name: &str, target: &str) -> Result<Vec<ListItem>> {
     )
 }
 
+/// Edit the text of an item in a list
+pub fn edit_item_text(list_name: &str, target: &str, new_text: &str) -> Result<()> {
+    if new_text.trim().is_empty() {
+        anyhow::bail!("New text cannot be empty");
+    }
+
+    let mut list = load_list(list_name)?;
+
+    if let Ok((idx, _)) = find_item_for_removal(&list, target) {
+        list.items[idx].text = new_text.to_string();
+        list.metadata.updated = chrono::Utc::now();
+        save_list_with_path(&list, list_name)?;
+        Ok(())
+    } else {
+        anyhow::bail!(
+            "No item matching '{}' found in list '{}'",
+            target,
+            list_name
+        )
+    }
+}
+
 /// Helper function to find an item for removal, returning (index, item)
 pub fn find_item_for_removal<'a>(list: &'a List, target: &str) -> Result<(usize, &'a ListItem)> {
     // Try to find the item by anchor first
@@ -441,4 +463,3 @@ pub fn find_item_for_removal<'a>(list: &'a List, target: &str) -> Result<(usize,
         ),
     }
 }
-

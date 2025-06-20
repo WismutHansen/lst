@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import Logo from "./assets/logo.png";
 import "./App.css";
-import { commands, type List } from "./bindings";
+import { commands, type List, type ListItem } from "./bindings";
 import { CommandPalette, PaletteCommand } from "./components/CommandPalette";
 
 interface ListNode {
@@ -53,6 +53,8 @@ function App() {
   const [newListName, setNewListName] = useState("");
   const [newItem, setNewItem] = useState("");
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [editingAnchor, setEditingAnchor] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
 
   async function fetchLists() {
     const res = await commands.getLists();
@@ -196,19 +198,62 @@ function App() {
       }
     }
 
+    function startEdit(item: ListItem) {
+      setEditingAnchor(item.anchor);
+      setEditText(item.text);
+    }
+
+    async function saveEdit(anchor: string) {
+      if (!currentName) return;
+      const res = await commands.editItem(currentName, anchor, editText);
+      if (res.status === "ok") {
+        setCurrentList(res.data);
+        setEditingAnchor(null);
+        setEditText("");
+      } else {
+        setError(res.error);
+      }
+    }
+
     return (
       <div className="list-wrapper">
         <h2>{currentList.title}</h2>
-        {currentList.items.map((it) => (
-          <label key={it.anchor} className="list-item list-entry">
-            <input
-              type="checkbox"
-              checked={it.status === "Done"}
-              onChange={() => toggle(it.anchor)}
-            />
-            <span>{it.text}</span>
-          </label>
-        ))}
+        {currentList.items.map((it) =>
+          editingAnchor === it.anchor ? (
+            <form
+              key={it.anchor}
+              className="list-item list-entry"
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveEdit(it.anchor);
+              }}
+            >
+              <input
+                className="edit-input"
+                value={editText}
+                onChange={(e) => setEditText(e.currentTarget.value)}
+                onBlur={() => saveEdit(it.anchor)}
+                autoFocus
+              />
+            </form>
+          ) : (
+            <label key={it.anchor} className="list-item list-entry">
+              <input
+                type="checkbox"
+                checked={it.status === "Done"}
+                onChange={() => toggle(it.anchor)}
+              />
+              <span onDoubleClick={() => startEdit(it)}>{it.text}</span>
+              <button
+                type="button"
+                className="edit-btn"
+                onClick={() => startEdit(it)}
+              >
+                Edit
+              </button>
+            </label>
+          )
+        )}
         <form className="add-item-form" onSubmit={quickAddItem}>
           <input
             type="text"
