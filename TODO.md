@@ -79,10 +79,115 @@
 
 ## Client Applications
 
-- [ ] Build Tauri slim GUI
-  - [ ] Create toggleable, always-on-top window
-  - [ ] Implement Markdown viewer/editor
-  - [ ] Add sync status tray icon
+### Desktop App (lst-desktop) - Tauri Implementation
+
+#### Phase 1: Core List Management
+- [x] Basic Tauri project setup with TypeScript bindings
+- [x] Implement `get_lists()` command to list available lists
+- [x] Implement `get_list(name)` command to load specific list
+- [x] Implement `get_notes()` command to list available notes
+- [ ] **Core List Operations (leveraging lst-cli functions):**
+  - [ ] Add Tauri command for `create_list(title: String)` -> expose `List::new()`
+  - [ ] Add Tauri command for `add_item(list: String, text: String)` -> expose `lst_cli::cli::commands::add_item()`
+  - [ ] Add Tauri command for `toggle_item(list: String, target: String)` -> expose done/undone functionality
+  - [ ] Add Tauri command for `remove_item(list: String, target: String)` -> expose `lst_cli::cli::commands::remove_item()`
+  - [ ] Add Tauri command for `save_list(list: List)` -> expose `lst_cli::storage::markdown::save_list()`
+
+#### Phase 2: User Interface
+- [ ] **List Management UI:**
+  - [ ] Create list browser/sidebar showing all available lists
+  - [ ] Implement list view with checkboxes for todo items
+  - [ ] Add new list creation dialog
+  - [ ] Add item input field with quick-add functionality
+  - [ ] Support for directory structure visualization (nested lists)
+- [ ] **Item Management UI:**
+  - [ ] Checkbox interactions for marking items done/undone
+  - [ ] Inline editing for item text
+  - [ ] Delete confirmation for items
+  - [ ] Drag-and-drop reordering (if supported by backend)
+  - [ ] Multi-select for bulk operations
+
+#### Phase 3: Search and Navigation
+- [ ] **Search Integration (leveraging lst-cli fuzzy matching):**
+  - [ ] Add Tauri command for `search_lists(query: String)` -> expose fuzzy search
+  - [ ] Add Tauri command for `search_items(query: String)` -> expose item search across all lists
+  - [ ] Implement global search bar with real-time results
+  - [ ] Add keyboard shortcuts for quick navigation (Cmd+P style)
+- [ ] **Navigation Features:**
+  - [ ] Breadcrumb navigation for nested directories
+  - [ ] Recent/frequently used lists
+  - [ ] Favorites/pinned lists
+
+#### Phase 4: Notes Management
+- [ ] **Note Operations (leveraging lst-cli functions):**
+  - [ ] Add Tauri command for `create_note(title: String)` -> expose note creation
+  - [ ] Add Tauri command for `get_note(title: String)` -> expose note loading
+  - [ ] Add Tauri command for `save_note(title: String, content: String)` -> expose note saving
+  - [ ] Add Tauri command for `delete_note(title: String)` -> expose note deletion
+- [ ] **Notes UI:**
+  - [ ] Notes browser/sidebar
+  - [ ] Basic markdown editor or rich text editor
+  - [ ] Notes preview pane
+  - [ ] Directory structure for notes organization
+
+#### Phase 5: Daily Workflows
+- [ ] **Daily Lists Integration:**
+  - [ ] Add Tauri commands for daily list operations -> expose `lst_cli::cli::commands::daily_*`
+  - [ ] Quick access to today's daily list
+  - [ ] Daily list calendar view
+  - [ ] Quick add to daily list from any screen
+- [ ] **Daily Notes Integration:**
+  - [ ] Add Tauri command for daily note access -> expose `lst_cli::cli::commands::daily_note`
+  - [ ] Quick access to today's daily note
+  - [ ] Daily note template support
+
+#### Phase 6: Sync Integration
+- [ ] **Sync Status (leveraging lst-syncd):**
+  - [ ] Add Tauri commands for sync status -> expose `lst_cli::cli::commands::sync_status`
+  - [ ] Add Tauri commands for sync control -> expose start/stop sync daemon
+  - [ ] Sync status indicator in UI (connected/syncing/offline)
+  - [ ] Sync conflict resolution UI
+- [ ] **Sync Configuration:**
+  - [ ] Add Tauri commands for sync setup -> expose `lst_cli::cli::commands::sync_setup`
+  - [ ] Server configuration UI
+  - [ ] Device management UI
+  - [ ] Sync logs viewer
+
+#### Phase 7: Advanced Features
+- [ ] **Configuration Management:**
+  - [ ] Add Tauri commands for config access -> expose `lst_cli::config::Config`
+  - [ ] Settings/preferences UI
+  - [ ] Theme customization
+  - [ ] Keyboard shortcuts customization
+- [ ] **Sharing & Collaboration:**
+  - [ ] Add Tauri commands for sharing -> expose `lst_cli::cli::commands::share/unshare`
+  - [ ] Share management UI
+  - [ ] Collaboration indicators
+  - [ ] Permission management
+
+#### Phase 8: Polish & User Experience
+- [ ] **Window Management:**
+  - [ ] Toggleable, always-on-top window mode
+  - [ ] System tray integration with quick actions
+  - [ ] Global hotkeys for quick access
+  - [ ] Multiple window support
+- [ ] **Performance & Reliability:**
+  - [ ] Efficient list rendering for large lists
+  - [ ] Background sync without blocking UI
+  - [ ] Offline mode support
+  - [ ] Error handling and user feedback
+- [ ] **Accessibility & Usability:**
+  - [ ] Keyboard navigation support
+  - [ ] Screen reader compatibility
+  - [ ] High contrast mode
+  - [ ] Tooltips and help system
+
+#### Technical Implementation Notes:
+- **Leverage Existing Rust Functions:** Wrap existing `lst_cli` functions with Tauri commands rather than reimplementing
+- **Type Safety:** Use Specta for end-to-end type safety between Rust and TypeScript
+- **State Management:** Use React/Vue state management for UI state, Rust functions for data persistence
+- **Real-time Updates:** Implement file watching to update UI when files change externally
+- **Error Handling:** Proper error propagation from Rust to TypeScript with user-friendly messages
 - [ ] Develop Tauri 2 mobile app
   - [ ] Implement offline SQLite cache with CRDT sync (hooking into `lst-syncd` logic or its library form, handling encryption)
   - [ ] Add share-sheet "Add to list" functionality
