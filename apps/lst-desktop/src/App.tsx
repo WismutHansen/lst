@@ -56,6 +56,23 @@ function App() {
   const [editingAnchor, setEditingAnchor] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
 
+  const [vimMode, setVimMode] = useState(false);
+  const [leaderKey, setLeaderKey] = useState(" ");
+  const [mode, setMode] = useState<"normal" | "edit">("edit");
+  const [cursorIndex, setCursorIndex] = useState(0);
+  const [leaderActive, setLeaderActive] = useState(false);
+  const [leaderSeq, setLeaderSeq] = useState("");
+
+  async function toggleItemStatus(anchor: string) {
+    if (!currentName) return;
+    const res = await commands.toggleItem(currentName, anchor);
+    if (res.status === "ok") {
+      setCurrentList(res.data);
+    } else {
+      setError(res.error);
+    }
+  }
+
   async function fetchLists() {
     const res = await commands.getLists();
     if (res.status === "ok") {
@@ -125,11 +142,64 @@ function App() {
   );
 
   useEffect(() => {
+    async function loadConfig() {
+      const res = await commands.getUiConfig();
+      if (res.status === "ok") {
+        setVimMode(res.data.vim_mode);
+        setLeaderKey(res.data.leader_key);
+        setMode(res.data.vim_mode ? "normal" : "edit");
+      }
+    }
+    loadConfig();
+  }, []);
+
+  useEffect(() => {
     fetchLists();
   }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if (vimMode && mode === "normal") {
+        if (leaderActive) {
+          e.preventDefault();
+          const seq = leaderSeq + e.key.toLowerCase();
+          setLeaderSeq(seq);
+          if (seq === "md" && currentList && currentList.items[cursorIndex]) {
+            toggleItemStatus(currentList.items[cursorIndex].anchor);
+            setLeaderActive(false);
+            setLeaderSeq("");
+          } else if (!"md".startsWith(seq)) {
+            setLeaderActive(false);
+            setLeaderSeq("");
+          }
+          return;
+        }
+        if (e.key === leaderKey) {
+          e.preventDefault();
+          setLeaderActive(true);
+          setLeaderSeq("");
+        } else if (e.key === "j" || e.key === "ArrowDown") {
+          e.preventDefault();
+          if (currentList) {
+            setCursorIndex((i) => (i + 1) % Math.max(currentList.items.length, 1));
+          }
+        } else if (e.key === "k" || e.key === "ArrowUp") {
+          e.preventDefault();
+          if (currentList) {
+            setCursorIndex((i) => (i - 1 + currentList.items.length) % Math.max(currentList.items.length, 1));
+          }
+        } else if (e.key === "i") {
+          e.preventDefault();
+          setMode("edit");
+        }
+      } else if (vimMode && mode === "edit") {
+        if (e.key === "Escape") {
+          setMode("normal");
+          (document.activeElement as HTMLElement)?.blur();
+          return;
+        }
+      }
+
       if (e.key === "/" && document.activeElement !== inputRef.current) {
         e.preventDefault();
         inputRef.current?.focus();
@@ -151,7 +221,7 @@ function App() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [showSuggestions, filtered, selectedIndex]);
+  }, [showSuggestions, filtered, selectedIndex, vimMode, mode, leaderActive, leaderSeq, leaderKey, currentList, cursorIndex]);
 
   useEffect(() => {
     function handlePalette(e: KeyboardEvent) {
@@ -188,15 +258,6 @@ function App() {
 
   function renderCurrentList() {
     if (!currentList) return null;
-    async function toggle(anchor: string) {
-      if (!currentName) return;
-      const res = await commands.toggleItem(currentName, anchor);
-      if (res.status === "ok") {
-        setCurrentList(res.data);
-      } else {
-        setError(res.error);
-      }
-    }
 
     function startEdit(item: ListItem) {
       setEditingAnchor(item.anchor);
@@ -218,7 +279,7 @@ function App() {
     return (
       <div className="list-wrapper">
         <h2>{currentList.title}</h2>
-        {currentList.items.map((it) =>
+        {currentList.items.map((it, idx) =>
           editingAnchor === it.anchor ? (
             <form
               key={it.anchor}
@@ -237,11 +298,17 @@ function App() {
               />
             </form>
           ) : (
-            <label key={it.anchor} className="list-item list-entry">
+            <label
+              key={it.anchor}
+              className={
+                "list-item list-entry" +
+                (vimMode && idx === cursorIndex ? " cursor" : "")
+              }
+            >
               <input
                 type="checkbox"
                 checked={it.status === "Done"}
-                onChange={() => toggle(it.anchor)}
+                onChange={() => toggleItemStatus(it.anchor)}
               />
               <span onDoubleClick={() => startEdit(it)}>{it.text}</span>
               <button

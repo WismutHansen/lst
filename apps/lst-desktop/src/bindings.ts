@@ -77,6 +77,14 @@ async saveList(list: List) : Promise<Result<void, string>> {
     else return { status: "error", error: e as any };
 }
 },
+async getUiConfig() : Promise<Result<UiConfig, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_ui_config") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e as any };
+}
+},
 };
 
 /** user-defined events **/
@@ -124,7 +132,7 @@ items?: ListItem[] }
 /**
  * Represents a single item in a list
  */
-export type ListItem = { 
+export type ListItem = {
 /**
  * The text content of the item
  */
@@ -137,6 +145,12 @@ status: ItemStatus;
  * Unique anchor identifier for the item
  */
 anchor: string }
+
+export type UiConfig = {
+resolution_order: string[];
+vim_mode: boolean;
+leader_key: string;
+}
 
 /** tauri-specta globals **/
 

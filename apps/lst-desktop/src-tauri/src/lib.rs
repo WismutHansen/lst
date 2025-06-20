@@ -1,4 +1,5 @@
 use anyhow::Result;
+use lst_cli::config::{get_config, UiConfig};
 use lst_cli::models::{fuzzy_find, is_valid_anchor, ItemStatus, List, ListItem};
 use lst_cli::storage::{
     list_lists, list_notes,
@@ -104,6 +105,12 @@ fn remove_item(list: String, target: String) -> Result<List, String> {
 
 #[tauri::command]
 #[specta::specta]
+fn get_ui_config() -> Result<UiConfig, String> {
+    Ok(get_config().ui.clone())
+}
+
+#[tauri::command]
+#[specta::specta]
 fn edit_item(list: String, target: String, text: String) -> Result<List, String> {
     markdown::edit_item_text(&list, &target, &text).map_err(|e| e.to_string())?;
     load_list(&list).map_err(|e| e.to_string())
@@ -128,7 +135,8 @@ pub fn run() {
             toggle_item,
             edit_item,
             remove_item,
-            save_list
+            save_list,
+            get_ui_config
         ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
@@ -166,7 +174,8 @@ pub fn run() {
             toggle_item,
             edit_item,
             remove_item,
-            save_list
+            save_list,
+            get_ui_config
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

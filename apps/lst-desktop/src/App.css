@@ -149,6 +149,10 @@ html, body, #root {
   background-color: #6c7086;
 }
 
+.list-item.cursor {
+  outline: 2px dashed #a6e3a1;
+}
+
 .list-entry {
   display: flex;
   align-items: center;
