@@ -23,11 +23,20 @@ pub struct Config {
     pub sync: Option<SyncSettings>,
 }
 
+use specta::Type;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct UiConfig {
     #[serde(default = "default_resolution_order")]
     pub resolution_order: Vec<String>,
+
+    /// Enable Vim-like keybindings in the frontend
+    #[serde(default)]
+    pub vim_mode: bool,
+
+    /// Leader key used for command sequences (defaults to space)
+    #[serde(default = "default_leader_key")]
+    pub leader_key: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,10 +64,10 @@ pub struct ServerConfig {
 pub struct SyncdConfig {
     /// Server URL (if None, runs in local-only mode)
     pub url: Option<String>,
-    
+
     /// Authentication token for server
     pub auth_token: Option<String>,
-    
+
     /// Device identifier (auto-generated if missing)
     pub device_id: Option<String>,
 
@@ -73,7 +82,7 @@ pub struct SyncdConfig {
 pub struct StorageConfig {
     /// Directory for CRDT state storage
     pub crdt_dir: PathBuf,
-    
+
     /// Maximum number of CRDT snapshots to keep
     #[serde(default = "default_max_snapshots")]
     pub max_snapshots: usize,
@@ -84,11 +93,11 @@ pub struct SyncSettings {
     /// Sync interval in seconds
     #[serde(default = "default_sync_interval")]
     pub interval_seconds: u64,
-    
+
     /// Maximum file size to sync (in bytes)
     #[serde(default = "default_max_file_size")]
     pub max_file_size: u64,
-    
+
     /// File patterns to exclude from sync
     #[serde(default)]
     pub exclude_patterns: Vec<String>,
@@ -111,6 +120,8 @@ impl Default for Config {
         Self {
             ui: UiConfig {
                 resolution_order: default_resolution_order(),
+                vim_mode: false,
+                leader_key: default_leader_key(),
             },
             fuzzy: FuzzyConfig {
                 threshold: default_threshold(),
@@ -133,6 +144,8 @@ impl Default for UiConfig {
     fn default() -> Self {
         Self {
             resolution_order: default_resolution_order(),
+            vim_mode: false,
+            leader_key: default_leader_key(),
         }
     }
 }
@@ -165,7 +178,6 @@ impl Default for ServerConfig {
     }
 }
 
-
 fn default_resolution_order() -> Vec<String> {
     vec![
         "anchor".to_string(),
@@ -182,6 +194,10 @@ fn default_threshold() -> f32 {
 
 fn default_max_suggestions() -> usize {
     7
+}
+
+fn default_leader_key() -> String {
+    " ".to_string()
 }
 
 impl Config {
@@ -248,7 +264,7 @@ impl Config {
                 .context("Cannot determine config directory")?
                 .join("lst")
                 .join("crdt");
-            
+
             let config_dir = dirs::config_dir()
                 .context("Cannot determine config directory")?
                 .join("lst");
@@ -262,20 +278,16 @@ impl Config {
                 database_path: Some(db_path),
                 encryption_key_ref: Some("lst-master-key".to_string()),
             });
-            
+
             self.storage = Some(StorageConfig {
                 crdt_dir,
                 max_snapshots: default_max_snapshots(),
             });
-            
+
             self.sync = Some(SyncSettings {
                 interval_seconds: default_sync_interval(),
                 max_file_size: default_max_file_size(),
-                exclude_patterns: vec![
-                    ".*".to_string(),
-                    "*.tmp".to_string(),
-                    "*.swp".to_string(),
-                ],
+                exclude_patterns: vec![".*".to_string(), "*.tmp".to_string(), "*.swp".to_string()],
             });
         }
         Ok(())
