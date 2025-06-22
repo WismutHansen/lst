@@ -1,12 +1,15 @@
 use anyhow::Context;
 use serde::Deserialize;
-use std::{env, fs, path::{Path, PathBuf}};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 /// Server configuration loaded from TOML file
 #[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
     #[serde(default)]
-    pub lst_server: ServerSettings,
+    pub server: ServerSettings,
     /// SMTP/email settings; if absent, login links are logged to stdout
     pub email: Option<EmailSettings>,
     #[serde(default)]
@@ -184,4 +187,3 @@ impl DatabaseSettings {
         }
     }
 }
-
