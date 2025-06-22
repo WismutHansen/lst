@@ -1,6 +1,6 @@
 [package]
 name = "lst-server"
-version = "0.1.1"
+version = "0.1.2"
 description = "Personal lists & notes app server"
 authors = ["Tommy Falkowski"]
 edition = "2021"
@@ -43,7 +43,7 @@ lettre = { workspace = true }
 dirs = { workspace = true }
 
 # Internal dependencies
-lst-proto = { path = "../lst-proto", version = "0.1.1" }
+lst-proto = { path = "../lst-proto", version = "0.1.2" }
 sqlx = { version = "0.8.6", features = ["sqlite", "runtime-tokio-rustls", "chrono", "uuid"] }
 
 [dev-dependencies]

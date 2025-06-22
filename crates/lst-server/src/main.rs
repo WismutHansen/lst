@@ -1,9 +1,12 @@
 mod config;
-mod wordlist;
 mod sync_db;
+mod wordlist;
 
 use axum::{
-    extract::{ws::{Message as WsMessage, WebSocket, WebSocketUpgrade}, Path, Request, State},
+    extract::{
+        ws::{Message as WsMessage, WebSocket, WebSocketUpgrade},
+        Path, Request, State,
+    },
     http::{header, HeaderMap, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -13,10 +16,13 @@ use axum::{
 use base64::{engine::general_purpose, Engine as _};
 use clap::Parser;
 use config::Settings;
+use futures_util::{SinkExt, StreamExt};
 use image::Luma;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use lettre::transport::smtp::authentication::Credentials;
-use lettre::{message::Message as EmailMessage, AsyncSmtpTransport, AsyncTransport, Tokio1Executor};
+use lettre::{
+    message::Message as EmailMessage, AsyncSmtpTransport, AsyncTransport, Tokio1Executor,
+};
 use qrcode::QrCode;
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -24,13 +30,11 @@ use serde::{Deserialize, Serialize};
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 use sqlx::{FromRow, Row};
 use std::net::{IpAddr, SocketAddr};
+use std::path::Path as StdPath;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
-use std::path::Path as StdPath;
 use tokio::sync::broadcast;
-use futures_util::{StreamExt, SinkExt};
-
 
 // --- Structs for API Payloads and Responses ---
 #[derive(Deserialize)]
@@ -69,13 +73,20 @@ impl SqliteTokenStore {
         // Ensure parent directory exists
         if let Some(parent) = db_path.parent() {
             if !parent.exists() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| sqlx::Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+                std::fs::create_dir_all(parent).map_err(|e| {
+                    sqlx::Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e))
+                })?;
             }
         }
         let db_url = format!("sqlite://{}?mode=rwc", db_path.to_str().unwrap());
-        eprintln!("DEBUG: Attempting to connect to tokens database at: {}", db_url);
-        let pool = SqlitePoolOptions::new().max_connections(5).connect(&db_url).await?;
+        eprintln!(
+            "DEBUG: Attempting to connect to tokens database at: {}",
+            db_url
+        );
+        let pool = SqlitePoolOptions::new()
+            .max_connections(5)
+            .connect(&db_url)
+            .await?;
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS tokens (
@@ -90,27 +101,43 @@ impl SqliteTokenStore {
         Ok(SqliteTokenStore { pool })
     }
 
-    pub async fn insert(&self, email: String, token: String, expires_at: SystemTime) -> Result<(), sqlx::Error> {
+    pub async fn insert(
+        &self,
+        email: String,
+        token: String,
+        expires_at: SystemTime,
+    ) -> Result<(), sqlx::Error> {
         let expires_at_chrono: chrono::DateTime<chrono::Utc> = expires_at.into();
-        sqlx::query("INSERT OR REPLACE INTO tokens (email, token_value, expires_at) VALUES (?, ?, ?)")
-            .bind(email)
-            .bind(token)
-            .bind(expires_at_chrono)
-            .execute(&self.pool)
-            .await?;
+        sqlx::query(
+            "INSERT OR REPLACE INTO tokens (email, token_value, expires_at) VALUES (?, ?, ?)",
+        )
+        .bind(email)
+        .bind(token)
+        .bind(expires_at_chrono)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 
-    pub async fn verify_and_remove(&self, email: &str, token_to_check: &str) -> Result<bool, sqlx::Error> {
-        let result: Option<StoredToken> = sqlx::query_as("SELECT email, token_value, expires_at FROM tokens WHERE email = ?")
-            .bind(email)
-            .fetch_optional(&self.pool)
-            .await?;
+    pub async fn verify_and_remove(
+        &self,
+        email: &str,
+        token_to_check: &str,
+    ) -> Result<bool, sqlx::Error> {
+        let result: Option<StoredToken> =
+            sqlx::query_as("SELECT email, token_value, expires_at FROM tokens WHERE email = ?")
+                .bind(email)
+                .fetch_optional(&self.pool)
+                .await?;
         match result {
             Some(stored_token) => {
                 let expires_at_system: SystemTime = stored_token.expires_at.into();
-                let is_valid = stored_token.token_value == token_to_check && expires_at_system > SystemTime::now();
-                sqlx::query("DELETE FROM tokens WHERE email = ?").bind(email).execute(&self.pool).await?;
+                let is_valid = stored_token.token_value == token_to_check
+                    && expires_at_system > SystemTime::now();
+                sqlx::query("DELETE FROM tokens WHERE email = ?")
+                    .bind(email)
+                    .execute(&self.pool)
+                    .await?;
                 Ok(is_valid)
             }
             None => Ok(false),
@@ -146,12 +173,16 @@ impl SqliteContentStore {
         // Ensure parent directory exists
         if let Some(parent) = db_path.parent() {
             if !parent.exists() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| sqlx::Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+                std::fs::create_dir_all(parent).map_err(|e| {
+                    sqlx::Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e))
+                })?;
             }
         }
         let db_url = format!("sqlite://{}?mode=rwc", db_path.to_str().unwrap());
-        eprintln!("DEBUG: Attempting to connect to content database at: {}", db_url);
+        eprintln!(
+            "DEBUG: Attempting to connect to content database at: {}",
+            db_url
+        );
 
         let pool = SqlitePoolOptions::new()
             .max_connections(10)
@@ -305,9 +336,18 @@ async fn main() {
     let settings = Arc::new(Settings::from_file(&config_file_path_str).unwrap());
 
     // Get database paths from configuration
-    let tokens_db_path = settings.database.tokens_db_path().expect("Failed to resolve tokens database path");
-    let content_db_path = settings.database.content_db_path().expect("Failed to resolve content database path"); 
-    let sync_db_path = settings.database.sync_db_path().expect("Failed to resolve sync database path");
+    let tokens_db_path = settings
+        .database
+        .tokens_db_path()
+        .expect("Failed to resolve tokens database path");
+    let content_db_path = settings
+        .database
+        .content_db_path()
+        .expect("Failed to resolve content database path");
+    let sync_db_path = settings
+        .database
+        .sync_db_path()
+        .expect("Failed to resolve sync database path");
 
     let token_store = Arc::new(
         SqliteTokenStore::new(tokens_db_path)
@@ -358,44 +398,77 @@ async fn main() {
         )
         .layer(middleware::from_fn(jwt_auth_middleware));
 
-    let api_router = Router::new()
-        .route("/health", get(health_handler))
-        .route("/auth/request", post({
-            let ts = token_store.clone();
-            let s = settings.clone();
-            move |j| auth_request_handler(j, ts, s)
-        }))
-        .route("/auth/verify", post({
-            let ts = token_store.clone();
-            move |j| auth_verify_handler(j, ts)
-        }))
-        .nest("/content", content_api_router)
-        .route(
-            "/sync",
-            get(|ws: WebSocketUpgrade, State(state): State<Arc<AppState>>, headers: HeaderMap| async move {
-                ws_handler(ws, headers, State(state)).await
-            }),
-        );
-    let app = Router::new().nest("/api", api_router).with_state(app_state.clone());
+    let api_router =
+        Router::new()
+            .route("/health", get(health_handler))
+            .route(
+                "/auth/request",
+                post({
+                    let ts = token_store.clone();
+                    let s = settings.clone();
+                    move |j| auth_request_handler(j, ts, s)
+                }),
+            )
+            .route(
+                "/auth/verify",
+                post({
+                    let ts = token_store.clone();
+                    move |j| auth_verify_handler(j, ts)
+                }),
+            )
+            .nest("/content", content_api_router)
+            .route(
+                "/sync",
+                get(
+                    |ws: WebSocketUpgrade,
+                     State(state): State<Arc<AppState>>,
+                     headers: HeaderMap| async move {
+                        ws_handler(ws, headers, State(state)).await
+                    },
+                ),
+            );
+    let app = Router::new()
+        .nest("/api", api_router)
+        .with_state(app_state.clone());
 
-    let addr = SocketAddr::new(settings.lst_server.host.parse::<IpAddr>().unwrap(), settings.lst_server.port);
+    let addr = SocketAddr::new(
+        settings.server.host.parse::<IpAddr>().unwrap(),
+        settings.server.port,
+    );
     println!("lst-server listening on http://{}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app.into_make_service()).await.unwrap();
+    axum::serve(listener, app.into_make_service())
+        .await
+        .unwrap();
 }
 
 async fn health_handler() -> &'static str {
     "OK"
 }
 
-async fn auth_request_handler(Json(req): Json<AuthRequest>, token_store: TokenStore, settings: Arc<Settings>) -> Result<Json<AuthToken>, (StatusCode, String)> {
+async fn auth_request_handler(
+    Json(req): Json<AuthRequest>,
+    token_store: TokenStore,
+    settings: Arc<Settings>,
+) -> Result<Json<AuthToken>, (StatusCode, String)> {
     let token = generate_token();
     let expiry = SystemTime::now() + Duration::from_secs(TOKEN_VALID_FOR_SECS);
-    if let Err(e) = token_store.insert(req.email.clone(), token.clone(), expiry).await {
+    if let Err(e) = token_store
+        .insert(req.email.clone(), token.clone(), expiry)
+        .await
+    {
         eprintln!("Failed to store token: {}", e);
-        return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to process authentication request.".to_string()));
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to process authentication request.".to_string(),
+        ));
     }
-    let login_url = format!("lst-login://{}/auth/verify?token={}&email={}", req.host, urlencoding::encode(&token), urlencoding::encode(&req.email));
+    let login_url = format!(
+        "lst-login://{}/auth/verify?token={}&email={}",
+        req.host,
+        urlencoding::encode(&token),
+        urlencoding::encode(&req.email)
+    );
     let code = QrCode::new(login_url.as_bytes()).unwrap();
     let img = code.render::<Luma<u8>>().max_dimensions(300, 300).build();
     let mut buf = std::io::Cursor::new(Vec::new());
@@ -403,26 +476,65 @@ async fn auth_request_handler(Json(req): Json<AuthRequest>, token_store: TokenSt
         use image::codecs::png::PngEncoder;
         use image::ColorType;
         use image::ImageEncoder;
-        PngEncoder::new(&mut buf).write_image(img.as_raw(), img.width(), img.height(), ColorType::L8.into()).unwrap();
+        PngEncoder::new(&mut buf)
+            .write_image(
+                img.as_raw(),
+                img.width(),
+                img.height(),
+                ColorType::L8.into(),
+            )
+            .unwrap();
     }
     let base64_png = general_purpose::STANDARD.encode(buf.get_ref());
     if let Some(email_cfg) = &settings.email {
         let email_message = EmailMessage::builder()
-            .from(email_cfg.sender.parse().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("invalid sender address: {}", e)))?)
-            .to(req.email.parse().map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("invalid recipient address: {}", e)))?)
+            .from(email_cfg.sender.parse().map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("invalid sender address: {}", e),
+                )
+            })?)
+            .to(req.email.parse().map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("invalid recipient address: {}", e),
+                )
+            })?)
             .subject("Your lst login link")
-            .body(format!("Click to login: {}\nOr use code: {}", login_url, token))
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("failed to build email: {}", e)))?;
+            .body(format!(
+                "Click to login: {}\nOr use code: {}",
+                login_url, token
+            ))
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("failed to build email: {}", e),
+                )
+            })?;
         let creds = Credentials::new(email_cfg.smtp_user.clone(), email_cfg.smtp_pass.clone());
         let mailer = AsyncSmtpTransport::<Tokio1Executor>::relay(&email_cfg.smtp_host)
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("failed to create SMTP transport: {}", e)))?
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("failed to create SMTP transport: {}", e),
+                )
+            })?
             .credentials(creds)
             .build();
-        mailer.send(email_message).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("failed to send email: {}", e)))?;
+        mailer.send(email_message).await.map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("failed to send email: {}", e),
+            )
+        })?;
     } else {
         println!("Login link for {}: {}", req.email, login_url);
     }
-    Ok(Json(AuthToken { token, qr_png_base64: base64_png, login_url }))
+    Ok(Json(AuthToken {
+        token,
+        qr_png_base64: base64_png,
+        login_url,
+    }))
 }
 
 fn generate_token() -> String {
@@ -430,7 +542,13 @@ fn generate_token() -> String {
     let words = wordlist::WORDS;
     let picks: Vec<&str> = words.choose_multiple(&mut rng, 3).cloned().collect();
     let digits: u16 = rng.gen_range(1000..10000);
-    format!("{}-{}-{}-{}", picks[0].to_uppercase(), picks[1].to_uppercase(), picks[2].to_uppercase(), digits)
+    format!(
+        "{}-{}-{}-{}",
+        picks[0].to_uppercase(),
+        picks[1].to_uppercase(),
+        picks[2].to_uppercase(),
+        digits
+    )
 }
 
 #[derive(Deserialize)]
@@ -451,13 +569,27 @@ struct Claims {
     exp: usize,
 }
 
-async fn auth_verify_handler(Json(req): Json<VerifyRequest>, token_store: TokenStore) -> Result<Json<VerifyResponse>, (StatusCode, String)> {
+async fn auth_verify_handler(
+    Json(req): Json<VerifyRequest>,
+    token_store: TokenStore,
+) -> Result<Json<VerifyResponse>, (StatusCode, String)> {
     match token_store.verify_and_remove(&req.email, &req.token).await {
         Ok(true) => {
             let exp = (chrono::Utc::now() + chrono::Duration::hours(1)).timestamp() as usize;
-            let claims = Claims { sub: req.email.clone(), exp };
-            let jwt = encode(&Header::default(), &claims, &EncodingKey::from_secret(JWT_SECRET)).unwrap();
-            Ok(Json(VerifyResponse { jwt, user: req.email }))
+            let claims = Claims {
+                sub: req.email.clone(),
+                exp,
+            };
+            let jwt = encode(
+                &Header::default(),
+                &claims,
+                &EncodingKey::from_secret(JWT_SECRET),
+            )
+            .unwrap();
+            Ok(Json(VerifyResponse {
+                jwt,
+                user: req.email,
+            }))
         }
         Ok(false) | Err(_) => Err((StatusCode::UNAUTHORIZED, "Invalid or expired token".into())),
     }
@@ -470,14 +602,31 @@ async fn create_content_handler(
     store: ContentStore,
 ) -> Result<(StatusCode, Json<ContentResponse>), (StatusCode, String)> {
     // Basic validation for kind and path
-    if payload.kind.is_empty() || payload.kind.contains('/') || payload.kind.contains("..") || payload.kind.starts_with('.') {
-        return Err((StatusCode::BAD_REQUEST, "Invalid 'kind' parameter.".to_string()));
+    if payload.kind.is_empty()
+        || payload.kind.contains('/')
+        || payload.kind.contains("..")
+        || payload.kind.starts_with('.')
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Invalid 'kind' parameter.".to_string(),
+        ));
     }
-    if payload.path.is_empty() || payload.path.contains("..") || payload.path.starts_with('/') || payload.path.ends_with('/') {
-         return Err((StatusCode::BAD_REQUEST, "Invalid 'path' parameter.".to_string()));
+    if payload.path.is_empty()
+        || payload.path.contains("..")
+        || payload.path.starts_with('/')
+        || payload.path.ends_with('/')
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Invalid 'path' parameter.".to_string(),
+        ));
     }
 
-    match store.create_content(&payload.kind, &payload.path, &payload.content).await {
+    match store
+        .create_content(&payload.kind, &payload.path, &payload.content)
+        .await
+    {
         Ok(_id) => Ok((
             StatusCode::CREATED,
             Json(ContentResponse {
@@ -488,7 +637,7 @@ async fn create_content_handler(
         Err(e) => {
             if let Some(db_err) = e.as_database_error() {
                 if db_err.is_unique_violation() {
-                     return Err((
+                    return Err((
                         StatusCode::CONFLICT,
                         "Content with this kind and path already exists.".to_string(),
                     ));
@@ -510,7 +659,10 @@ async fn read_content_handler(
     match store.read_content(&kind, &item_path).await {
         Ok(Some(content)) => {
             let mut headers = HeaderMap::new();
-            headers.insert(header::CONTENT_TYPE, "text/plain; charset=utf-8".parse().unwrap());
+            headers.insert(
+                header::CONTENT_TYPE,
+                "text/plain; charset=utf-8".parse().unwrap(),
+            );
             Ok((StatusCode::OK, headers, content).into_response())
         }
         Ok(None) => Err((StatusCode::NOT_FOUND, "Content not found.".to_string())),
@@ -529,7 +681,10 @@ async fn update_content_handler(
     Json(payload): Json<UpdateContentRequest>,
     store: ContentStore,
 ) -> Result<Json<ContentResponse>, (StatusCode, String)> {
-    match store.update_content(&kind, &item_path, &payload.content).await {
+    match store
+        .update_content(&kind, &item_path, &payload.content)
+        .await
+    {
         Ok(affected_rows) => {
             if affected_rows > 0 {
                 Ok(Json(ContentResponse {
@@ -600,14 +755,16 @@ async fn handle_ws(stream: WebSocket, state: Arc<AppState>, user: String) {
 
     let _ = sender
         .send(WsMessage::Text(
-            serde_json::to_string(&lst_proto::ServerMessage::Authenticated { success: true }).unwrap().into(),
+            serde_json::to_string(&lst_proto::ServerMessage::Authenticated { success: true })
+                .unwrap()
+                .into(),
         ))
         .await;
 
     let user_clone = user.clone();
     let mut rx = state.tx.subscribe();
     let (tx, mut rx_local) = tokio::sync::mpsc::channel::<WsMessage>(100);
-    
+
     let send_task = tokio::spawn(async move {
         loop {
             tokio::select! {
@@ -639,16 +796,31 @@ async fn handle_ws(stream: WebSocket, state: Arc<AppState>, user: String) {
                     lst_proto::ClientMessage::RequestDocumentList => {
                         if let Ok(list) = state.db.list_documents(&user).await {
                             let resp = lst_proto::ServerMessage::DocumentList { documents: list };
-                            let _ = tx.send(WsMessage::Text(serde_json::to_string(&resp).unwrap().into())).await;
+                            let _ = tx
+                                .send(WsMessage::Text(
+                                    serde_json::to_string(&resp).unwrap().into(),
+                                ))
+                                .await;
                         }
                     }
                     lst_proto::ClientMessage::RequestSnapshot { doc_id } => {
                         if let Ok(Some(snap)) = state.db.get_snapshot(&doc_id.to_string()).await {
-                            let resp = lst_proto::ServerMessage::Snapshot { doc_id, snapshot: snap };
-                            let _ = tx.send(WsMessage::Text(serde_json::to_string(&resp).unwrap().into())).await;
+                            let resp = lst_proto::ServerMessage::Snapshot {
+                                doc_id,
+                                snapshot: snap,
+                            };
+                            let _ = tx
+                                .send(WsMessage::Text(
+                                    serde_json::to_string(&resp).unwrap().into(),
+                                ))
+                                .await;
                         }
                     }
-                    lst_proto::ClientMessage::PushChanges { doc_id, device_id, changes } => {
+                    lst_proto::ClientMessage::PushChanges {
+                        doc_id,
+                        device_id,
+                        changes,
+                    } => {
                         let _ = state
                             .db
                             .add_changes(&doc_id.to_string(), &device_id, &changes)
@@ -678,7 +850,9 @@ async fn handle_ws(stream: WebSocket, state: Arc<AppState>, user: String) {
 // --- JWT Auth Middleware ---
 async fn jwt_auth_middleware(req: Request, next: Next) -> Result<Response, StatusCode> {
     let headers = req.headers();
-    let auth_header = headers.get(header::AUTHORIZATION).and_then(|header| header.to_str().ok());
+    let auth_header = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|header| header.to_str().ok());
     if let Some(auth_header) = auth_header {
         if let Some(token) = auth_header.strip_prefix("Bearer ") {
             let decoding_key = DecodingKey::from_secret(JWT_SECRET);
