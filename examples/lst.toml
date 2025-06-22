@@ -83,7 +83,7 @@ encryption_key_ref = "lst-master-key"
 # =============================================================================
 [storage]
 # Directory for CRDT (Conflict-free Replicated Data Type) storage
-crdt_dir = "~/.config/lst/crdt"
+crdt_dir = "~/.lst/crdt"
 # Maximum number of snapshots to retain
 max_snapshots = 100
 
