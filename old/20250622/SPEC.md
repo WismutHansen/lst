@@ -1,4 +1,4 @@
-# `lst` - Specification v0.6
+# `lst` - Specification v0.5
 
 ## 1. Guiding Principles
 
@@ -48,10 +48,9 @@ graph TD
     A: `lst` CLI is the primary interface for users to edit Markdown files.
     D: `lst-syncd` runs in the background, detects file changes, converts them to an Automerge CRDT format, encrypts them, and syncs with the server. It also applies encrypted changes from the server back to the local Markdown files.
     E: `syncd.db` is a local SQLite database that maps files to CRDT documents and tracks sync state.
-    G: `lst-server` is the central relay and persistence layer. It handles authentication and stores/relays encrypted user content without ever decrypting it.
+    G: `lst-server` is the central relay and persistence layer. It handles authentication and stores/relays encrypted data blobs without ever decrypting them.
     H/I: The server uses SQLite to store authentication tokens and the encrypted user content.
 ```
-**Device Onboarding:** Adding a new device involves a secure, asymmetric cryptographic handshake. An existing, authorized device encrypts the master encryption key using the new device's public key. The server acts as a temporary mailbox for this encrypted package, ensuring the master key is never transmitted in a readable format.
 
 ---
 
@@ -103,7 +102,7 @@ The user-facing experience is centered on Markdown files in the `content` direct
 Privacy is paramount. All content is encrypted on the client before being transmitted.
 
 - **Algorithm**: **XChaCha20-Poly1305** is recommended for its performance and security.
-- **Key Management**: A master encryption key is generated on the user's first device and stored securely in the OS credential manager (e.g., macOS Keychain). This key is then securely shared with other devices using an asymmetric "sealed box" mechanism during device pairing.
+- **Key Management**: A master encryption key will be required by `lst-syncd`. Initially, this can be stored in the system's secure credential manager (e.g., macOS Keychain, Freedesktop Secret Service). The key should be generated on first run of `lst sync setup`.
 - **Process**:
   1.  `lst-syncd` generates an Automerge change set (`Vec<u8>`).
   2.  This change set is encrypted using the master key.
@@ -156,28 +155,14 @@ The sync protocol is designed around exchanging encrypted Automerge changes.
 
 ## 4. API Specification
 
+The existing REST API for content (`/api/content`) will be **deprecated and replaced** by the WebSocket-based sync protocol. The authentication endpoints remain unchanged.
+
 ### 4.1 Authentication API (REST)
 
 - `POST /api/auth/request`: Unchanged. Requests a one-time login token via email.
 - `POST /api/auth/verify`: Unchanged. Verifies the token and returns a long-lived JWT.
 
-### 4.2 Device Provisioning API (REST)
-This API facilitates the secure addition of a new device.
-
--   **`POST /api/provision/request`**:
-    -   **Description**: A new, un-paired device sends its public key to the server to initiate pairing.
-    -   **Payload**: `{ "public_key": "base64-encoded-public-key" }`
-    -   **Response**: `{ "provisioning_id": "temporary-uuid" }`. The server stores the public key against this temporary ID.
--   **`POST /api/provision/package`**:
-    -   **Description**: An existing, authorized device sends the encrypted master key to the server for the new device.
-    -   **Authentication**: Requires JWT.
-    -   **Payload**: `{ "for_provisioning_id": "temporary-uuid", "encrypted_master_key": "base64-sealed-box-blob" }`
-    -   **Response**: `200 OK`. The server stores the package.
--   **`GET /api/provision/package/{provisioning_id}`**:
-    -   **Description**: The new device polls this endpoint to check if its package is ready.
-    -   **Response**: `200 OK` with `{ "encrypted_master_key": "..." }` if ready, or `202 Accepted` (or `404 Not Found`) if still waiting.
-
-### 4.3 Sync API (WebSocket)
+### 4.2 Sync API (WebSocket)
 
 - **Endpoint**: `/api/sync`
 - **Protocol**: All messages are JSON-encoded.
@@ -202,15 +187,12 @@ This API facilitates the secure addition of a new device.
 
 ## 5. CLI Specification
 
-The CLI interface is updated to support the new device pairing flow.
+The CLI interface remains largely the same, focusing on user-friendly interaction with local Markdown files.
 
 - **List Management**: `lst ls`, `add`, `done`, `undone`, `rm`, `pipe`, `dl`.
 - **Note Management**: `lst note new`, `add`, `open`, `rm`, `ls`, `dn`.
 - **Sync Management**:
-  - `lst sync setup`:
-    - **First Device**: Guides the user through server login, then generates a **master encryption key** and a **device-specific keypair**, storing them in the OS keychain.
-    - **New Device**: Generates a device-specific keypair, displays the public key as a QR code, and polls the server for the encrypted master key.
-  - `lst sync add-device`: Scans a QR code from a new device, encrypts the master key for it, and sends it to the server to provision the new device.
+  - `lst sync setup`: Guides the user through logging in and generating the client-side encryption key.
   - `lst sync start/stop/status`: Manages the `lst-syncd` daemon process.
 
 ---
@@ -239,11 +221,8 @@ device_id = "auto-generated-uuid"
 # Path to the sync daemon's local database
 database_path = "~/.config/lst/syncd.db"
 
-# Reference to the master encryption key in the system's credential manager
+# Reference to the encryption key in the system's credential manager
 encryption_key_ref = "lst-master-key"
-
-# Reference to this device's unique private key in the system's credential manager
-device_key_ref = "lst-device-key"
 ```
 
 ---
@@ -252,11 +231,9 @@ device_key_ref = "lst-device-key"
 
 This roadmap focuses on implementing the described sync architecture.
 
-| Phase                                        | Duration | Key Deliverables                                                                                                                                                                                                                                                                                                                                                                                          |
-| :------------------------------------------- | :------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Phase 1: CRDT & Encryption Foundation**    | 4 Weeks  | 1. Integrate `automerge` crate into `lst-syncd`.<br>2. Implement client-side **symmetric** encryption/decryption logic (XChaCha20).<br>3. Implement `syncd.db` (SQLite) for state management.<br>4. Develop logic to convert Markdown file changes to Automerge changes and vice-versa.                                                                                                                   |
-| **Phase 2: Server & Sync Protocol**          | 3 Weeks  | 1. Implement WebSocket endpoint on `lst-server`.<br>2. Implement server-side logic for relaying and storing encrypted blobs in `content.db`.<br>3. Implement full client-server sync protocol (push/pull changes, compaction).<br>4. Refine `lst-proto` with the new WebSocket message types.                                                                                                                |
-| **Phase 3: Secure Device Onboarding**        | 3 Weeks  | 1. Implement **asymmetric** cryptography for device pairing (e.g., Sealed Box).<br>2. Implement the `/api/provision` endpoints on `lst-server`.<br>3. Rework `lst sync setup` to handle both first-device and new-device flows.<br>4. Implement `lst sync add-device` command with QR code scanning/parsing.                                                                                                   |
-| **Phase 4: CLI Integration & Hardening**     | 2 Weeks  | 1. Improve `lst sync start/stop/status` to be more robust.<br>2. Add comprehensive unit and integration tests for the entire sync and device pairing pipeline.<br>3. Document the new sync, encryption, and device pairing architecture for users and developers.                                                                                                                                            |
-| **Phase 5: Future Features**                 | Ongoing  | 1. Build Tauri GUI and mobile clients that leverage the `lst-syncd` logic.<br>2. Implement `share` command for multi-user collaboration (will require a key exchange mechanism like Sealed Boxes).<br>3. Add support for `posts` and `media` to the sync engine.                                                                                                                                                   |
-
+| Phase                                     | Duration | Key Deliverables                                                                                                                                                                                                                                                                                             |
+| :---------------------------------------- | :------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Phase 1: CRDT & Encryption Foundation** | 4 Weeks  | 1. Integrate `automerge` crate into `lst-syncd`.<br>2. Implement client-side encryption/decryption logic (XChaCha20).<br>3. Implement `syncd.db` (SQLite) for state management.<br>4. Develop logic to convert Markdown file changes to Automerge changes and vice-versa.                                    |
+| **Phase 2: Server & Sync Protocol**       | 3 Weeks  | 1. Implement WebSocket endpoint on `lst-server`.<br>2. Implement server-side logic for relaying and storing encrypted blobs in `content.db`.<br>3. Implement full client-server sync protocol (push/pull changes, compaction).<br>4. Refine `lst-proto` with the new WebSocket message types.                |
+| **Phase 3: CLI Integration & Hardening**  | 2 Weeks  | 1. Update `lst sync setup` to handle encryption key generation and storage.<br>2. Improve `lst sync start/stop/status` to be more robust.<br>3. Add comprehensive unit and integration tests for the entire sync pipeline.<br>4. Document the new sync and encryption architecture for users and developers. |
+| **Phase 4: Future Features**              | Ongoing  | 1. Build Tauri GUI and mobile clients that leverage the `lst-syncd` logic.<br>2. Implement `share` command for multi-user collaboration (will require a key exchange mechanism like Sealed Boxes).<br>3. Add support for `posts` and `media` to the sync engine.                                             |
