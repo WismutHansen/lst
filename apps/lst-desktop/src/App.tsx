@@ -6,8 +6,6 @@ import { CommandPalette, PaletteCommand } from "./components/CommandPalette";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ListNode {
   name: string;
@@ -107,16 +105,12 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [editingAnchor, setEditingAnchor] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
-  const [multiSelect, setMultiSelect] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected] = useState<Set<string>>(new Set());
 
   /* ---------- sidebar & responsive ---------- */
   // sidebar is collapsed by default
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   // track if screen is mobile-sized (≤640 px)
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches
-  );
   // keyboard focus index inside sidebar
   const [sidebarCursor, setSidebarCursor] = useState(0);
 
@@ -203,6 +197,7 @@ export default function App() {
     if (!listContainerRef.current || !currentList) return;
 
     // If navigating to add item (index === currentList.items.length)
+    if (!currentList.items) return;
     if (index === currentList.items.length) {
       // Scroll the container to the bottom to show the add item form
       const container = listContainerRef.current.parentElement; // The scrollable div
@@ -262,19 +257,14 @@ export default function App() {
   // track screen size changes
   useEffect(() => {
     const listener = () =>
-      setIsMobile(window.matchMedia("(max-width: 640px)").matches);
-    window.addEventListener("resize", listener);
+      window.addEventListener("resize", listener);
     return () => window.removeEventListener("resize", listener);
   }, []);
 
   useEffect(() => {
     (async () => {
       const res = await commands.getUiConfig();
-      if (res.status === "ok") {
-        setVimMode(res.data.vim_mode);
-        setLeaderKey(res.data.leader_key);
-        setMode(res.data.vim_mode ? "normal" : "edit");
-      }
+      if (res.status === "ok") { const { vim_mode = false, leader_key = "<leader>" } = res.data; setVimMode(vim_mode); setLeaderKey(leader_key); setMode(vim_mode ? "normal" : "edit"); }
     })();
   }, []);
 
@@ -307,8 +297,8 @@ export default function App() {
       const activeElement = document.activeElement;
       const isInputFocused = activeElement && (
         activeElement.tagName === "INPUT" ||
-        activeElement.tagName === "TEXTAREA" ||
-        activeElement.contentEditable === "true"
+        activeElement.tagName === "TEXTAREA" //||
+        // activeElement.contentEditable === "true"
       );
 
       // toggle sidebar with Ctrl-b
@@ -370,6 +360,7 @@ export default function App() {
         // Normal mode keybindings
         if (mode === "normal") {
           // j/k navigation within list items (including add item input)
+          if (!currentList.items) { return; }
           const maxIndex = currentList.items.length; // Add item is at currentList.items.length
           if (e.key === "j") {
             const newIndex = Math.min(cursorIndex + 1, maxIndex);
@@ -548,7 +539,7 @@ export default function App() {
         {/* list items */}
         <div className="flex h-[80vh] w-full overflow-y-auto">
           <div ref={listContainerRef} className="w-full">
-            {currentList.items.map((it, idx) =>
+            {(currentList.items ?? []).map((it, idx) =>
               editingAnchor === it.anchor ? (
                 <form
                   key={it.anchor}
@@ -584,6 +575,7 @@ export default function App() {
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={() => {
                     if (dragIndex.current === null || !currentName) return;
+                    if (!currentList.items) return;
                     const fromAnchor =
                       currentList.items[dragIndex.current].anchor;
                     commands
@@ -637,7 +629,7 @@ export default function App() {
             )}
 
             {/* quick-add form */}
-            <form className={`flex gap-2 border-b ${vimMode && mode === "normal" && cursorIndex === currentList.items.length
+            <form className={`flex gap-2 border-b ${vimMode && mode === "normal" && cursorIndex === (currentList.items?.length ?? 0)
               ? "border-b border-[#a6e3a1]"
               : ""
               }`} onSubmit={quickAddItem}>
@@ -755,6 +747,7 @@ export default function App() {
     return sidebarContent;
   }
 
+  const items = currentList?.items ?? [];
   /* ---------- root render ---------- */
   return (
     <div
@@ -847,7 +840,7 @@ export default function App() {
           {error && <p className="ml-2 text-red-600">{error}</p>}
         </span>
         <span className="ml-auto">
-          {currentList ? `${currentList.items.length} items` : "No list selected"}
+          {currentList ? `${items.length} items` : "No list selected"}
         </span>
       </div>
     </div>
