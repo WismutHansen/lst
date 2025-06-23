@@ -25,6 +25,11 @@ cargo install --path .
 - Supports multiple document types: lists, notes, and blog posts
 - **Directory structure support**: Organize files in nested directories while maintaining fuzzy search by filename
 - **Daily workflows**: Automatic organization of daily lists and notes in dedicated subdirectories
+- **Edit & reorder**: Change item text or move items within a list
+- **Image management**: Attach or paste images into notes and lists
+- **Share documents**: Grant read or write access to specific devices
+- **Sync daemon control**: `lst sync` commands to configure and monitor background sync
+- **Tauri apps**: Optional desktop and mobile front‑ends built with Tauri
 
 ## Usage
 
@@ -36,6 +41,9 @@ lst ls
 
 # View a specific list
 lst ls <list_name>
+
+# Open a list in your editor
+lst open <list_name>
 
 # Add an item to a list (creates the list if it doesn't exist)
 lst add <list_name> "<item_text>"
@@ -54,6 +62,12 @@ cat items.txt | lst pipe <list_name>
 # Directory structure support
 lst add groceries/pharmacy "Vitamins"     # Creates groceries/pharmacy.md automatically
 lst add pharmacy "Bandages"               # Fuzzy matches to groceries/pharmacy.md
+
+# Share a document with specific devices
+lst share <path> --writers <ids> --readers <ids>
+
+# Remove sharing information
+lst unshare <path>
 ```
 
 ### Notes
@@ -79,6 +93,22 @@ lst note new "projects/rust/lst"         # Creates projects/rust/lst.md automati
 lst note open "lst"                      # Fuzzy matches to projects/rust/lst.md
 ```
 
+### Images
+
+```bash
+# Add an image to a document
+lst img add path/to/pic.jpg --to notes/travel.md --caption "Mountains"
+
+# Paste an image from the clipboard
+lst img paste --to lists/groceries.md
+
+# List images referenced in a document
+lst img list notes/travel.md
+
+# Remove an image
+lst img rm notes/travel.md <hash>
+```
+
 ### Daily Commands
 
 `lst` provides special commands for daily workflows that automatically organize files by date:
@@ -97,6 +127,25 @@ lst dn                           # Open today's daily note in editor
 ```
 
 Daily files are automatically named with the current date (e.g., `daily_lists/20250524_daily_list.md`, `daily_notes/20250524_daily_note.md`) and organized in their respective subdirectories.
+
+### Sync Daemon
+
+```bash
+# Configure sync settings
+lst sync setup --server https://lists.example.com --token <auth>
+
+# Start the background daemon
+lst sync start
+
+# Check daemon status
+lst sync status
+
+# Stop the daemon
+lst sync stop
+
+# View logs
+lst sync logs --follow
+```
 
 ## Configuration
 
