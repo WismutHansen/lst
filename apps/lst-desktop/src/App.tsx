@@ -180,14 +180,14 @@ export default function App() {
     setEditingAnchor(item.anchor);
     setEditText(item.text);
   }
-  
+
   async function deleteItem(anchor: string) {
     if (!currentName) return;
     if (!window.confirm("Delete this item?")) return;
     const res = await commands.removeItem(currentName, anchor);
     res.status === "ok" ? setCurrentList(res.data) : setError(res.error);
   }
-  
+
   async function saveEdit(anchor: string) {
     if (!currentName) return;
     const res = await commands.editItem(currentName, anchor, editText);
@@ -201,7 +201,7 @@ export default function App() {
   /* ---------- scroll helpers ---------- */
   function scrollToItem(index: number) {
     if (!listContainerRef.current || !currentList) return;
-    
+
     // If navigating to add item (index === currentList.items.length)
     if (index === currentList.items.length) {
       // Scroll the container to the bottom to show the add item form
@@ -209,20 +209,20 @@ export default function App() {
       if (container) {
         container.scrollTo({
           top: container.scrollHeight,
-          behavior: 'smooth'
+          behavior: "smooth"
         });
       }
       return;
     }
-    
+
     // For regular list items, find the element by index
-    const listItems = listContainerRef.current.querySelectorAll('[data-item-index]');
+    const listItems = listContainerRef.current.querySelectorAll("[data-item-index]");
     const targetItem = listItems[index] as HTMLElement;
-    
+
     if (targetItem) {
-      targetItem.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'nearest' 
+      targetItem.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest"
       });
     }
   }
@@ -306,9 +306,9 @@ export default function App() {
       // Check if any input is focused - if so, don't process vim commands
       const activeElement = document.activeElement;
       const isInputFocused = activeElement && (
-        activeElement.tagName === 'INPUT' || 
-        activeElement.tagName === 'TEXTAREA' || 
-        activeElement.contentEditable === 'true'
+        activeElement.tagName === "INPUT" ||
+        activeElement.tagName === "TEXTAREA" ||
+        activeElement.contentEditable === "true"
       );
 
       // toggle sidebar with Ctrl-b
@@ -445,7 +445,7 @@ export default function App() {
               e.preventDefault();
               return;
             }
-            
+
             // 'dd' to delete current item
             if (leaderSeq === "d" && e.key === "d") {
               const currentItem = currentList.items[cursorIndex];
@@ -596,7 +596,7 @@ export default function App() {
                     dragIndex.current = null;
                   }}
                   className={`text-[10pt]/4 flex items-center border-b min-h-10 mx-0 py-2 my-2 px-3 ${vimMode && mode === "normal" && idx === cursorIndex
-                    ? "outline outline-2 outline-[#a6e3a1]"
+                    ? "border-b  border-[#a6e3a1]"
                     : ""
                     } ${selected.has(it.anchor) ? "bg-[#a6e3a1] text-black" : ""}`}
                 >
@@ -638,7 +638,7 @@ export default function App() {
 
             {/* quick-add form */}
             <form className={`flex gap-2 border-b ${vimMode && mode === "normal" && cursorIndex === currentList.items.length
-              ? "outline outline-2 outline-dashed outline-[#a6e3a1]"
+              ? "border-b border-[#a6e3a1]"
               : ""
               }`} onSubmit={quickAddItem}>
               <Input
@@ -827,7 +827,6 @@ export default function App() {
 
         {renderCurrentList()}
 
-        {error && <p className="mt-4 text-red-600">⚠️ {error}</p>}
 
         {/* command palette (portal inside) */}
         <CommandPalette
@@ -842,7 +841,10 @@ export default function App() {
         className="fixed bottom-0 left-0 right-0 h-5 border border-border bg-[#181921] text-xs flex items-center px-2 rounded-b-lg"
       >
         <span className="text-muted-foreground">
-          lst - Lists without the bloat
+          lst {currentList ? `- ${currentList.title}.md` : ""}
+        </span>
+        <span className="text-muted-foreground">
+          {error && <p className="ml-2 text-red-600">{error}</p>}
         </span>
         <span className="ml-auto">
           {currentList ? `${currentList.items.length} items` : "No list selected"}
