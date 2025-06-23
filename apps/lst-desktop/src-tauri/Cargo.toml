@@ -1,6 +1,6 @@
 [package]
 name = "lst-desktop"
-version = "0.1.2"
+version = "--workspace"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -29,5 +29,5 @@ tauri-specta = { version = "2.0.0-rc.21" }
 anyhow = { workspace = true }
 
 # Internal dependencies
-lst-proto = { path = "../../../crates/lst-proto", version = "0.1.2" }
-lst-cli = { path = "../../../crates/lst-cli/", version = "0.1.2" }
+lst-proto = { path = "../../../crates/lst-proto", version = "--workspace" }
+lst-cli = { path = "../../../crates/lst-cli/", version = "--workspace" }

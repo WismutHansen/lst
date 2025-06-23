@@ -1,6 +1,6 @@
 [package]
 name = "lst-mobile"
-version = "0.1.2"
+version = "--workspace"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
