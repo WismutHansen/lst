@@ -98,8 +98,14 @@ fn toggle_item(list: String, target: String) -> Result<List, String> {
 #[tauri::command]
 #[specta::specta]
 fn remove_item(list: String, target: String) -> Result<List, String> {
-    markdown::delete_item(&list, &target).map_err(|e| e.to_string())?;
-    load_list(&list).map_err(|e| e.to_string())
+    let current = load_list(&list).map_err(|e| e.to_string())?;
+    if let Some(_idx) = find_item_index(&current, &target) {
+        drop(current);
+        markdown::delete_item(&list, &target).map_err(|e| e.to_string())?;
+        load_list(&list).map_err(|e| e.to_string())
+    } else {
+        Err(format!("No item matching '{}'", target))
+    }
 }
 
 #[tauri::command]
