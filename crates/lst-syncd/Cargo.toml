@@ -47,14 +47,12 @@ daemonize = { workspace = true }
 
 # HTTP client
 reqwest = { workspace = true }
+lst-proto = { path = "../lst-proto", version = "0.1.2" }
+lst-cli = { path = "../lst-cli", version = "0.1.2" }
+hex = "0.4.3"
 
 [dev-dependencies]
 tempfile = "3"
 
 # Encryption (for future CRDT encryption)
 # ring = "0.17"
-
-# Internal dependencies
-lst-proto = { path = "../lst-proto", version = "0.1.2" }
-lst-cli = { path = "../lst-cli", version = "0.1.2" }
-hex = "0.4.3"
