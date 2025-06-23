@@ -1,6 +1,6 @@
 [package]
 name = "lst-cli"
-version = "0.1.2"
+version = "--workspace"
 description = "Personal lists & notes app CLI"
 authors = ["Tommy Falkowski"]
 edition = "2021"
