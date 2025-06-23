@@ -135,7 +135,7 @@ export default function App() {
     if (!currentName) return;
     const res = await commands.toggleItem(currentName, anchor);
     if (res.status === "ok") {
-      await reloadCurrentList();
+      setCurrentList(res.data);
     } else setError(res.error);
   }
 
@@ -173,7 +173,7 @@ export default function App() {
     const res = await commands.addItem(currentName, newItem.trim());
     if (res.status === "ok") {
       setNewItem("");
-      await reloadCurrentList();
+      setCurrentList(res.data);
     } else setError(res.error);
   }
 
@@ -188,7 +188,7 @@ export default function App() {
     if (!window.confirm("Delete this item?")) return;
     const res = await commands.removeItem(currentName, anchor);
     if (res.status === "ok") {
-      await reloadCurrentList();
+      setCurrentList(res.data);
     } else setError(res.error);
   }
 
@@ -198,7 +198,7 @@ export default function App() {
     if (res.status === "ok") {
       setEditingAnchor(null);
       setEditText("");
-      await reloadCurrentList();
+      setCurrentList(res.data);
     } else setError(res.error);
   }
 
@@ -592,7 +592,7 @@ export default function App() {
                       .reorderItem(currentName, fromAnchor, idx)
                       .then((res) => {
                         res.status === "ok"
-                          ? reloadCurrentList()
+                          ? setCurrentList(res.data)
                           : setError(res.error);
                       });
                     dragIndex.current = null;
