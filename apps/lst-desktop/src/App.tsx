@@ -92,6 +92,7 @@ export default function App() {
   /* refs & state */
   const inputRef = useRef<HTMLInputElement>(null);
   const addItemRef = useRef<HTMLInputElement>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
 
   const [query, setQuery] = useState("");
   const [lists, setLists] = useState<string[]>([]);
@@ -126,6 +127,7 @@ export default function App() {
   const [cursorIndex, setCursorIndex] = useState(0);
   const [leaderActive, setLeaderActive] = useState(false);
   const [leaderSeq, setLeaderSeq] = useState("");
+  const [gPressed, setGPressed] = useState(false);
   const dragIndex = useRef<number | null>(null);
 
   /* ---------- backend calls ---------- */
@@ -194,6 +196,31 @@ export default function App() {
       setEditingAnchor(null);
       setEditText("");
     } else setError(res.error);
+  }
+
+  /* ---------- scroll helpers ---------- */
+  function scrollToItem(index: number) {
+    if (!listContainerRef.current || !currentList) return;
+    
+    // If navigating to add item (index === currentList.items.length)
+    if (index === currentList.items.length) {
+      addItemRef.current?.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'nearest' 
+      });
+      return;
+    }
+    
+    // For regular list items, find the element by index
+    const listItems = listContainerRef.current.querySelectorAll('[data-item-index]');
+    const targetItem = listItems[index] as HTMLElement;
+    
+    if (targetItem) {
+      targetItem.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'nearest' 
+      });
+    }
   }
 
   /* ---------- derived ---------- */
@@ -343,6 +370,7 @@ export default function App() {
           if (e.key === "j") {
             const newIndex = Math.min(cursorIndex + 1, maxIndex);
             setCursorIndex(newIndex);
+            scrollToItem(newIndex);
             if (newIndex === maxIndex) {
               // Focus on add item input
               addItemRef.current?.focus();
@@ -353,12 +381,46 @@ export default function App() {
           if (e.key === "k") {
             const newIndex = Math.max(cursorIndex - 1, 0);
             setCursorIndex(newIndex);
+            scrollToItem(newIndex);
             if (cursorIndex === maxIndex) {
               // Moving up from add item, blur it
               addItemRef.current?.blur();
             }
             e.preventDefault();
             return;
+          }
+
+          // 'g' handling for 'gg' sequence
+          if (e.key === "g") {
+            if (gPressed) {
+              // Second 'g' - jump to top
+              setCursorIndex(0);
+              scrollToItem(0);
+              addItemRef.current?.blur();
+              setGPressed(false);
+            } else {
+              // First 'g' - wait for second
+              setGPressed(true);
+              // Clear the g-pressed state after a timeout
+              setTimeout(() => setGPressed(false), 1000);
+            }
+            e.preventDefault();
+            return;
+          }
+
+          // 'G' to jump to bottom (Add item)
+          if (e.key === "G") {
+            setCursorIndex(maxIndex);
+            scrollToItem(maxIndex);
+            addItemRef.current?.focus();
+            setGPressed(false); // Clear any pending g press
+            e.preventDefault();
+            return;
+          }
+
+          // Reset g-pressed state on any other key
+          if (gPressed && e.key !== "g") {
+            setGPressed(false);
           }
 
           // 'i' to enter edit mode on current item
@@ -440,6 +502,7 @@ export default function App() {
     cursorIndex,
     editingAnchor,
     currentName,
+    gPressed,
   ]);
 
   /* ---------- UI helpers ---------- */
@@ -480,7 +543,7 @@ export default function App() {
 
         {/* list items */}
         <div className="flex h-[80vh] w-full overflow-y-auto">
-          <div className="w-full">
+          <div ref={listContainerRef} className="w-full">
             {currentList.items.map((it, idx) =>
               editingAnchor === it.anchor ? (
                 <form
@@ -511,6 +574,7 @@ export default function App() {
               ) : (
                 <label
                   key={it.anchor}
+                  data-item-index={idx}
                   draggable
                   onDragStart={() => (dragIndex.current = idx)}
                   onDragOver={(e) => e.preventDefault()}
