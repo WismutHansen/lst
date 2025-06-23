@@ -190,6 +190,7 @@ html, body, #root {
 }
 
 .sidebar {
+  display: none;
   width: 200px;
   border-right: 1px solid #494D51;
   padding: 0.5rem;
