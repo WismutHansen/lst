@@ -172,6 +172,29 @@ export default function App() {
       : setError(res.error);
   }
 
+  /* ---------- item-level helpers ---------- */
+  function startEdit(item: ListItem) {
+    setEditingAnchor(item.anchor);
+    setEditText(item.text);
+  }
+  
+  async function deleteItem(anchor: string) {
+    if (!currentName) return;
+    if (!window.confirm("Delete this item?")) return;
+    const res = await commands.removeItem(currentName, anchor);
+    res.status === "ok" ? setCurrentList(res.data) : setError(res.error);
+  }
+  
+  async function saveEdit(anchor: string) {
+    if (!currentName) return;
+    const res = await commands.editItem(currentName, anchor, editText);
+    if (res.status === "ok") {
+      setCurrentList(res.data);
+      setEditingAnchor(null);
+      setEditText("");
+    } else setError(res.error);
+  }
+
   /* ---------- derived ---------- */
 
   const resolvedQuery = useMemo(() => translateQuery(query), [query]);
@@ -227,6 +250,24 @@ export default function App() {
     fetchLists();
   }, []);
 
+  // Auto-refresh mechanism
+  useEffect(() => {
+    const refreshInterval = setInterval(async () => {
+      // Refresh the lists
+      await fetchLists();
+
+      // If we have a current list loaded, refresh it too
+      if (currentName) {
+        const res = await commands.getList(currentName);
+        if (res.status === "ok") {
+          setCurrentList(res.data);
+        }
+      }
+    }, 2000); // Refresh every 2 seconds
+
+    return () => clearInterval(refreshInterval);
+  }, [currentName]);
+
   /* ---------- keybindings ---------- */
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -273,6 +314,95 @@ export default function App() {
         }
       }
 
+      // List item navigation in vim mode
+      if (vimMode && currentList && sidebarCollapsed) {
+        // ESC key - exit edit mode to normal mode
+        if (e.key === "Escape") {
+          if (mode === "edit") {
+            setMode("normal");
+            setEditingAnchor(null);
+            setEditText("");
+            e.preventDefault();
+            return;
+          }
+        }
+
+        // Normal mode keybindings
+        if (mode === "normal") {
+          // j/k navigation within list items
+          if (e.key === "j") {
+            setCursorIndex(i => Math.min(i + 1, currentList.items.length - 1));
+            e.preventDefault();
+            return;
+          }
+          if (e.key === "k") {
+            setCursorIndex(i => Math.max(i - 1, 0));
+            e.preventDefault();
+            return;
+          }
+
+          // 'i' to enter edit mode on current item
+          if (e.key === "i") {
+            const currentItem = currentList.items[cursorIndex];
+            if (currentItem) {
+              startEdit(currentItem);
+              setMode("edit");
+            }
+            e.preventDefault();
+            return;
+          }
+
+          // Leader key combinations
+          if (leaderActive) {
+            if (leaderSeq === "" && e.key === "d") {
+              setLeaderSeq("d");
+              e.preventDefault();
+              return;
+            }
+            
+            // 'dd' to delete current item
+            if (leaderSeq === "d" && e.key === "d") {
+              const currentItem = currentList.items[cursorIndex];
+              if (currentItem) {
+                deleteItem(currentItem.anchor);
+              }
+              setLeaderActive(false);
+              setLeaderSeq("");
+              e.preventDefault();
+              return;
+            }
+
+            // 'md' to mark as done
+            if (leaderSeq === "m" && e.key === "d") {
+              const currentItem = currentList.items[cursorIndex];
+              if (currentItem) {
+                toggleItemStatus(currentItem.anchor);
+              }
+              setLeaderActive(false);
+              setLeaderSeq("");
+              e.preventDefault();
+              return;
+            }
+
+            if (e.key === "m") {
+              setLeaderSeq("m");
+              e.preventDefault();
+              return;
+            }
+
+            // Reset on any other key
+            setLeaderActive(false);
+            setLeaderSeq("");
+          } else if (e.key === leaderKey) {
+            // Activate leader key
+            setLeaderActive(true);
+            setLeaderSeq("");
+            e.preventDefault();
+            return;
+          }
+        }
+      }
+
       /* other key handling (existing logic, omitted) */
     }
     window.addEventListener("keydown", onKey);
@@ -288,6 +418,8 @@ export default function App() {
     leaderKey,
     currentList,
     cursorIndex,
+    editingAnchor,
+    currentName,
   ]);
 
   /* ---------- UI helpers ---------- */
@@ -314,27 +446,6 @@ export default function App() {
 
   function renderCurrentList() {
     if (!currentList) return null;
-
-    /* --- item-level helpers --- */
-    function startEdit(item: ListItem) {
-      setEditingAnchor(item.anchor);
-      setEditText(item.text);
-    }
-    async function deleteItem(anchor: string) {
-      if (!currentName) return;
-      if (!window.confirm("Delete this item?")) return;
-      const res = await commands.removeItem(currentName, anchor);
-      res.status === "ok" ? setCurrentList(res.data) : setError(res.error);
-    }
-    async function saveEdit(anchor: string) {
-      if (!currentName) return;
-      const res = await commands.editItem(currentName, anchor, editText);
-      if (res.status === "ok") {
-        setCurrentList(res.data);
-        setEditingAnchor(null);
-        setEditText("");
-      } else setError(res.error);
-    }
 
     /* --- render --- */
     return (
@@ -365,6 +476,15 @@ export default function App() {
                     value={editText}
                     onChange={(e) => setEditText(e.currentTarget.value)}
                     onBlur={() => saveEdit(it.anchor)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape" && vimMode) {
+                        setMode("normal");
+                        setEditingAnchor(null);
+                        setEditText("");
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }
+                    }}
                     autoFocus
                   />
                 </form>
@@ -387,8 +507,8 @@ export default function App() {
                       });
                     dragIndex.current = null;
                   }}
-                  className={`text-[10pt]/4 flex items-center border-b min-h-10 mx-0 py-2 my-2 px-3 ${vimMode && idx === cursorIndex
-                    ? "outline outline-2 outline-dashed outline-[#a6e3a1]"
+                  className={`text-[10pt]/4 flex items-center border-b min-h-10 mx-0 py-2 my-2 px-3 ${vimMode && mode === "normal" && idx === cursorIndex
+                    ? "outline outline-2 outline-[#a6e3a1]"
                     : ""
                     } ${selected.has(it.anchor) ? "bg-[#a6e3a1] text-black" : ""}`}
                 >
