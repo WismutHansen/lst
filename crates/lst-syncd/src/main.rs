@@ -7,6 +7,7 @@ mod database;
 use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
+use daemonize::Daemonize;
 
 use crate::config::{load_syncd_config};
 use crate::sync::SyncManager;
@@ -67,8 +68,15 @@ async fn main() -> Result<()> {
     let mut sync_manager = SyncManager::new(config.clone()).await?;
 
     if !args.foreground {
+        let stdout = std::fs::File::create("/tmp/lst-syncd.log").unwrap();
+        let stderr = stdout.try_clone().unwrap();
+        Daemonize::new()
+            .pid_file("/tmp/lst-syncd.pid")
+            .stdout(stdout)
+            .stderr(stderr)
+            .start()
+            .expect("failed to daemonize");
         println!("lst-syncd daemon started");
-        // TODO: Daemonize process (platform-specific)
     }
 
     // Main event loop

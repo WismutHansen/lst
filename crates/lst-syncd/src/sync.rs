@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::database::LocalDb;
 use crate::crypto;
+use sodiumoxide::crypto::box_;
 use anyhow::{Context, Result};
 use automerge::{
     transaction::Transactable as _,
@@ -55,6 +56,8 @@ pub struct SyncManager {
     client: Option<reqwest::Client>,
     db: LocalDb,
     encryption_key: [u8; 32],
+    device_pk: box_::PublicKey,
+    device_sk: box_::SecretKey,
     last_sync: Instant,
     pending_changes: HashMap<String, Vec<Vec<u8>>>,
 }
@@ -94,11 +97,21 @@ impl SyncManager {
             .expect("encryption_key_ref must be set in syncd config");
         let encryption_key = crypto::load_key(std::path::Path::new(key_path))?;
 
+        let keypair_path = config
+            .syncd
+            .as_ref()
+            .and_then(|s| s.device_key_ref.as_ref())
+            .expect("device_key_ref must be set in syncd config");
+        let (device_pk, device_sk) =
+            crypto::load_or_create_keypair(std::path::Path::new(keypair_path))?;
+
         Ok(Self {
             config,
             client,
             db,
             encryption_key,
+            device_pk,
+            device_sk,
             last_sync: Instant::now(),
             pending_changes: HashMap::new(),
         })

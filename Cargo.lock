@@ -1098,6 +1098,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "daemonize"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab8bfdaacb3c887a54d41bdf48d3af8873b3f5566469f8ba21b92057509f116e"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "darling"
 version = "0.20.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1330,6 +1339,15 @@ name = "dyn-clone"
 version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c7a8fb8a9fbf66c1f703fe16184d10ca0ee9d23be5b4436400408ba54a95005"
+
+[[package]]
+name = "ed25519"
+version = "1.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91cff35c70bba8a626e3185d8cd48cc11b5437e1a5bcd15b9b5fa3c64b6dfee7"
+dependencies = [
+ "signature 1.6.4",
+]
 
 [[package]]
 name = "either"
@@ -2967,6 +2985,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "libsodium-sys"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b779387cd56adfbc02ea4a668e704f729be8d6a6abd2c27ca5ee537849a92fd"
+dependencies = [
+ "cc",
+ "libc",
+ "pkg-config",
+ "walkdir",
+]
+
+[[package]]
 name = "libsqlite3-sys"
 version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3016,7 +3046,7 @@ dependencies = [
 
 [[package]]
 name = "lst-cli"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3028,13 +3058,13 @@ dependencies = [
  "lazy_static",
  "rand 0.8.5",
  "regex",
+ "reqwest 0.11.27",
  "rusqlite",
  "serde",
  "serde_json",
  "serde_yaml",
  "specta",
  "specta-typescript",
- "tauri-specta",
  "thiserror 1.0.69",
  "toml",
  "uuid",
@@ -3042,7 +3072,7 @@ dependencies = [
 
 [[package]]
 name = "lst-desktop"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "lst-cli",
@@ -3060,7 +3090,7 @@ dependencies = [
 
 [[package]]
 name = "lst-mobile"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -3071,7 +3101,7 @@ dependencies = [
 
 [[package]]
 name = "lst-proto"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "chrono",
  "serde",
@@ -3081,7 +3111,7 @@ dependencies = [
 
 [[package]]
 name = "lst-server"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "axum",
@@ -3095,6 +3125,7 @@ dependencies = [
  "jsonwebtoken",
  "lettre",
  "lst-proto",
+ "once_cell",
  "qrcode",
  "rand 0.8.5",
  "reqwest 0.11.27",
@@ -3110,7 +3141,7 @@ dependencies = [
 
 [[package]]
 name = "lst-syncd"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "automerge",
@@ -3118,6 +3149,7 @@ dependencies = [
  "chacha20poly1305",
  "chrono",
  "clap",
+ "daemonize",
  "dirs 5.0.1",
  "futures-util",
  "hex",
@@ -3130,6 +3162,8 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "sodiumoxide",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tokio-tungstenite 0.21.0",
@@ -4675,7 +4709,7 @@ dependencies = [
  "pkcs1",
  "pkcs8",
  "rand_core 0.6.4",
- "signature",
+ "signature 2.2.0",
  "spki",
  "subtle",
  "zeroize",
@@ -5103,6 +5137,12 @@ dependencies = [
 
 [[package]]
 name = "signature"
+version = "1.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74233d3b3b2f6d4b006dc19dee745e73e2a6bfb6f93607cd3b02bd5b00797d7c"
+
+[[package]]
+name = "signature"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
@@ -5195,6 +5235,18 @@ checksum = "e22376abed350d73dd1cd119b57ffccad95b4e585a7cda43e286245ce23c0678"
 dependencies = [
  "libc",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "sodiumoxide"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e26be3acb6c2d9a7aac28482586a7856436af4cfe7100031d219de2d2ecb0028"
+dependencies = [
+ "ed25519",
+ "libc",
+ "libsodium-sys",
+ "serde",
 ]
 
 [[package]]
@@ -5943,22 +5995,8 @@ dependencies = [
  "serde",
  "serde_json",
  "specta",
- "specta-typescript",
  "tauri",
- "tauri-specta-macros",
  "thiserror 2.0.12",
-]
-
-[[package]]
-name = "tauri-specta-macros"
-version = "2.0.0-rc.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a4aa93823e07859546aa796b8a5d608190cd8037a3a5dce3eb63d491c34bda8"
-dependencies = [
- "heck 0.5.0",
- "proc-macro2",
- "quote",
- "syn 2.0.101",
 ]
 
 [[package]]

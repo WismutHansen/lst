@@ -76,6 +76,9 @@ pub struct SyncdConfig {
 
     /// Reference to the encryption key
     pub encryption_key_ref: Option<String>,
+
+    /// Reference to the device private key
+    pub device_key_ref: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -277,6 +280,7 @@ impl Config {
                 device_id: Some(uuid::Uuid::new_v4().to_string()),
                 database_path: Some(db_path),
                 encryption_key_ref: Some("lst-master-key".to_string()),
+                device_key_ref: Some("lst-device-key".to_string()),
             });
 
             self.storage = Some(StorageConfig {
