@@ -204,10 +204,14 @@ export default function App() {
     
     // If navigating to add item (index === currentList.items.length)
     if (index === currentList.items.length) {
-      addItemRef.current?.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'nearest' 
-      });
+      // Scroll the container to the bottom to show the add item form
+      const container = listContainerRef.current.parentElement; // The scrollable div
+      if (container) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
       return;
     }
     
