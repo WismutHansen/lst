@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import Logo from "./assets/logo.png";
 import { commands, type List, type ListItem } from "./bindings";
 import { CommandPalette, PaletteCommand } from "./components/CommandPalette";
-
+import { Folder as FolderIcon, List as ListIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -185,7 +185,7 @@ export default function App() {
 
   async function deleteItem(anchor: string) {
     if (!currentName) return;
-    if (!window.confirm("Delete this item?")) return;
+    // if (!window.confirm("Delete this item?")) return;
     const res = await commands.removeItem(currentName, anchor);
     if (res.status === "ok") {
       setCurrentList(res.data);
@@ -538,13 +538,13 @@ export default function App() {
     /* --- render --- */
     return (
       <div
-        className="mb-6 w-full h-full rounded-lg border p-6 space-y-2"
+        className="mb-6 w-full h-full rounded-lg border p-4"
         style={{ backgroundColor: "#1e1e2e", border: "1px solid #494D51" }}
       >
         {/* header row */}
-        <div className="flex items-center gap-4">
-          <h2 className="flex-1 text-base font-bold">{currentList.title}</h2>
-        </div>
+        {/* <div className="flex items-center gap-4"> */}
+        {/*   <h2 className="flex-1 text-base font-bold">{currentList.title}</h2> */}
+        {/* </div> */}
 
         {/* list items */}
         <div className="flex h-[80vh] w-full overflow-y-auto">
@@ -597,7 +597,7 @@ export default function App() {
                       });
                     dragIndex.current = null;
                   }}
-                  className={`text-[10pt]/4 flex items-center border-b min-h-10 mx-0 py-2 my-2 px-3 ${vimMode && mode === "normal" && idx === cursorIndex
+                  className={`text-[10pt]/4 flex items-center border-b min-h-10 mx-0 py-1 mb-2 px-3 ${vimMode && mode === "normal" && idx === cursorIndex
                     ? "border-b  border-[#a6e3a1]"
                     : ""
                     } ${selected.has(it.anchor) ? "bg-[#a6e3a1] text-black" : ""}`}
@@ -687,32 +687,51 @@ export default function App() {
       );
     }
 
-    const renderNodes = (nodes: ListNode[], depth = 0): JSX.Element[] =>
-      nodes.flatMap((n, idx) => {
+    const renderNodes = (
+      nodes: ListNode[],
+      depth = 0
+    ): JSX.Element[] =>
+      nodes.flatMap((node) => {
+        const isFolder = !node.isList;
         const flatIndex = flatSidebarItems.findIndex(
-          (f) => f.path === n.path && f.isList === n.isList
+          (f) => f.path === node.path && f.isList === node.isList
         );
         const highlighted = flatIndex === sidebarCursor;
+
+        // ── class helpers ──────────────────────────────
+        const common = "cursor-pointer rounded-sm py-1 pl-2 text-sm flex items-center";
+        const listClasses =
+          node.isList && node.path === currentName
+            ? "bg-muted font-medium"
+            : highlighted
+              ? "bg-[#6c7086]"
+              : "hover:bg-muted";
+
+        const folderClasses =
+          highlighted ? "bg-[#4e5464]" : "hover:bg-blue-100";
+
         return [
           <div
-            key={n.path}
-            className={`cursor-pointer rounded-sm px-2 py-1 text-sm ${n.isList && n.path === currentName
-              ? "bg-muted font-medium"
-              : highlighted
-                ? "bg-[#6c7086]"
-                : "hover:bg-muted"
-              }`}
-            style={{ paddingLeft: depth * 12 }}
-            onClick={() => n.isList && loadList(n.path)}
+            key={node.path}
+            className={`${common} ${isFolder ? folderClasses : listClasses}`}
+            style={{ marginLeft: depth * 12 }}
+            onClick={() =>
+              node.isList ? loadList(node.path) : toggleFolder(node.path)
+            }
           >
-            {n.name}
+            {isFolder ? (
+              <FolderIcon size={16} className="mr-1 flex-none" />
+            ) : (
+              <ListIcon size={16} className="mr-1 flex-none" />
+            )}
+            {node.name}
           </div>,
-          ...renderNodes(n.children, depth + 1),
+          ...renderNodes(node.children, depth + 1),
         ];
       });
 
     const sidebarContent = (
-      <aside className="flex w-64 flex-col gap-4 rounded-l-lg border-r border-[#494D51] bg-background p-4 min-w-0 shrink-0">
+      <aside className="flex w-64 pl-2 flex-col gap-4 rounded-l-lg border-r border-[#494D51] bg-background p-4 min-w-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Button
@@ -748,7 +767,7 @@ export default function App() {
           </form>
         )}
 
-        <div className="flex-1 overflow-y-auto">{renderNodes(listTree)}</div>
+        <div className="flex-1 overflow-y-auto pl-2 w-auto">{renderNodes(listTree)}</div>
       </aside>
     );
 
