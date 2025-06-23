@@ -101,6 +101,7 @@ fn remove_item(list: String, target: String) -> Result<List, String> {
     let current = load_list(&list).map_err(|e| e.to_string())?;
     if let Some(_idx) = find_item_index(&current, &target) {
         drop(current);
+        println!("deleting item {}", target);
         markdown::delete_item(&list, &target).map_err(|e| e.to_string())?;
         load_list(&list).map_err(|e| e.to_string())
     } else {
