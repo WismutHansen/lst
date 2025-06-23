@@ -3016,7 +3016,7 @@ dependencies = [
 
 [[package]]
 name = "lst-cli"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3042,7 +3042,7 @@ dependencies = [
 
 [[package]]
 name = "lst-desktop"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "lst-cli",
@@ -3060,7 +3060,7 @@ dependencies = [
 
 [[package]]
 name = "lst-mobile"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "serde",
  "serde_json",
@@ -3071,7 +3071,7 @@ dependencies = [
 
 [[package]]
 name = "lst-proto"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "chrono",
  "serde",
@@ -3081,7 +3081,7 @@ dependencies = [
 
 [[package]]
 name = "lst-server"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "axum",
@@ -3110,7 +3110,7 @@ dependencies = [
 
 [[package]]
 name = "lst-syncd"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "automerge",
