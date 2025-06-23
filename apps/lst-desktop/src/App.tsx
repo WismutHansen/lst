@@ -125,11 +125,18 @@ export default function App() {
   const dragIndex = useRef<number | null>(null);
 
   /* ---------- backend calls ---------- */
+  async function reloadCurrentList() {
+    if (!currentName) return;
+    const res = await commands.getList(currentName);
+    res.status === "ok" ? setCurrentList(res.data) : setError(res.error);
+  }
+
   async function toggleItemStatus(anchor: string) {
     if (!currentName) return;
     const res = await commands.toggleItem(currentName, anchor);
-    if (res.status === "ok") setCurrentList(res.data);
-    else setError(res.error);
+    if (res.status === "ok") {
+      await reloadCurrentList();
+    } else setError(res.error);
   }
 
   async function fetchLists() {
@@ -164,9 +171,10 @@ export default function App() {
     e.preventDefault();
     if (!currentName || !newItem.trim()) return;
     const res = await commands.addItem(currentName, newItem.trim());
-    res.status === "ok"
-      ? (setCurrentList(res.data), setNewItem(""))
-      : setError(res.error);
+    if (res.status === "ok") {
+      setNewItem("");
+      await reloadCurrentList();
+    } else setError(res.error);
   }
 
   /* ---------- item-level helpers ---------- */
@@ -179,16 +187,18 @@ export default function App() {
     if (!currentName) return;
     if (!window.confirm("Delete this item?")) return;
     const res = await commands.removeItem(currentName, anchor);
-    res.status === "ok" ? setCurrentList(res.data) : setError(res.error);
+    if (res.status === "ok") {
+      await reloadCurrentList();
+    } else setError(res.error);
   }
 
   async function saveEdit(anchor: string) {
     if (!currentName) return;
     const res = await commands.editItem(currentName, anchor, editText);
     if (res.status === "ok") {
-      setCurrentList(res.data);
       setEditingAnchor(null);
       setEditText("");
+      await reloadCurrentList();
     } else setError(res.error);
   }
 
@@ -582,7 +592,7 @@ export default function App() {
                       .reorderItem(currentName, fromAnchor, idx)
                       .then((res) => {
                         res.status === "ok"
-                          ? setCurrentList(res.data)
+                          ? reloadCurrentList()
                           : setError(res.error);
                       });
                     dragIndex.current = null;
