@@ -91,6 +91,7 @@ export function translateQuery(q: string): string {
 export default function App() {
   /* refs & state */
   const inputRef = useRef<HTMLInputElement>(null);
+  const addItemRef = useRef<HTMLInputElement>(null);
 
   const [query, setQuery] = useState("");
   const [lists, setLists] = useState<string[]>([]);
@@ -271,6 +272,14 @@ export default function App() {
   /* ---------- keybindings ---------- */
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // Check if any input is focused - if so, don't process vim commands
+      const activeElement = document.activeElement;
+      const isInputFocused = activeElement && (
+        activeElement.tagName === 'INPUT' || 
+        activeElement.tagName === 'TEXTAREA' || 
+        activeElement.contentEditable === 'true'
+      );
+
       // toggle sidebar with Ctrl-b
       if (e.ctrlKey && e.key.toLowerCase() === "b") {
         setSidebarCollapsed((c) => !c);
@@ -314,8 +323,8 @@ export default function App() {
         }
       }
 
-      // List item navigation in vim mode
-      if (vimMode && currentList && sidebarCollapsed) {
+      // List item navigation in vim mode (only if no input is focused)
+      if (vimMode && currentList && sidebarCollapsed && !isInputFocused) {
         // ESC key - exit edit mode to normal mode
         if (e.key === "Escape") {
           if (mode === "edit") {
@@ -329,14 +338,25 @@ export default function App() {
 
         // Normal mode keybindings
         if (mode === "normal") {
-          // j/k navigation within list items
+          // j/k navigation within list items (including add item input)
+          const maxIndex = currentList.items.length; // Add item is at currentList.items.length
           if (e.key === "j") {
-            setCursorIndex(i => Math.min(i + 1, currentList.items.length - 1));
+            const newIndex = Math.min(cursorIndex + 1, maxIndex);
+            setCursorIndex(newIndex);
+            if (newIndex === maxIndex) {
+              // Focus on add item input
+              addItemRef.current?.focus();
+            }
             e.preventDefault();
             return;
           }
           if (e.key === "k") {
-            setCursorIndex(i => Math.max(i - 1, 0));
+            const newIndex = Math.max(cursorIndex - 1, 0);
+            setCursorIndex(newIndex);
+            if (cursorIndex === maxIndex) {
+              // Moving up from add item, blur it
+              addItemRef.current?.blur();
+            }
             e.preventDefault();
             return;
           }
@@ -549,12 +569,24 @@ export default function App() {
             )}
 
             {/* quick-add form */}
-            <form className="flex gap-2 border-b" onSubmit={quickAddItem}>
+            <form className={`flex gap-2 border-b ${vimMode && mode === "normal" && cursorIndex === currentList.items.length
+              ? "outline outline-2 outline-dashed outline-[#a6e3a1]"
+              : ""
+              }`} onSubmit={quickAddItem}>
               <Input
+                ref={addItemRef}
                 className="flex-1 text-[10pt] border-none"
                 placeholder="Add item"
                 value={newItem}
                 onChange={(e) => setNewItem(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape" && vimMode) {
+                    setMode("normal");
+                    addItemRef.current?.blur();
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }
+                }}
               />
               <Button type="submit" variant="ghost"></Button>
             </form>
@@ -677,6 +709,17 @@ export default function App() {
               spellCheck={false}
               placeholder=""
               onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setShowSuggestions(false);
+                  setQuery("");
+                  inputRef.current?.blur();
+                  if (vimMode) {
+                    setMode("normal");
+                  }
+                  e.preventDefault();
+                  return;
+                }
+
                 if (!showSuggestions) return;
 
                 if (e.key === "ArrowDown") {
