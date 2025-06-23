@@ -494,6 +494,7 @@ pub fn handle_sync_command(cmd: SyncCommands, json: bool) -> Result<()> {
         SyncCommands::Stop => sync_stop(json),
         SyncCommands::Status => sync_status(json),
         SyncCommands::Logs { follow, lines } => sync_logs(follow, lines, json),
+        SyncCommands::Ping => sync_ping(json),
     }
 }
 
@@ -701,6 +702,41 @@ pub fn sync_logs(follow: bool, lines: usize, _json: bool) -> Result<()> {
         println!("Use 'lst sync start --foreground' to see live output");
     }
 
+    Ok(())
+}
+
+/// Ping the configured server to check if it is reachable
+pub fn sync_ping(json: bool) -> Result<()> {
+    let config = get_config();
+    let Some(url) = config.syncd.as_ref().and_then(|s| s.url.as_ref()).cloned() else {
+        if json {
+            println!("{{\"ok\":false,\"error\":\"no_server\"}}");
+        } else {
+            println!("No server configured");
+        }
+        return Ok(());
+    };
+
+    let endpoint = format!("{}/api/ping", url.trim_end_matches('/'));
+    let client = reqwest::blocking::Client::new();
+    match client.get(&endpoint).send() {
+        Ok(resp) => {
+            if json {
+                println!("{{\"ok\":{}}}", resp.status().is_success());
+            } else if resp.status().is_success() {
+                println!("Server responded: {}", resp.text().unwrap_or_default());
+            } else {
+                println!("Server responded with status: {}", resp.status());
+            }
+        }
+        Err(e) => {
+            if json {
+                println!("{{\"ok\":false}}");
+            } else {
+                println!("Failed to reach server: {}", e);
+            }
+        }
+    }
     Ok(())
 }
 

@@ -57,6 +57,25 @@ impl SyncDb {
         )
         .execute(&pool)
         .await?;
+
+        sqlx::query(
+            r#"CREATE TABLE IF NOT EXISTS provision_requests (
+                provisioning_id TEXT PRIMARY KEY,
+                public_key BLOB NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )"#,
+        )
+        .execute(&pool)
+        .await?;
+        sqlx::query(
+            r#"CREATE TABLE IF NOT EXISTS provision_packages (
+                provisioning_id TEXT PRIMARY KEY,
+                encrypted_master_key BLOB NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )"#,
+        )
+        .execute(&pool)
+        .await?;
         Ok(SyncDb { pool })
     }
 
@@ -187,6 +206,38 @@ impl SyncDb {
         .execute(&self.pool)
         .await?;
         Ok(())
+    }
+
+    pub async fn create_provision_request(&self, provisioning_id: &str, public_key: &[u8]) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO provision_requests (provisioning_id, public_key) VALUES (?, ?)"
+        )
+        .bind(provisioning_id)
+        .bind(public_key)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn save_provision_package(&self, provisioning_id: &str, package: &[u8]) -> Result<()> {
+        sqlx::query(
+            "INSERT OR REPLACE INTO provision_packages (provisioning_id, encrypted_master_key) VALUES (?, ?)"
+        )
+        .bind(provisioning_id)
+        .bind(package)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_provision_package(&self, provisioning_id: &str) -> Result<Option<Vec<u8>>> {
+        let row = sqlx::query(
+            "SELECT encrypted_master_key FROM provision_packages WHERE provisioning_id = ?"
+        )
+        .bind(provisioning_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|r| r.get("encrypted_master_key")))
     }
 }
 

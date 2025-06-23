@@ -34,7 +34,11 @@ pub fn load_syncd_config(path: &Path) -> Result<Config> {
         
         // Ensure required syncd fields are present
         if let Some(syncd) = &config.syncd {
-            if syncd.device_id.is_none() || syncd.database_path.is_none() || syncd.encryption_key_ref.is_none() {
+            if syncd.device_id.is_none()
+                || syncd.database_path.is_none()
+                || syncd.encryption_key_ref.is_none()
+                || syncd.device_key_ref.is_none()
+            {
                 let mut updated_config = config.clone();
                 if let Some(ref mut syncd_cfg) = updated_config.syncd {
                     if syncd_cfg.device_id.is_none() {
@@ -51,6 +55,9 @@ pub fn load_syncd_config(path: &Path) -> Result<Config> {
                     }
                     if syncd_cfg.encryption_key_ref.is_none() {
                         syncd_cfg.encryption_key_ref = Some("lst-master-key".to_string());
+                    }
+                    if syncd_cfg.device_key_ref.is_none() {
+                        syncd_cfg.device_key_ref = Some("lst-device-key".to_string());
                     }
                 }
                 updated_config.save()

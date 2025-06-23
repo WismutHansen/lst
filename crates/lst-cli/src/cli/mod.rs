@@ -282,4 +282,8 @@ pub enum SyncCommands {
         #[clap(short, long, default_value = "50")]
         lines: usize,
     },
+
+    /// Ping the configured server
+    #[clap(name = "ping")]
+    Ping,
 }

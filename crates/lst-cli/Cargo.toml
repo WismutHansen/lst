@@ -49,9 +49,13 @@ regex = { workspace = true }
 lazy_static = { workspace = true }
 rand = { workspace = true }
 rusqlite.workspace = true
-specta = { version = "2.0.0-rc.22", features = ["uuid", "chrono"] }
+specta = { version = "2.0.0-rc.22", features = ["uuid", "chrono", "derive"] }
 specta-typescript = "0.0.9"
-tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
+# HTTP client for ping command
+reqwest = { workspace = true, features = ["blocking"] }
+# `tauri-specta` pulls in the full Tauri stack which requires heavy system
+# dependencies. It's not currently used by `lst-cli`, so omit it to simplify
+# builds when other crates depend on `lst-cli`.
 
 [features]
 default = ["lists"]

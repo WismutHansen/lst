@@ -41,6 +41,7 @@ image = { workspace = true }
 rand = { workspace = true }
 lettre = { workspace = true }
 dirs = { workspace = true }
+once_cell = { workspace = true }
 
 # Internal dependencies
 lst-proto = { path = "../lst-proto", version = "0.1.2" }

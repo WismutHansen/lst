@@ -23,6 +23,7 @@ use lettre::transport::smtp::authentication::Credentials;
 use lettre::{
     message::Message as EmailMessage, AsyncSmtpTransport, AsyncTransport, Tokio1Executor,
 };
+use once_cell::sync::Lazy;
 use qrcode::QrCode;
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -35,6 +36,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tokio::sync::broadcast;
+use uuid::Uuid;
 
 // --- Structs for API Payloads and Responses ---
 #[derive(Deserialize)]
@@ -147,7 +149,11 @@ impl SqliteTokenStore {
 
 type TokenStore = Arc<SqliteTokenStore>;
 const TOKEN_VALID_FOR_SECS: u64 = 15 * 60;
-const JWT_SECRET: &[u8] = b"lst-jwt-demo-secret-goes-here";
+static JWT_SECRET: once_cell::sync::Lazy<Vec<u8>> = once_cell::sync::Lazy::new(|| {
+    std::env::var("JWT_SECRET")
+        .unwrap_or_else(|_| "lst-jwt-demo-secret-goes-here".to_string())
+        .into_bytes()
+});
 
 // --- SQLite Content Store ---
 #[derive(Debug, Clone)]
@@ -401,6 +407,7 @@ async fn main() {
     let api_router =
         Router::new()
             .route("/health", get(health_handler))
+            .route("/ping", get(ping_handler))
             .route(
                 "/auth/request",
                 post({
@@ -417,6 +424,29 @@ async fn main() {
                 }),
             )
             .nest("/content", content_api_router)
+            .route(
+                "/provision/request",
+                post({
+                    let state = app_state.clone();
+                    move |j| provision_request_handler(j, axum::extract::State(state.clone()))
+                }),
+            )
+            .route(
+                "/provision/package",
+                post({
+                    let state = app_state.clone();
+                    move |j| provision_package_handler(j, axum::extract::State(state.clone()))
+                }),
+            )
+            .route(
+                "/provision/package/:id",
+                get({
+                    let state = app_state.clone();
+                    move |Path(id)| {
+                        provision_package_get_handler(id, axum::extract::State(state.clone()))
+                    }
+                }),
+            )
             .route(
                 "/sync",
                 get(
@@ -444,6 +474,10 @@ async fn main() {
 
 async fn health_handler() -> &'static str {
     "OK"
+}
+
+async fn ping_handler() -> &'static str {
+    "pong"
 }
 
 async fn auth_request_handler(
@@ -583,7 +617,7 @@ async fn auth_verify_handler(
             let jwt = encode(
                 &Header::default(),
                 &claims,
-                &EncodingKey::from_secret(JWT_SECRET),
+                &EncodingKey::from_secret(&JWT_SECRET),
             )
             .unwrap();
             Ok(Json(VerifyResponse {
@@ -730,6 +764,80 @@ async fn delete_content_handler(
     }
 }
 
+// --- Device Provisioning Handlers ---
+
+#[derive(Deserialize)]
+struct ProvisionRequest {
+    public_key: String,
+}
+
+#[derive(Serialize)]
+struct ProvisionResponse {
+    provisioning_id: String,
+}
+
+async fn provision_request_handler(
+    Json(req): Json<ProvisionRequest>,
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<ProvisionResponse>, (StatusCode, String)> {
+    let key = base64::engine::general_purpose::STANDARD
+        .decode(req.public_key)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "invalid key".to_string()))?;
+    let id = uuid::Uuid::new_v4().to_string();
+    state
+        .db
+        .create_provision_request(&id, &key)
+        .await
+        .map_err(|e| {
+            eprintln!("provision request err: {e}");
+            (StatusCode::INTERNAL_SERVER_ERROR, "db error".to_string())
+        })?;
+    Ok(Json(ProvisionResponse {
+        provisioning_id: id,
+    }))
+}
+
+#[derive(Deserialize)]
+struct ProvisionPackage {
+    for_provisioning_id: String,
+    encrypted_master_key: String,
+}
+
+async fn provision_package_handler(
+    Json(req): Json<ProvisionPackage>,
+    State(state): State<Arc<AppState>>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let data = base64::engine::general_purpose::STANDARD
+        .decode(req.encrypted_master_key)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "invalid package".to_string()))?;
+    state
+        .db
+        .save_provision_package(&req.for_provisioning_id, &data)
+        .await
+        .map_err(|e| {
+            eprintln!("package save err: {e}");
+            (StatusCode::INTERNAL_SERVER_ERROR, "db error".to_string())
+        })?;
+    Ok(StatusCode::OK)
+}
+
+async fn provision_package_get_handler(
+    id: String,
+    State(state): State<Arc<AppState>>,
+) -> Result<Response, (StatusCode, String)> {
+    if let Some(pkg) = state.db.get_provision_package(&id).await.map_err(|e| {
+        eprintln!("get package err: {e}");
+        (StatusCode::INTERNAL_SERVER_ERROR, "db error".to_string())
+    })? {
+        let body = serde_json::json!({
+            "encrypted_master_key": base64::engine::general_purpose::STANDARD.encode(pkg)
+        });
+        Ok((StatusCode::OK, Json(body)).into_response())
+    } else {
+        Ok((StatusCode::ACCEPTED, "waiting").into_response())
+    }
+}
+
 async fn ws_handler(
     ws: WebSocketUpgrade,
     headers: HeaderMap,
@@ -740,7 +848,7 @@ async fn ws_handler(
         .and_then(|h| h.to_str().ok())
         .and_then(|h| h.strip_prefix("Bearer "))
     {
-        let decoding_key = DecodingKey::from_secret(JWT_SECRET);
+        let decoding_key = DecodingKey::from_secret(&JWT_SECRET);
         let validation = Validation::default();
         if let Ok(token_data) = decode::<Claims>(auth, &decoding_key, &validation) {
             let user = token_data.claims.sub;
@@ -855,7 +963,7 @@ async fn jwt_auth_middleware(req: Request, next: Next) -> Result<Response, Statu
         .and_then(|header| header.to_str().ok());
     if let Some(auth_header) = auth_header {
         if let Some(token) = auth_header.strip_prefix("Bearer ") {
-            let decoding_key = DecodingKey::from_secret(JWT_SECRET);
+            let decoding_key = DecodingKey::from_secret(&JWT_SECRET);
             let validation = Validation::default();
             match decode::<Claims>(token, &decoding_key, &validation) {
                 Ok(token_data) => {
