@@ -106,6 +106,7 @@ export default function App() {
   const [editingAnchor, setEditingAnchor] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [selected] = useState<Set<string>>(new Set());
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
 
   /* ---------- sidebar & responsive ---------- */
   // sidebar is collapsed by default
@@ -123,6 +124,19 @@ export default function App() {
   const [leaderSeq, setLeaderSeq] = useState("");
   const [gPressed, setGPressed] = useState(false);
   const dragIndex = useRef<number | null>(null);
+
+  /* ---------- folder management ---------- */
+  function toggleFolder(path: string) {
+    setExpandedFolders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(path)) {
+        newSet.delete(path);
+      } else {
+        newSet.add(path);
+      }
+      return newSet;
+    });
+  }
 
   /* ---------- backend calls ---------- */
   async function reloadCurrentList() {
@@ -726,7 +740,7 @@ export default function App() {
             )}
             {node.name}
           </div>,
-          ...renderNodes(node.children, depth + 1),
+          ...(isFolder && expandedFolders.has(node.path) ? renderNodes(node.children, depth + 1) : []),
         ];
       });
 
