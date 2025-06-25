@@ -5,9 +5,10 @@ mod storage;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{Cli, Commands, ImageCommands, NoteCommands};
+use cli::{Cli, Commands, ImageCommands, NoteCommands, RemoteCommands};
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     // Parse command line arguments
     let cli = Cli::parse();
 
@@ -107,6 +108,11 @@ fn main() -> Result<()> {
         Commands::Unshare { document } => {
             cli::commands::unshare_document(document)?;
         }
+        Commands::Remote(remote_cmd) => match remote_cmd {
+            RemoteCommands::Switch { list } => {
+                cli::commands::remote_switch_list(list).await?;
+            }
+        },
     }
 
     Ok(())

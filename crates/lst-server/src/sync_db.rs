@@ -140,53 +140,6 @@ impl SyncDb {
         Ok(())
     }
 
-    pub async fn has_access(&self, doc_id: &str, user_email: &str, required_permission: &str) -> Result<bool> {
-        let permissions = ["owner", "writer", "reader"];
-        let required_level = permissions.iter().position(|&p| p == required_permission).unwrap_or(2);
-        
-        let row = sqlx::query(
-            "SELECT permission_type FROM document_permissions WHERE doc_id = ? AND user_email = ?"
-        )
-        .bind(doc_id)
-        .bind(user_email)
-        .fetch_optional(&self.pool)
-        .await?;
-        
-        match row {
-            Some(row) => {
-                let user_permission: String = row.get("permission_type");
-                let user_level = permissions.iter().position(|&p| p == user_permission).unwrap_or(2);
-                Ok(user_level <= required_level)
-            }
-            None => Ok(false)
-        }
-    }
-
-    pub async fn grant_access(&self, doc_id: &str, user_email: &str, permission_type: &str) -> Result<()> {
-        sqlx::query(
-            r#"INSERT INTO document_permissions (doc_id, user_email, permission_type)
-               VALUES (?, ?, ?)
-               ON CONFLICT(doc_id, user_email) DO UPDATE SET
-                   permission_type = excluded.permission_type,
-                   granted_at = CURRENT_TIMESTAMP"#,
-        )
-        .bind(doc_id)
-        .bind(user_email)
-        .bind(permission_type)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
-    }
-
-    pub async fn revoke_access(&self, doc_id: &str, user_email: &str) -> Result<()> {
-        sqlx::query(
-            "DELETE FROM document_permissions WHERE doc_id = ? AND user_email = ? AND permission_type != 'owner'"
-        )
-        .bind(doc_id)
-        .bind(user_email)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
-    }
+    
 }
 

@@ -1,0 +1,6 @@
+# release.toml (minimal)
+shared-version = true      # keep all crates on the same SemVer
+consolidate-commits = true # one commit instead of many
+tag-name = "v{{version}}"
+publish = false            # set true if you also want `cargo publish`
+push = false
