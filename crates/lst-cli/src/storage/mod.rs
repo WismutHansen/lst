@@ -72,73 +72,7 @@ pub fn get_notes_dir() -> Result<PathBuf> {
     Ok(notes_dir)
 }
 
-/// Get the posts directory path
-pub fn get_posts_dir() -> Result<PathBuf> {
-    let posts_dir = get_content_dir()?.join("posts");
-    if !posts_dir.exists() {
-        fs::create_dir_all(&posts_dir).context("Failed to create posts directory")?;
-    }
 
-    Ok(posts_dir)
-}
-
-/// Get the media directory path
-pub fn get_media_dir() -> Result<PathBuf> {
-    // First check the config (cached)
-    let config = get_config();
-
-    // If media_dir is specified in config, use that (supports absolute, relative, or '~' paths)
-    if let Some(dir) = config.paths.media_dir.clone() {
-        let dir_str = dir.to_string_lossy();
-        // Only expand leading '~' to home directory; otherwise use as given
-        let expanded: PathBuf = if dir_str.starts_with("~") {
-            if let Some(home) = dirs::home_dir() {
-                let without_tilde = dir_str
-                    .trim_start_matches('~')
-                    .trim_start_matches(std::path::MAIN_SEPARATOR);
-                home.join(without_tilde)
-            } else {
-                PathBuf::from(&*dir_str)
-            }
-        } else {
-            dir
-        };
-        if !expanded.exists() {
-            fs::create_dir_all(&expanded).with_context(|| {
-                format!("Failed to create media directory: {}", expanded.display())
-            })?;
-        }
-        return Ok(expanded);
-    }
-
-    // Default to media/ in content directory
-    let media_dir = get_content_dir()?.join("media");
-    if !media_dir.exists() {
-        fs::create_dir_all(&media_dir).context("Failed to create media directory")?;
-    }
-
-    Ok(media_dir)
-}
-
-/// List all files in a directory with a specific extension (non-recursive)
-pub fn list_files(dir: &Path, extension: &str) -> Result<Vec<PathBuf>> {
-    let entries = fs::read_dir(dir)
-        .with_context(|| format!("Failed to read directory: {}", dir.display()))?;
-
-    let files = entries
-        .filter_map(|entry| {
-            let entry = entry.ok()?;
-            let path = entry.path();
-            if path.is_file() && path.extension().map_or(false, |ext| ext == extension) {
-                Some(path)
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    Ok(files)
-}
 
 /// Recursively list all files in a directory tree with a specific extension
 pub fn list_files_recursive(dir: &Path, extension: &str) -> Result<Vec<PathBuf>> {

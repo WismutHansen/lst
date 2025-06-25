@@ -27,6 +27,9 @@ specta = { workspace = true }
 specta-typescript = { workspace = true }
 tauri-specta = { version = "2.0.0-rc.21" }
 anyhow = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tower-http = { version = "0.5.2", features = ["cors"] }
 
 # Internal dependencies
 lst-proto = { path = "../../../crates/lst-proto", version = "0.1.3" }

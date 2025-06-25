@@ -62,6 +62,7 @@ pub struct SqliteTokenStore {
 }
 
 #[derive(Debug, FromRow)]
+#[allow(dead_code)]
 struct StoredToken {
     email: String,
     token_value: String,
@@ -156,6 +157,7 @@ pub struct SqliteContentStore {
 }
 
 #[derive(Debug, FromRow)]
+#[allow(dead_code)]
 struct ContentRow {
     #[allow(dead_code)]
     id: i64,
@@ -858,7 +860,7 @@ async fn jwt_auth_middleware(req: Request, next: Next) -> Result<Response, Statu
             let decoding_key = DecodingKey::from_secret(JWT_SECRET);
             let validation = Validation::default();
             match decode::<Claims>(token, &decoding_key, &validation) {
-                Ok(token_data) => {
+                Ok(_token_data) => {
                     // req.extensions_mut().insert(token_data.claims); // Example: pass claims
                     return Ok(next.run(req).await);
                 }

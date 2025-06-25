@@ -146,14 +146,4 @@ pub fn fuzzy_find(items: &[ListItem], query: &str, _threshold: f32) -> Vec<usize
         .collect()
 }
 
-/// Parse a list from a markdown file
-pub fn parse_list_from_markdown(_path: &Path) -> Result<List> {
-    // Placeholder implementation, to be expanded
-    Err(anyhow::anyhow!("Not implemented yet"))
-}
 
-/// Save a list to a markdown file
-pub fn save_list_to_markdown(_list: &List, _path: &Path) -> Result<()> {
-    // Placeholder implementation, to be expanded
-    Err(anyhow::anyhow!("Not implemented yet"))
-}

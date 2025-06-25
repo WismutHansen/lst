@@ -47,14 +47,7 @@ pub fn load_list(list_name: &str) -> Result<List> {
     }
 }
 
-/// Save a list to a markdown file
-pub fn save_list(list: &List) -> Result<()> {
-    let lists_dir = super::get_lists_dir()?;
-    let filename = list.file_name();
-    let path = lists_dir.join(filename);
 
-    write_list_to_file(list, &path)
-}
 
 /// Save a list to a markdown file using the original list name path
 pub fn save_list_with_path(list: &List, list_name: &str) -> Result<()> {
@@ -440,6 +433,15 @@ pub fn reorder_item(list_name: &str, target: &str, new_index: usize) -> Result<(
             list_name
         )
     }
+}
+
+/// Save a list to a markdown file
+pub fn save_list(list: &List) -> Result<()> {
+    let lists_dir = super::get_lists_dir()?;
+    let filename = list.file_name();
+    let path = lists_dir.join(filename);
+
+    write_list_to_file(list, &path)
 }
 
 /// Helper function to find an item for removal, returning (index, item)

@@ -4,7 +4,7 @@ use crate::crypto;
 use anyhow::{Context, Result};
 use automerge::{
     transaction::Transactable as _,
-    Automerge, Change, ObjType, ReadDoc, ScalarValue, Value, ObjId,
+    Automerge, Change, ObjType, ReadDoc, ScalarValue, Value,
 };
 use notify::Event;
 use sha2::{Digest, Sha256};

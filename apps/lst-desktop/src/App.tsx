@@ -1,3 +1,4 @@
+import { listen } from "@tauri-apps/api/event";
 import { useState, useRef, useEffect, useMemo } from "react";
 import Logo from "./assets/logo.png";
 import { commands, type List, type ListItem } from "./bindings";
@@ -294,6 +295,15 @@ export default function App() {
 
   useEffect(() => {
     fetchLists();
+  }, []);
+
+  useEffect(() => {
+    const unlisten = listen<string>("switch-list", (event) => {
+      loadList(event.payload);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
   }, []);
 
   // Auto-refresh mechanism

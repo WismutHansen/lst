@@ -10,6 +10,8 @@ use tauri::tray::TrayIconBuilder;
 use tauri::Manager;
 use tauri_specta::{collect_commands, Builder};
 
+mod command_server;
+
 #[tauri::command]
 #[specta::specta]
 fn get_lists() -> Result<Vec<String>, String> {
@@ -163,6 +165,8 @@ pub fn run() {
         .setup(|app| {
             let _tray = TrayIconBuilder::new().build(app)?;
             let _window = app.get_webview_window("main").unwrap();
+
+            command_server::start_command_server(app.handle().clone());
 
             // #[cfg(target_os = "macos")]
             // window_vibrancy::apply_vibrancy(

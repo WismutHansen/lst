@@ -48,6 +48,7 @@ pub struct EmailSettings {
 
 /// Path settings shared with CLI
 #[derive(Debug, Deserialize, Clone)]
+#[allow(dead_code)]
 pub struct PathsSettings {
     /// Root path for content files
     pub content_dir: Option<String>,
@@ -138,12 +139,7 @@ impl Settings {
         Ok(settings)
     }
 
-    /// Load configuration from the standard lst config location
-    pub fn load() -> anyhow::Result<Self> {
-        let home_dir = dirs::home_dir().context("Could not determine home directory")?;
-        let config_path = home_dir.join(".config").join("lst").join("lst.toml");
-        Self::from_file(&config_path)
-    }
+    
 }
 
 impl DatabaseSettings {

@@ -90,17 +90,5 @@ impl LocalDb {
         Ok(())
     }
 
-    /// Update writers and readers for a document
-    pub fn update_shares(
-        &self,
-        doc_id: &str,
-        writers: Option<&str>,
-        readers: Option<&str>,
-    ) -> Result<()> {
-        self.conn.execute(
-            "UPDATE documents SET writers = ?2, readers = ?3 WHERE doc_id = ?1",
-            params![doc_id, writers, readers],
-        )?;
-        Ok(())
-    }
+    
 }

@@ -121,6 +121,20 @@ pub enum Commands {
         /// Document path or identifier
         document: String,
     },
+
+    /// Send commands to a running lst-desktop instance
+    #[clap(subcommand, name = "remote")]
+    Remote(RemoteCommands),
+}
+
+#[derive(Subcommand)]
+pub enum RemoteCommands {
+    /// Switch the list in the desktop app
+    #[clap(name = "switch")]
+    Switch {
+        /// Name of the list to switch to
+        list: String,
+    },
 }
 
 #[derive(Subcommand)]

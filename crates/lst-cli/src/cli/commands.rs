@@ -209,20 +209,7 @@ fn normalize_list(input: &str) -> Result<String> {
         }
     }
 }
-/// Normalize a note identifier: strip .md and fuzzy-match existing, or allow new
-fn normalize_note(input: &str) -> Result<String> {
-    let key = input.trim_end_matches(".md");
-    let notes = storage::list_notes()?;
-    if notes.contains(&key.to_string()) {
-        return Ok(key.to_string());
-    }
-    let matches: Vec<&String> = notes.iter().filter(|n| n.contains(key)).collect();
-    if !matches.is_empty() {
-        // Fuzzy match: take first matching note
-        return Ok(matches[0].clone());
-    }
-    bail!("No note matching '{}' found", key)
-}
+
 /// Resolve a note identifier: strip .md and fuzzy-match to exactly one or error
 fn resolve_note(input: &str) -> Result<String> {
     let key = input.trim_end_matches(".md");
@@ -738,45 +725,7 @@ pub fn display_daily_list(json: bool) -> Result<()> {
     display_list(&list_name, json)
 }
 
-pub fn list_daily_lists(json: bool) -> Result<()> {
-    let entries = storage::list_lists_with_info()?;
 
-    // Filter for daily lists (in daily_lists directory)
-    let daily_lists: Vec<&storage::FileEntry> = entries
-        .iter()
-        .filter(|entry| {
-            entry.relative_path.starts_with("daily_lists/") && entry.name.ends_with("_daily_list")
-        })
-        .collect();
-
-    if json {
-        let list_names: Vec<String> = daily_lists
-            .iter()
-            .map(|e| e.relative_path.clone())
-            .collect();
-        println!("{}", serde_json::to_string(&list_names)?);
-        return Ok(());
-    }
-
-    if daily_lists.is_empty() {
-        println!("No daily lists found. Create one with 'lst dl add <text>'");
-        return Ok(());
-    }
-
-    println!("Daily lists:");
-    for entry in daily_lists {
-        // Extract date from filename for display
-        let date_part = entry.name.trim_end_matches("_daily_list");
-        if let Ok(parsed_date) = chrono::NaiveDate::parse_from_str(date_part, "%Y%m%d") {
-            let formatted_date = parsed_date.format("%Y-%m-%d (%A)").to_string();
-            println!("  {} ({})", formatted_date, entry.relative_path);
-        } else {
-            println!("  {}", entry.relative_path);
-        }
-    }
-
-    Ok(())
-}
 
 /// Share a document by updating writers and readers in the local sync database
 pub fn share_document(doc: &str, writers: Option<&str>, readers: Option<&str>) -> Result<()> {
@@ -826,4 +775,22 @@ pub fn share_document(doc: &str, writers: Option<&str>, readers: Option<&str>) -
 /// Remove sharing information from a document in the local sync database
 pub fn unshare_document(doc: &str) -> Result<()> {
     share_document(doc, None, None)
+}
+
+pub async fn remote_switch_list(list_name: &str) -> Result<()> {
+    let resolved_name = resolve_list(list_name)?;
+    let client = reqwest::Client::new();
+    let res = client
+        .post(format!("http://localhost:33333/command/switch-list"))
+        .body(resolved_name.clone())
+        .send()
+        .await?;
+
+    if res.status().is_success() {
+        println!("Switched list to {}", resolved_name);
+    } else {
+        bail!("Failed to switch list: {}", res.status());
+    }
+
+    Ok(())
 }
