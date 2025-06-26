@@ -32,7 +32,9 @@
             "*"
           ],
           "permissions": [
-            "core:window:allow-start-dragging"
+            "core:window:allow-start-dragging",
+            "core:event:allow-listen",
+            "core:event:default"
           ]
         }
       ]

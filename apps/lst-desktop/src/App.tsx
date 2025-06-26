@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import Logo from "./assets/logo.png";
 import { commands, type List, type ListItem } from "./bindings";
 import { CommandPalette, PaletteCommand } from "./components/CommandPalette";
@@ -159,15 +159,20 @@ export default function App() {
     res.status === "ok" ? setLists(res.data) : setError(res.error);
   }
 
-  async function loadList(name: string) {
+  const loadList = useCallback(async (name: string) => {
+    console.log("📋 loadList called with name:", name);
     const res = await commands.getList(name);
     if (res.status === "ok") {
+      console.log("✅ Successfully loaded list:", res.data.title);
       setCurrentList(res.data);
       setCurrentName(name);
       setShowSuggestions(false);
       setQuery("");
-    } else setError(res.error);
-  }
+    } else {
+      console.error("❌ Failed to load list:", res.error);
+      setError(res.error);
+    }
+  }, []);
 
   /* ---------- mutations ---------- */
   async function createNewList(e: React.FormEvent) {
@@ -298,8 +303,23 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    console.log("🎧 Setting up event listener for 'switch-list'");
     const unlisten = listen<string>("switch-list", (event) => {
+      console.log("📨 Received 'switch-list' event with payload:", event.payload);
       loadList(event.payload);
+    });
+    return () => {
+      console.log("🔇 Cleaning up 'switch-list' event listener");
+      unlisten.then((fn) => fn());
+    };
+  }, [loadList]);
+
+  // Test event listener
+  useEffect(() => {
+    console.log("🧪 Setting up test event listener");
+    const unlisten = listen<string>("test-event", (event) => {
+      console.log("🎉 Received test event with payload:", event.payload);
+      alert("Test event received: " + event.payload);
     });
     return () => {
       unlisten.then((fn) => fn());
