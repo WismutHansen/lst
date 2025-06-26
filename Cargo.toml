@@ -5,6 +5,7 @@ members = [
   "crates/lst-proto",
   "crates/lst-server",
   "crates/lst-syncd",
+  "crates/lst-mcp",
   "apps/lst-desktop/src-tauri",
   "apps/lst-mobile/src-tauri",
 ]
