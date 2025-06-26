@@ -33,7 +33,9 @@ fn get_list(name: String) -> Result<List, String> {
 #[tauri::command]
 #[specta::specta]
 fn create_list(title: String) -> Result<List, String> {
-    Ok(List::new(title))
+    let list = List::new(title);
+    markdown::save_list(&list).map_err(|e| e.to_string())?;
+    Ok(list)
 }
 
 #[tauri::command]
