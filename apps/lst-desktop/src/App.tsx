@@ -102,6 +102,7 @@ export default function App() {
   const [currentName, setCurrentName] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newListName, setNewListName] = useState("");
+  const [isDisabled, setIsDisabled] = useState(false);
   const [newItem, setNewItem] = useState("");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [editingAnchor, setEditingAnchor] = useState<string | null>(null);
@@ -804,15 +805,26 @@ export default function App() {
               placeholder="List name"
               value={newListName}
               onChange={(e) => setNewListName(e.target.value)}
+              disabled={isDisabled} // 🔒 fully blocks input
+              onClick={() => { setMode("edit"); setIsDisabled(false); }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  if (vimMode) {
+                    setMode("normal");
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }
+              }}
             />
-            <Button size="sm" type="submit">
+            < Button size="sm" type="submit" >
                Create
             </Button>
           </form>
-        )}
+        )
+        }
 
         <div className="flex-1 overflow-y-auto pl-2 w-auto">{renderNodes(listTree)}</div>
-      </aside>
+      </aside >
     );
 
 
