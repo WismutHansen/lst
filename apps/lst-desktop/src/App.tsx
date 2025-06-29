@@ -16,7 +16,20 @@ interface ListNode {
 }
 
 /* ---------- helpers ---------- */
-function buildListTree(paths: string[]): ListNode[] {
+function extractDate(name: string): Date | null {
+  // Matches YYYY-MM-DD or YYYYMMDD
+  const match = name.match(/(\d{4}-\d{2}-\d{2}|\d{8})/);
+  if (match) {
+    const dateStr = match[0].replace(/-/g, "");
+    const year = parseInt(dateStr.substring(0, 4), 10);
+    const month = parseInt(dateStr.substring(4, 6), 10) - 1; // Month is 0-indexed
+    const day = parseInt(dateStr.substring(6, 8), 10);
+    return new Date(year, month, day);
+  }
+  return null;
+}
+
+function buildListTree(paths: string[], sortOrder: "name" | "date-asc" | "date-desc"): ListNode[] {
   const root: Record<string, any> = {};
   for (const p of paths) {
     const parts = p.split("/");
@@ -39,7 +52,22 @@ function buildListTree(paths: string[]): ListNode[] {
         isList: n.isList,
         children: convert(n.children),
       }))
-      .sort((a: ListNode, b: ListNode) => a.name.localeCompare(b.name));
+      .sort((a: ListNode, b: ListNode) => {
+        if (sortOrder === "name") {
+          return a.name.localeCompare(b.name);
+        }
+        const dateA = extractDate(a.name);
+        const dateB = extractDate(b.name);
+
+        if (dateA && dateB) {
+          return sortOrder === "date-asc"
+            ? dateA.getTime() - dateB.getTime()
+            : dateB.getTime() - dateA.getTime();
+        }
+        if (dateA) return -1; // lists with dates first
+        if (dateB) return 1;
+        return a.name.localeCompare(b.name);
+      });
   return convert(root);
 }
 // ---------- date helpers ----------
@@ -109,6 +137,7 @@ export default function App() {
   const [editText, setEditText] = useState("");
   const [selected] = useState<Set<string>>(new Set());
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [sortOrder, setSortOrder] = useState<"name" | "date-asc" | "date-desc">("name");
 
   /* ---------- sidebar & responsive ---------- */
   // sidebar is collapsed by default
@@ -265,16 +294,20 @@ export default function App() {
         ),
     [resolvedQuery, lists]
   );
-  const listTree = useMemo(() => buildListTree(lists), [lists]);
+  const listTree = useMemo(() => buildListTree(lists, sortOrder), [lists, sortOrder]);
   // flattened sidebar list for keyboard nav
   const flatSidebarItems: { path: string; isList: boolean }[] = useMemo(() => {
     const dfs = (nodes: ListNode[]): { path: string; isList: boolean }[] =>
-      nodes.flatMap((n) => [
-        { path: n.path, isList: n.isList },
-        ...dfs(n.children),
-      ]);
+      nodes.flatMap((n) => {
+        const isFolder = !n.isList;
+        const children = (isFolder && expandedFolders.has(n.path)) ? dfs(n.children) : [];
+        return [
+          { path: n.path, isList: n.isList },
+          ...children,
+        ];
+      });
     return dfs(listTree);
-  }, [listTree]);
+  }, [listTree, expandedFolders]);
 
   const paletteCommands = useMemo<PaletteCommand[]>(
     () => [
@@ -301,7 +334,35 @@ export default function App() {
 
   useEffect(() => {
     fetchLists();
+    openTodaysDailyList();
   }, []);
+
+  async function openTodaysDailyList() {
+    const today = fmt(new Date());
+    const dailyListName = `daily_lists/${today}_daily_list`;
+
+    // Check if today's daily list exists in the current lists
+    const res = await commands.getLists();
+    if (res.status === "ok") {
+      const exists = res.data.includes(dailyListName);
+
+      if (exists) {
+        // Open existing daily list
+        loadList(dailyListName);
+      } else {
+        // Create new daily list using lst-cli command
+        try {
+          const createRes = await commands.createList(dailyListName);
+          if (createRes.status === "ok") {
+            await fetchLists(); // Refresh the lists
+            loadList(dailyListName);
+          }
+        } catch (error) {
+          console.error("Failed to create daily list:", error);
+        }
+      }
+    }
+  }
 
   useEffect(() => {
     console.log("🎧 Setting up event listener for 'switch-list'");
@@ -357,6 +418,13 @@ export default function App() {
       );
 
       // toggle sidebar with Ctrl-b
+      if (e.key.toLowerCase() === "/") {
+
+        e.preventDefault();
+        return;
+      }
+
+      // toggle sidebar with Ctrl-b
       if (e.ctrlKey && e.key.toLowerCase() === "b") {
         setSidebarCollapsed((c) => !c);
         e.preventDefault();
@@ -384,6 +452,12 @@ export default function App() {
             e.preventDefault();
             return;
           }
+          if (e.key === " ") {
+            const item = flatSidebarItems[sidebarCursor];
+            if (item && !item.isList) toggleFolder(item.path);
+            e.preventDefault();
+            return;
+          }
         } else {
           if (["ArrowDown", "ArrowUp"].includes(e.key)) {
             next(e.key === "ArrowDown" ? 1 : -1);
@@ -393,6 +467,12 @@ export default function App() {
           if (e.key === "ArrowRight") {
             const item = flatSidebarItems[sidebarCursor];
             if (item?.isList) loadList(item.path);
+            e.preventDefault();
+            return;
+          }
+          if (e.key === " ") {
+            const item = flatSidebarItems[sidebarCursor];
+            if (item && !item.isList) toggleFolder(item.path);
             e.preventDefault();
             return;
           }
@@ -592,8 +672,8 @@ export default function App() {
         {/* </div> */}
 
         {/* list items */}
-        <div className="flex h-[80vh] w-full overflow-y-auto">
-          <div ref={listContainerRef} className="w-full">
+        <div className="flex h-[80vh] w-full overflow-y-auto scroll-fade">
+          <div ref={listContainerRef} className="w-full h-full">
             {(currentList.items ?? []).map((it, idx) =>
               editingAnchor === it.anchor ? (
                 <form
@@ -642,7 +722,7 @@ export default function App() {
                       });
                     dragIndex.current = null;
                   }}
-                  className={`text-[10pt]/4 flex items-center border-b min-h-10 mx-0 py-1 mb-2 px-3 ${vimMode && mode === "normal" && idx === cursorIndex
+                  className={`text-[10pt]/4 flex items-center border-b min-h-10 py-2 mb-0 px-1 ${vimMode && mode === "normal" && idx === cursorIndex
                     ? "border-b  border-[#a6e3a1]"
                     : ""
                     } ${selected.has(it.anchor) ? "bg-[#a6e3a1] text-black" : ""}`}
@@ -661,24 +741,24 @@ export default function App() {
                     {it.text}
                   </span>
 
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => startEdit(it)}
-                    aria-label="Edit"
-                    className="flex text-xl text-muted mr-2 h-6 w-6 rounded-sm"
-                  >
-                    
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => deleteItem(it.anchor)}
-                    aria-label="Delete"
-                    className="flex text-sm text-muted gap-0 h-6 w-6 rounded-sm"
-                  >
-                    󰆴
-                  </Button>
+                  {/* <Button */}
+                  {/*   variant="ghost" */}
+                  {/*   size="icon" */}
+                  {/*   onClick={() => startEdit(it)} */}
+                  {/*   aria-label="Edit" */}
+                  {/*   className="flex text-xl text-muted mr-2 h-6 w-6 rounded-sm" */}
+                  {/* > */}
+                  {/*    */}
+                  {/* </Button> */}
+                  {/* <Button */}
+                  {/*   variant="ghost" */}
+                  {/*   size="icon" */}
+                  {/*   onClick={() => deleteItem(it.anchor)} */}
+                  {/*   aria-label="Delete" */}
+                  {/*   className="flex text-sm text-muted gap-0 h-6 w-6 rounded-sm" */}
+                  {/* > */}
+                  {/*   󰆴 */}
+                  {/* </Button> */}
                 </label>
               )
             )}
@@ -918,13 +998,13 @@ export default function App() {
       <div
         className="fixed bottom-0 left-0 right-0 h-5 border border-border bg-[#181921] text-xs flex items-center px-2 rounded-b-lg"
       >
-        <span className="text-muted-foreground">
+        <span className="text-muted-foreground truncate pr-4">
           lst {currentList ? `- ${currentList.title}.md` : ""}
         </span>
         <span className="text-muted-foreground">
           {error && <p className="ml-2 text-red-600">{error}</p>}
         </span>
-        <span className="ml-auto">
+        <span className="ml-auto text-nowrap">
           {currentList ? `${items.length} items` : "No list selected"}
         </span>
       </div>
