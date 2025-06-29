@@ -7,6 +7,7 @@ import { Folder as FolderIcon, List as ListIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useTheme } from "./hooks/useTheme";
 
 interface ListNode {
   name: string;
@@ -120,6 +121,8 @@ export default function App() {
   const inputRef = useRef<HTMLInputElement>(null);
   const addItemRef = useRef<HTMLInputElement>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
+
+  useTheme();
 
   const [query, setQuery] = useState("");
   const [lists, setLists] = useState<string[]>([]);

@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -25,6 +26,12 @@ pub struct Config {
 
 use specta::Type;
 
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Default)]
+pub struct ThemeConfig {
+    #[serde(default)]
+    pub vars: BTreeMap<String, String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct UiConfig {
     #[serde(default = "default_resolution_order")]
@@ -37,6 +44,9 @@ pub struct UiConfig {
     /// Leader key used for command sequences (defaults to space)
     #[serde(default = "default_leader_key")]
     pub leader_key: String,
+
+    #[serde(default)]
+    pub theme: ThemeConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,6 +132,7 @@ impl Default for Config {
                 resolution_order: default_resolution_order(),
                 vim_mode: false,
                 leader_key: default_leader_key(),
+                theme: ThemeConfig::default(),
             },
             fuzzy: FuzzyConfig {
                 threshold: default_threshold(),
@@ -146,6 +157,7 @@ impl Default for UiConfig {
             resolution_order: default_resolution_order(),
             vim_mode: false,
             leader_key: default_leader_key(),
+            theme: ThemeConfig::default(),
         }
     }
 }

@@ -11,6 +11,7 @@ use tauri::Manager;
 use tauri_specta::{collect_commands, Builder};
 
 mod command_server;
+mod theme;
 
 #[tauri::command]
 #[specta::specta]
@@ -169,6 +170,7 @@ pub fn run() {
             let _window = app.get_webview_window("main").unwrap();
 
             command_server::start_command_server(app.handle().clone());
+            theme::broadcast_theme(&app.handle()).ok();
 
             // #[cfg(target_os = "macos")]
             // window_vibrancy::apply_vibrancy(
