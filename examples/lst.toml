@@ -20,6 +20,12 @@ vim_mode = false
 # Leader key for command sequences
 leader_key = " "
 
+# Optional theme overrides. Keys correspond to CSS variables defined by the app.
+# When omitted, the built-in theme is used.
+[ui.theme.vars]
+# background = "#24273a"
+# radius = "0.625rem"
+
 # =============================================================================
 # Fuzzy Search Configuration
 # =============================================================================
