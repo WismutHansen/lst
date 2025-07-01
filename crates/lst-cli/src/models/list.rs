@@ -1,11 +1,10 @@
 use crate::storage::get_lists_dir;
-use anyhow::Result;
 use chrono::{DateTime, Utc};
 use rand::distributions::{Alphanumeric, DistString};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use uuid::Uuid;
 
 pub fn generate_anchor() -> String {

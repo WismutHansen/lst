@@ -176,6 +176,10 @@ pub enum NoteCommands {
     /// List all notes
     #[clap(name = "ls")]
     ListNotes {},
+
+    /// Tidy all notes: ensure proper YAML frontmatter
+    #[clap(name = "tidy")]
+    Tidy,
 }
 
 #[derive(Subcommand)]

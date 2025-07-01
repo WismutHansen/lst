@@ -54,6 +54,9 @@ async fn main() -> Result<()> {
             NoteCommands::ListNotes {} => {
                 cli::commands::list_notes(cli.json)?;
             }
+            NoteCommands::Tidy => {
+                cli::commands::tidy_notes(cli.json)?;
+            }
         },
         // Commands::Post(post_cmd) => {
         //     match post_cmd {
@@ -102,7 +105,11 @@ async fn main() -> Result<()> {
                 eprintln!("Image commands not implemented yet");
             }
         },
-        Commands::Share { document, writers, readers } => {
+        Commands::Share {
+            document,
+            writers,
+            readers,
+        } => {
             cli::commands::share_document(document, writers.as_deref(), readers.as_deref())?;
         }
         Commands::Unshare { document } => {
