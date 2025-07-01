@@ -1,0 +1,4210 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+.vite/
+  deps/
+    _metadata.json
+    package.json
+public/
+  fonts/
+    JetBrainsMono/
+      OFL.txt
+      README.md
+  tauri.svg
+  vite.svg
+src/
+  components/
+    ui/
+      button.tsx
+      card.tsx
+      checkbox.tsx
+      command.tsx
+      dialog.tsx
+      input.tsx
+      scroll-area.tsx
+      separator.tsx
+      sheet.tsx
+      sidebar.tsx
+      skeleton.tsx
+      tooltip.tsx
+    CommandPalette.tsx
+  hooks/
+    use-mobile.ts
+    useTheme.ts
+  lib/
+    utils.ts
+  App.tsx
+  bindings.ts
+  index.css
+  main.tsx
+  vite-env.d.ts
+src-tauri/
+  capabilities/
+    default.json
+  src/
+    command_server.rs
+    lib.rs
+    main.rs
+    theme.rs
+  .gitignore
+  build.rs
+  Cargo.toml
+  Logo_black_apple.svg
+  Logo_black.svg
+  Logo_white.svg
+  tauri.conf.json
+.eslintrc.cjs
+.gitignore
+components.json
+index.html
+package.json
+postcss.config.cjs
+README.md
+tailwind.config.js
+tsconfig.json
+tsconfig.node.json
+vite.config.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path=".vite/deps/_metadata.json">
+{
+  "hash": "c30665f9",
+  "configHash": "96aa373d",
+  "lockfileHash": "e3b0c442",
+  "browserHash": "fbdeafae",
+  "optimized": {},
+  "chunks": {}
+}
+</file>
+
+<file path=".vite/deps/package.json">
+{
+  "type": "module"
+}
+</file>
+
+<file path="public/fonts/JetBrainsMono/OFL.txt">
+Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+https://scripts.sil.org/OFL
+
+
+-----------------------------------------------------------
+SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
+-----------------------------------------------------------
+
+PREAMBLE
+The goals of the Open Font License (OFL) are to stimulate worldwide
+development of collaborative font projects, to support the font creation
+efforts of academic and linguistic communities, and to provide a free and
+open framework in which fonts may be shared and improved in partnership
+with others.
+
+The OFL allows the licensed fonts to be used, studied, modified and
+redistributed freely as long as they are not sold by themselves. The
+fonts, including any derivative works, can be bundled, embedded, 
+redistributed and/or sold with any software provided that any reserved
+names are not used by derivative works. The fonts and derivatives,
+however, cannot be released under any other type of license. The
+requirement for fonts to remain under this license does not apply
+to any document created using the fonts or their derivatives.
+
+DEFINITIONS
+"Font Software" refers to the set of files released by the Copyright
+Holder(s) under this license and clearly marked as such. This may
+include source files, build scripts and documentation.
+
+"Reserved Font Name" refers to any names specified as such after the
+copyright statement(s).
+
+"Original Version" refers to the collection of Font Software components as
+distributed by the Copyright Holder(s).
+
+"Modified Version" refers to any derivative made by adding to, deleting,
+or substituting -- in part or in whole -- any of the components of the
+Original Version, by changing formats or by porting the Font Software to a
+new environment.
+
+"Author" refers to any designer, engineer, programmer, technical
+writer or other person who contributed to the Font Software.
+
+PERMISSION & CONDITIONS
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of the Font Software, to use, study, copy, merge, embed, modify,
+redistribute, and sell modified and unmodified copies of the Font
+Software, subject to the following conditions:
+
+1) Neither the Font Software nor any of its individual components,
+in Original or Modified Versions, may be sold by itself.
+
+2) Original or Modified Versions of the Font Software may be bundled,
+redistributed and/or sold with any software, provided that each copy
+contains the above copyright notice and this license. These can be
+included either as stand-alone text files, human-readable headers or
+in the appropriate machine-readable metadata fields within text or
+binary files as long as those fields can be easily viewed by the user.
+
+3) No Modified Version of the Font Software may use the Reserved Font
+Name(s) unless explicit written permission is granted by the corresponding
+Copyright Holder. This restriction only applies to the primary font name as
+presented to the users.
+
+4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font
+Software shall not be used to promote, endorse or advertise any
+Modified Version, except to acknowledge the contribution(s) of the
+Copyright Holder(s) and the Author(s) or with their explicit written
+permission.
+
+5) The Font Software, modified or unmodified, in part or in whole,
+must be distributed entirely under this license, and must not be
+distributed under any other license. The requirement for fonts to
+remain under this license does not apply to any document created
+using the Font Software.
+
+TERMINATION
+This license becomes null and void if any of the above conditions are
+not met.
+
+DISCLAIMER
+THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
+DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
+OTHER DEALINGS IN THE FONT SOFTWARE.
+</file>
+
+<file path="public/fonts/JetBrainsMono/README.md">
+# Nerd Fonts
+
+This is an archived font from the Nerd Fonts release v3.4.0.
+
+For more information see:
+* https://github.com/ryanoasis/nerd-fonts/
+* https://github.com/ryanoasis/nerd-fonts/releases/latest/
+
+# JetBrains Mono
+
+JetBrains Mono: a typeface made for developers
+
+For more information have a look at the upstream website: https://github.com/JetBrains/JetBrainsMono
+
+Version: 2.304
+
+## Which font?
+
+### TL;DR
+
+* Pick your font family:
+  * If you are limited to monospaced fonts (because of your terminal, etc) then pick a font with `Nerd Font Mono` (or `NFM`).
+  * If you want to have bigger icons (usually around 1.5 normal letters wide) pick a font without `Mono` i.e. `Nerd Font` (or `NF`). Most terminals support this, but ymmv.
+  * If you work in a proportional context (GUI elements or edit a presentation etc) pick a font with `Nerd Font Propo` (or `NFP`).
+
+### Ligatures
+
+Ligatures are generally preserved in the patched fonts.
+Nerd Fonts `v2.0.0` had no ligatures in the `Nerd Font Mono` fonts, this has been dropped with `v2.1.0`.
+If you have a ligature-aware terminal and don't want ligatures you can (usually) disable them in the terminal settings.
+
+### Explanation
+
+Once you narrow down your font choice of family (`Droid Sans`, `Inconsolata`, etc) and style (`bold`, `italic`, etc) you have 2 main choices:
+
+#### `Option 1: Download already patched font`
+
+ * For a stable version download a font package from the [release page](https://github.com/ryanoasis/nerd-fonts/releases)
+ * Or download the development version from the folders here
+
+#### `Option 2: Patch your own font`
+
+ * Patch your own variations with the various options provided by the font patcher (i.e. not include all symbols for smaller font size)
+
+For more information see: [The FAQ](https://github.com/ryanoasis/nerd-fonts/wiki/FAQ-and-Troubleshooting#which-font)
+
+[SIL-RFN]:http://scripts.sil.org/cms/scripts/page.php?item_id=OFL_web_fonts_and_RFNs#14cbfd4a
+</file>
+
+<file path="public/tauri.svg">
+<svg width="206" height="231" viewBox="0 0 206 231" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M143.143 84C143.143 96.1503 133.293 106 121.143 106C108.992 106 99.1426 96.1503 99.1426 84C99.1426 71.8497 108.992 62 121.143 62C133.293 62 143.143 71.8497 143.143 84Z" fill="#FFC131"/>
+<ellipse cx="84.1426" cy="147" rx="22" ry="22" transform="rotate(180 84.1426 147)" fill="#24C8DB"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M166.738 154.548C157.86 160.286 148.023 164.269 137.757 166.341C139.858 160.282 141 153.774 141 147C141 144.543 140.85 142.121 140.558 139.743C144.975 138.204 149.215 136.139 153.183 133.575C162.73 127.404 170.292 118.608 174.961 108.244C179.63 97.8797 181.207 86.3876 179.502 75.1487C177.798 63.9098 172.884 53.4021 165.352 44.8883C157.82 36.3744 147.99 30.2165 137.042 27.1546C126.095 24.0926 114.496 24.2568 103.64 27.6274C92.7839 30.998 83.1319 37.4317 75.8437 46.1553C74.9102 47.2727 74.0206 48.4216 73.176 49.5993C61.9292 50.8488 51.0363 54.0318 40.9629 58.9556C44.2417 48.4586 49.5653 38.6591 56.679 30.1442C67.0505 17.7298 80.7861 8.57426 96.2354 3.77762C111.685 -1.01901 128.19 -1.25267 143.769 3.10474C159.348 7.46215 173.337 16.2252 184.056 28.3411C194.775 40.457 201.767 55.4101 204.193 71.404C206.619 87.3978 204.374 103.752 197.73 118.501C191.086 133.25 180.324 145.767 166.738 154.548ZM41.9631 74.275L62.5557 76.8042C63.0459 72.813 63.9401 68.9018 65.2138 65.1274C57.0465 67.0016 49.2088 70.087 41.9631 74.275Z" fill="#FFC131"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M38.4045 76.4519C47.3493 70.6709 57.2677 66.6712 67.6171 64.6132C65.2774 70.9669 64 77.8343 64 85.0001C64 87.1434 64.1143 89.26 64.3371 91.3442C60.0093 92.8732 55.8533 94.9092 51.9599 97.4256C42.4128 103.596 34.8505 112.392 30.1816 122.756C25.5126 133.12 23.9357 144.612 25.6403 155.851C27.3449 167.09 32.2584 177.598 39.7906 186.112C47.3227 194.626 57.153 200.784 68.1003 203.846C79.0476 206.907 90.6462 206.743 101.502 203.373C112.359 200.002 122.011 193.568 129.299 184.845C130.237 183.722 131.131 182.567 131.979 181.383C143.235 180.114 154.132 176.91 164.205 171.962C160.929 182.49 155.596 192.319 148.464 200.856C138.092 213.27 124.357 222.426 108.907 227.222C93.458 232.019 76.9524 232.253 61.3736 227.895C45.7948 223.538 31.8055 214.775 21.0867 202.659C10.3679 190.543 3.37557 175.59 0.949823 159.596C-1.47592 143.602 0.768139 127.248 7.41237 112.499C14.0566 97.7497 24.8183 85.2327 38.4045 76.4519ZM163.062 156.711L163.062 156.711C162.954 156.773 162.846 156.835 162.738 156.897C162.846 156.835 162.954 156.773 163.062 156.711Z" fill="#24C8DB"/>
+</svg>
+</file>
+
+<file path="public/vite.svg">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="31.88" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 257"><defs><linearGradient id="IconifyId1813088fe1fbc01fb466" x1="-.828%" x2="57.636%" y1="7.652%" y2="78.411%"><stop offset="0%" stop-color="#41D1FF"></stop><stop offset="100%" stop-color="#BD34FE"></stop></linearGradient><linearGradient id="IconifyId1813088fe1fbc01fb467" x1="43.376%" x2="50.316%" y1="2.242%" y2="89.03%"><stop offset="0%" stop-color="#FFEA83"></stop><stop offset="8.333%" stop-color="#FFDD35"></stop><stop offset="100%" stop-color="#FFA800"></stop></linearGradient></defs><path fill="url(#IconifyId1813088fe1fbc01fb466)" d="M255.153 37.938L134.897 252.976c-2.483 4.44-8.862 4.466-11.382.048L.875 37.958c-2.746-4.814 1.371-10.646 6.827-9.67l120.385 21.517a6.537 6.537 0 0 0 2.322-.004l117.867-21.483c5.438-.991 9.574 4.796 6.877 9.62Z"></path><path fill="url(#IconifyId1813088fe1fbc01fb467)" d="M185.432.063L96.44 17.501a3.268 3.268 0 0 0-2.634 3.014l-5.474 92.456a3.268 3.268 0 0 0 3.997 3.378l24.777-5.718c2.318-.535 4.413 1.507 3.936 3.838l-7.361 36.047c-.495 2.426 1.782 4.5 4.151 3.78l15.304-4.649c2.372-.72 4.652 1.36 4.15 3.788l-11.698 56.621c-.732 3.542 3.979 5.473 5.943 2.437l1.313-2.028l72.516-144.72c1.215-2.423-.88-5.186-3.54-4.672l-25.505 4.922c-2.396.462-4.435-1.77-3.759-4.114l16.646-57.705c.677-2.35-1.37-4.583-3.769-4.113Z"></path></svg>
+</file>
+
+<file path="src/components/ui/button.tsx">
+import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
+import { cva, type VariantProps } from "class-variance-authority"
+
+import { cn } from "@/lib/utils"
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+  {
+    variants: {
+      variant: {
+        default:
+          "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+        destructive:
+          "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+        outline:
+          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+        secondary:
+          "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
+        ghost:
+          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
+        link: "text-primary underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-9 px-4 py-2 has-[>svg]:px-3",
+        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
+        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
+        icon: "size-9",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+)
+
+function Button({
+  className,
+  variant,
+  size,
+  asChild = false,
+  ...props
+}: React.ComponentProps<"button"> &
+  VariantProps<typeof buttonVariants> & {
+    asChild?: boolean
+  }) {
+  const Comp = asChild ? Slot : "button"
+
+  return (
+    <Comp
+      data-slot="button"
+      className={cn(buttonVariants({ variant, size, className }))}
+      {...props}
+    />
+  )
+}
+
+export { Button, buttonVariants }
+</file>
+
+<file path="src/components/ui/card.tsx">
+import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+function Card({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card"
+      className={cn(
+        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-header"
+      className={cn(
+        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-title"
+      className={cn("leading-none font-semibold", className)}
+      {...props}
+    />
+  )
+}
+
+function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-description"
+      className={cn("text-muted-foreground text-sm", className)}
+      {...props}
+    />
+  )
+}
+
+function CardAction({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-action"
+      className={cn(
+        "col-start-2 row-span-2 row-start-1 self-start justify-self-end",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function CardContent({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-content"
+      className={cn("px-6", className)}
+      {...props}
+    />
+  )
+}
+
+function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-footer"
+      className={cn("flex items-center px-6 [.border-t]:pt-6", className)}
+      {...props}
+    />
+  )
+}
+
+export {
+  Card,
+  CardHeader,
+  CardFooter,
+  CardTitle,
+  CardAction,
+  CardDescription,
+  CardContent,
+}
+</file>
+
+<file path="src/components/ui/checkbox.tsx">
+import * as React from "react"
+import * as CheckboxPrimitive from "@radix-ui/react-checkbox"
+import { CheckIcon } from "lucide-react"
+
+import { cn } from "@/lib/utils"
+
+function Checkbox({
+  className,
+  ...props
+}: React.ComponentProps<typeof CheckboxPrimitive.Root>) {
+  return (
+    <CheckboxPrimitive.Root
+      data-slot="checkbox"
+      className={cn(
+        "peer border-input dark:bg-input/30 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:data-[state=checked]:bg-primary data-[state=checked]:border-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50",
+        className
+      )}
+      {...props}
+    >
+      <CheckboxPrimitive.Indicator
+        data-slot="checkbox-indicator"
+        className="flex items-center justify-center text-current transition-none"
+      >
+        <CheckIcon className="size-3.5" />
+      </CheckboxPrimitive.Indicator>
+    </CheckboxPrimitive.Root>
+  )
+}
+
+export { Checkbox }
+</file>
+
+<file path="src/components/ui/command.tsx">
+import * as React from "react"
+import { Command as CommandPrimitive } from "cmdk"
+import { SearchIcon } from "lucide-react"
+
+import { cn } from "@/lib/utils"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+
+function Command({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive>) {
+  return (
+    <CommandPrimitive
+      data-slot="command"
+      className={cn(
+        "bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-md",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function CommandDialog({
+  title = "Command Palette",
+  description = "Search for a command to run...",
+  children,
+  className,
+  showCloseButton = true,
+  ...props
+}: React.ComponentProps<typeof Dialog> & {
+  title?: string
+  description?: string
+  className?: string
+  showCloseButton?: boolean
+}) {
+  return (
+    <Dialog {...props}>
+      <DialogHeader className="sr-only">
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription>{description}</DialogDescription>
+      </DialogHeader>
+      <DialogContent
+        className={cn("overflow-hidden p-0", className)}
+        showCloseButton={showCloseButton}
+      >
+        <Command className="[&_[cmdk-group-heading]]:text-muted-foreground **:data-[slot=command-input-wrapper]:h-12 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group]]:px-2 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5">
+          {children}
+        </Command>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function CommandInput({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Input>) {
+  return (
+    <div
+      data-slot="command-input-wrapper"
+      className="flex h-9 items-center gap-2 border-b px-3"
+    >
+      <SearchIcon className="size-4 shrink-0 opacity-50" />
+      <CommandPrimitive.Input
+        data-slot="command-input"
+        className={cn(
+          "placeholder:text-muted-foreground flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+          className
+        )}
+        {...props}
+      />
+    </div>
+  )
+}
+
+function CommandList({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.List>) {
+  return (
+    <CommandPrimitive.List
+      data-slot="command-list"
+      className={cn(
+        "max-h-[300px] scroll-py-1 overflow-x-hidden overflow-y-auto",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function CommandEmpty({
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Empty>) {
+  return (
+    <CommandPrimitive.Empty
+      data-slot="command-empty"
+      className="py-6 text-center text-sm"
+      {...props}
+    />
+  )
+}
+
+function CommandGroup({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Group>) {
+  return (
+    <CommandPrimitive.Group
+      data-slot="command-group"
+      className={cn(
+        "text-foreground [&_[cmdk-group-heading]]:text-muted-foreground overflow-hidden p-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function CommandSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Separator>) {
+  return (
+    <CommandPrimitive.Separator
+      data-slot="command-separator"
+      className={cn("bg-border -mx-1 h-px", className)}
+      {...props}
+    />
+  )
+}
+
+function CommandItem({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Item>) {
+  return (
+    <CommandPrimitive.Item
+      data-slot="command-item"
+      className={cn(
+        "data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function CommandShortcut({
+  className,
+  ...props
+}: React.ComponentProps<"span">) {
+  return (
+    <span
+      data-slot="command-shortcut"
+      className={cn(
+        "text-muted-foreground ml-auto text-xs tracking-widest",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export {
+  Command,
+  CommandDialog,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandShortcut,
+  CommandSeparator,
+}
+</file>
+
+<file path="src/components/ui/dialog.tsx">
+"use client"
+
+import * as React from "react"
+import * as DialogPrimitive from "@radix-ui/react-dialog"
+import { XIcon } from "lucide-react"
+
+import { cn } from "@/lib/utils"
+
+function Dialog({
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Root>) {
+  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+}
+
+function DialogTrigger({
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
+  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
+}
+
+function DialogPortal({
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Portal>) {
+  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
+}
+
+function DialogClose({
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Close>) {
+  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
+}
+
+function DialogOverlay({
+  className,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+  return (
+    <DialogPrimitive.Overlay
+      data-slot="dialog-overlay"
+      className={cn(
+        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function DialogContent({
+  className,
+  children,
+  showCloseButton = true,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Content> & {
+  showCloseButton?: boolean
+}) {
+  return (
+    <DialogPortal data-slot="dialog-portal">
+      <DialogOverlay />
+      <DialogPrimitive.Content
+        data-slot="dialog-content"
+        className={cn(
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg",
+          className
+        )}
+        {...props}
+      >
+        {children}
+        {showCloseButton && (
+          <DialogPrimitive.Close
+            data-slot="dialog-close"
+            className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+          >
+            <XIcon />
+            <span className="sr-only">Close</span>
+          </DialogPrimitive.Close>
+        )}
+      </DialogPrimitive.Content>
+    </DialogPortal>
+  )
+}
+
+function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="dialog-header"
+      className={cn("flex flex-col gap-2 text-center sm:text-left", className)}
+      {...props}
+    />
+  )
+}
+
+function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="dialog-footer"
+      className={cn(
+        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function DialogTitle({
+  className,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Title>) {
+  return (
+    <DialogPrimitive.Title
+      data-slot="dialog-title"
+      className={cn("text-lg leading-none font-semibold", className)}
+      {...props}
+    />
+  )
+}
+
+function DialogDescription({
+  className,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Description>) {
+  return (
+    <DialogPrimitive.Description
+      data-slot="dialog-description"
+      className={cn("text-muted-foreground text-sm", className)}
+      {...props}
+    />
+  )
+}
+
+export {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+  DialogTrigger,
+}
+</file>
+
+<file path="src/components/ui/input.tsx">
+import * as React from "react";
+
+import { cn } from "@/lib/utils";
+
+const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
+  ({ className, type, ...props }, ref) => {
+    return (
+      <input
+        type={type}
+        data-slot="input"
+        className={cn(
+          "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input flex h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+          "focus-visible:border-2",
+          className
+        )}
+        ref={ref}
+        {...props}
+      />
+    );
+  }
+);
+Input.displayName = "Input";
+
+export { Input };
+</file>
+
+<file path="src/components/ui/scroll-area.tsx">
+"use client"
+
+import * as React from "react"
+import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
+
+import { cn } from "@/lib/utils"
+
+function ScrollArea({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof ScrollAreaPrimitive.Root>) {
+  return (
+    <ScrollAreaPrimitive.Root
+      data-slot="scroll-area"
+      className={cn("relative", className)}
+      {...props}
+    >
+      <ScrollAreaPrimitive.Viewport
+        data-slot="scroll-area-viewport"
+        className="focus-visible:ring-ring/50 size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:outline-1"
+      >
+        {children}
+      </ScrollAreaPrimitive.Viewport>
+      <ScrollBar />
+      <ScrollAreaPrimitive.Corner />
+    </ScrollAreaPrimitive.Root>
+  )
+}
+
+function ScrollBar({
+  className,
+  orientation = "vertical",
+  ...props
+}: React.ComponentProps<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>) {
+  return (
+    <ScrollAreaPrimitive.ScrollAreaScrollbar
+      data-slot="scroll-area-scrollbar"
+      orientation={orientation}
+      className={cn(
+        "flex touch-none p-px transition-colors select-none",
+        orientation === "vertical" &&
+          "h-full w-2.5 border-l border-l-transparent",
+        orientation === "horizontal" &&
+          "h-2.5 flex-col border-t border-t-transparent",
+        className
+      )}
+      {...props}
+    >
+      <ScrollAreaPrimitive.ScrollAreaThumb
+        data-slot="scroll-area-thumb"
+        className="bg-border relative flex-1 rounded-full"
+      />
+    </ScrollAreaPrimitive.ScrollAreaScrollbar>
+  )
+}
+
+export { ScrollArea, ScrollBar }
+</file>
+
+<file path="src/components/ui/separator.tsx">
+"use client"
+
+import * as React from "react"
+import * as SeparatorPrimitive from "@radix-ui/react-separator"
+
+import { cn } from "@/lib/utils"
+
+function Separator({
+  className,
+  orientation = "horizontal",
+  decorative = true,
+  ...props
+}: React.ComponentProps<typeof SeparatorPrimitive.Root>) {
+  return (
+    <SeparatorPrimitive.Root
+      data-slot="separator"
+      decorative={decorative}
+      orientation={orientation}
+      className={cn(
+        "bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export { Separator }
+</file>
+
+<file path="src/components/ui/sheet.tsx">
+import * as React from "react"
+import * as SheetPrimitive from "@radix-ui/react-dialog"
+import { XIcon } from "lucide-react"
+
+import { cn } from "@/lib/utils"
+
+function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
+  return <SheetPrimitive.Root data-slot="sheet" {...props} />
+}
+
+function SheetTrigger({
+  ...props
+}: React.ComponentProps<typeof SheetPrimitive.Trigger>) {
+  return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />
+}
+
+function SheetClose({
+  ...props
+}: React.ComponentProps<typeof SheetPrimitive.Close>) {
+  return <SheetPrimitive.Close data-slot="sheet-close" {...props} />
+}
+
+function SheetPortal({
+  ...props
+}: React.ComponentProps<typeof SheetPrimitive.Portal>) {
+  return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />
+}
+
+function SheetOverlay({
+  className,
+  ...props
+}: React.ComponentProps<typeof SheetPrimitive.Overlay>) {
+  return (
+    <SheetPrimitive.Overlay
+      data-slot="sheet-overlay"
+      className={cn(
+        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function SheetContent({
+  className,
+  children,
+  side = "right",
+  ...props
+}: React.ComponentProps<typeof SheetPrimitive.Content> & {
+  side?: "top" | "right" | "bottom" | "left"
+}) {
+  return (
+    <SheetPortal>
+      <SheetOverlay />
+      <SheetPrimitive.Content
+        data-slot="sheet-content"
+        className={cn(
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 flex flex-col gap-4 shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
+          side === "right" &&
+            "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm",
+          side === "left" &&
+            "data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm",
+          side === "top" &&
+            "data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top inset-x-0 top-0 h-auto border-b",
+          side === "bottom" &&
+            "data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom inset-x-0 bottom-0 h-auto border-t",
+          className
+        )}
+        {...props}
+      >
+        {children}
+        <SheetPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-secondary absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
+          <XIcon className="size-4" />
+          <span className="sr-only">Close</span>
+        </SheetPrimitive.Close>
+      </SheetPrimitive.Content>
+    </SheetPortal>
+  )
+}
+
+function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="sheet-header"
+      className={cn("flex flex-col gap-1.5 p-4", className)}
+      {...props}
+    />
+  )
+}
+
+function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="sheet-footer"
+      className={cn("mt-auto flex flex-col gap-2 p-4", className)}
+      {...props}
+    />
+  )
+}
+
+function SheetTitle({
+  className,
+  ...props
+}: React.ComponentProps<typeof SheetPrimitive.Title>) {
+  return (
+    <SheetPrimitive.Title
+      data-slot="sheet-title"
+      className={cn("text-foreground font-semibold", className)}
+      {...props}
+    />
+  )
+}
+
+function SheetDescription({
+  className,
+  ...props
+}: React.ComponentProps<typeof SheetPrimitive.Description>) {
+  return (
+    <SheetPrimitive.Description
+      data-slot="sheet-description"
+      className={cn("text-muted-foreground text-sm", className)}
+      {...props}
+    />
+  )
+}
+
+export {
+  Sheet,
+  SheetTrigger,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetFooter,
+  SheetTitle,
+  SheetDescription,
+}
+</file>
+
+<file path="src/components/ui/sidebar.tsx">
+import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
+import { cva, VariantProps } from "class-variance-authority"
+import { PanelLeftIcon } from "lucide-react"
+
+import { useIsMobile } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Separator } from "@/components/ui/separator"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+
+const SIDEBAR_COOKIE_NAME = "sidebar_state"
+const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
+const SIDEBAR_WIDTH = "16rem"
+const SIDEBAR_WIDTH_MOBILE = "18rem"
+const SIDEBAR_WIDTH_ICON = "3rem"
+const SIDEBAR_KEYBOARD_SHORTCUT = "b"
+
+type SidebarContextProps = {
+  state: "expanded" | "collapsed"
+  open: boolean
+  setOpen: (open: boolean) => void
+  openMobile: boolean
+  setOpenMobile: (open: boolean) => void
+  isMobile: boolean
+  toggleSidebar: () => void
+}
+
+const SidebarContext = React.createContext<SidebarContextProps | null>(null)
+
+function useSidebar() {
+  const context = React.useContext(SidebarContext)
+  if (!context) {
+    throw new Error("useSidebar must be used within a SidebarProvider.")
+  }
+
+  return context
+}
+
+function SidebarProvider({
+  defaultOpen = true,
+  open: openProp,
+  onOpenChange: setOpenProp,
+  className,
+  style,
+  children,
+  ...props
+}: React.ComponentProps<"div"> & {
+  defaultOpen?: boolean
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}) {
+  const isMobile = useIsMobile()
+  const [openMobile, setOpenMobile] = React.useState(false)
+
+  // This is the internal state of the sidebar.
+  // We use openProp and setOpenProp for control from outside the component.
+  const [_open, _setOpen] = React.useState(defaultOpen)
+  const open = openProp ?? _open
+  const setOpen = React.useCallback(
+    (value: boolean | ((value: boolean) => boolean)) => {
+      const openState = typeof value === "function" ? value(open) : value
+      if (setOpenProp) {
+        setOpenProp(openState)
+      } else {
+        _setOpen(openState)
+      }
+
+      // This sets the cookie to keep the sidebar state.
+      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+    },
+    [setOpenProp, open]
+  )
+
+  // Helper to toggle the sidebar.
+  const toggleSidebar = React.useCallback(() => {
+    return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open)
+  }, [isMobile, setOpen, setOpenMobile])
+
+  // Adds a keyboard shortcut to toggle the sidebar.
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key === SIDEBAR_KEYBOARD_SHORTCUT &&
+        (event.metaKey || event.ctrlKey)
+      ) {
+        event.preventDefault()
+        toggleSidebar()
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [toggleSidebar])
+
+  // We add a state so that we can do data-state="expanded" or "collapsed".
+  // This makes it easier to style the sidebar with Tailwind classes.
+  const state = open ? "expanded" : "collapsed"
+
+  const contextValue = React.useMemo<SidebarContextProps>(
+    () => ({
+      state,
+      open,
+      setOpen,
+      isMobile,
+      openMobile,
+      setOpenMobile,
+      toggleSidebar,
+    }),
+    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+  )
+
+  return (
+    <SidebarContext.Provider value={contextValue}>
+      <TooltipProvider delayDuration={0}>
+        <div
+          data-slot="sidebar-wrapper"
+          style={
+            {
+              "--sidebar-width": SIDEBAR_WIDTH,
+              "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
+              ...style,
+            } as React.CSSProperties
+          }
+          className={cn(
+            "group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full",
+            className
+          )}
+          {...props}
+        >
+          {children}
+        </div>
+      </TooltipProvider>
+    </SidebarContext.Provider>
+  )
+}
+
+function Sidebar({
+  side = "left",
+  variant = "sidebar",
+  collapsible = "offcanvas",
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"div"> & {
+  side?: "left" | "right"
+  variant?: "sidebar" | "floating" | "inset"
+  collapsible?: "offcanvas" | "icon" | "none"
+}) {
+  const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+
+  if (collapsible === "none") {
+    return (
+      <div
+        data-slot="sidebar"
+        className={cn(
+          "bg-sidebar text-sidebar-foreground flex h-full w-(--sidebar-width) flex-col",
+          className
+        )}
+        {...props}
+      >
+        {children}
+      </div>
+    )
+  }
+
+  if (isMobile) {
+    return (
+      <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
+        <SheetContent
+          data-sidebar="sidebar"
+          data-slot="sidebar"
+          data-mobile="true"
+          className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
+          style={
+            {
+              "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
+            } as React.CSSProperties
+          }
+          side={side}
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>Sidebar</SheetTitle>
+            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+          </SheetHeader>
+          <div className="flex h-full w-full flex-col">{children}</div>
+        </SheetContent>
+      </Sheet>
+    )
+  }
+
+  return (
+    <div
+      className="group peer text-sidebar-foreground hidden md:block"
+      data-state={state}
+      data-collapsible={state === "collapsed" ? collapsible : ""}
+      data-variant={variant}
+      data-side={side}
+      data-slot="sidebar"
+    >
+      {/* This is what handles the sidebar gap on desktop */}
+      <div
+        data-slot="sidebar-gap"
+        className={cn(
+          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
+          "group-data-[collapsible=offcanvas]:w-0",
+          "group-data-[side=right]:rotate-180",
+          variant === "floating" || variant === "inset"
+            ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
+            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon)"
+        )}
+      />
+      <div
+        data-slot="sidebar-container"
+        className={cn(
+          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex",
+          side === "left"
+            ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
+            : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
+          // Adjust the padding for floating and inset variants.
+          variant === "floating" || variant === "inset"
+            ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
+            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
+          className
+        )}
+        {...props}
+      >
+        <div
+          data-sidebar="sidebar"
+          data-slot="sidebar-inner"
+          className="bg-sidebar group-data-[variant=floating]:border-sidebar-border flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm"
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SidebarTrigger({
+  className,
+  onClick,
+  ...props
+}: React.ComponentProps<typeof Button>) {
+  const { toggleSidebar } = useSidebar()
+
+  return (
+    <Button
+      data-sidebar="trigger"
+      data-slot="sidebar-trigger"
+      variant="ghost"
+      size="icon"
+      className={cn("size-7", className)}
+      onClick={(event) => {
+        onClick?.(event)
+        toggleSidebar()
+      }}
+      {...props}
+    >
+      <PanelLeftIcon />
+      <span className="sr-only">Toggle Sidebar</span>
+    </Button>
+  )
+}
+
+function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
+  const { toggleSidebar } = useSidebar()
+
+  return (
+    <button
+      data-sidebar="rail"
+      data-slot="sidebar-rail"
+      aria-label="Toggle Sidebar"
+      tabIndex={-1}
+      onClick={toggleSidebar}
+      title="Toggle Sidebar"
+      className={cn(
+        "hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] sm:flex",
+        "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
+        "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize",
+        "hover:group-data-[collapsible=offcanvas]:bg-sidebar group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full",
+        "[[data-side=left][data-collapsible=offcanvas]_&]:-right-2",
+        "[[data-side=right][data-collapsible=offcanvas]_&]:-left-2",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+  return (
+    <main
+      data-slot="sidebar-inset"
+      className={cn(
+        "bg-background relative flex w-full flex-1 flex-col",
+        "md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function SidebarInput({
+  className,
+  ...props
+}: React.ComponentProps<typeof Input>) {
+  return (
+    <Input
+      data-slot="sidebar-input"
+      data-sidebar="input"
+      className={cn("bg-background h-8 w-full shadow-none", className)}
+      {...props}
+    />
+  )
+}
+
+function SidebarHeader({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="sidebar-header"
+      data-sidebar="header"
+      className={cn("flex flex-col gap-2 p-2", className)}
+      {...props}
+    />
+  )
+}
+
+function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="sidebar-footer"
+      data-sidebar="footer"
+      className={cn("flex flex-col gap-2 p-2", className)}
+      {...props}
+    />
+  )
+}
+
+function SidebarSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof Separator>) {
+  return (
+    <Separator
+      data-slot="sidebar-separator"
+      data-sidebar="separator"
+      className={cn("bg-sidebar-border mx-2 w-auto", className)}
+      {...props}
+    />
+  )
+}
+
+function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="sidebar-content"
+      data-sidebar="content"
+      className={cn(
+        "flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="sidebar-group"
+      data-sidebar="group"
+      className={cn("relative flex w-full min-w-0 flex-col p-2", className)}
+      {...props}
+    />
+  )
+}
+
+function SidebarGroupLabel({
+  className,
+  asChild = false,
+  ...props
+}: React.ComponentProps<"div"> & { asChild?: boolean }) {
+  const Comp = asChild ? Slot : "div"
+
+  return (
+    <Comp
+      data-slot="sidebar-group-label"
+      data-sidebar="group-label"
+      className={cn(
+        "text-sidebar-foreground/70 ring-sidebar-ring flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium outline-hidden transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+        "group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function SidebarGroupAction({
+  className,
+  asChild = false,
+  ...props
+}: React.ComponentProps<"button"> & { asChild?: boolean }) {
+  const Comp = asChild ? Slot : "button"
+
+  return (
+    <Comp
+      data-slot="sidebar-group-action"
+      data-sidebar="group-action"
+      className={cn(
+        "text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground absolute top-3.5 right-3 flex aspect-square w-5 items-center justify-center rounded-md p-0 outline-hidden transition-transform focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+        // Increases the hit area of the button on mobile.
+        "after:absolute after:-inset-2 md:after:hidden",
+        "group-data-[collapsible=icon]:hidden",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function SidebarGroupContent({
+  className,
+  ...props
+}: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="sidebar-group-content"
+      data-sidebar="group-content"
+      className={cn("w-full text-sm", className)}
+      {...props}
+    />
+  )
+}
+
+function SidebarMenu({ className, ...props }: React.ComponentProps<"ul">) {
+  return (
+    <ul
+      data-slot="sidebar-menu"
+      data-sidebar="menu"
+      className={cn("flex w-full min-w-0 flex-col gap-1", className)}
+      {...props}
+    />
+  )
+}
+
+function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
+  return (
+    <li
+      data-slot="sidebar-menu-item"
+      data-sidebar="menu-item"
+      className={cn("group/menu-item relative", className)}
+      {...props}
+    />
+  )
+}
+
+const sidebarMenuButtonVariants = cva(
+  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
+  {
+    variants: {
+      variant: {
+        default: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        outline:
+          "bg-background shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
+      },
+      size: {
+        default: "h-8 text-sm",
+        sm: "h-7 text-xs",
+        lg: "h-12 text-sm group-data-[collapsible=icon]:p-0!",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+)
+
+function SidebarMenuButton({
+  asChild = false,
+  isActive = false,
+  variant = "default",
+  size = "default",
+  tooltip,
+  className,
+  ...props
+}: React.ComponentProps<"button"> & {
+  asChild?: boolean
+  isActive?: boolean
+  tooltip?: string | React.ComponentProps<typeof TooltipContent>
+} & VariantProps<typeof sidebarMenuButtonVariants>) {
+  const Comp = asChild ? Slot : "button"
+  const { isMobile, state } = useSidebar()
+
+  const button = (
+    <Comp
+      data-slot="sidebar-menu-button"
+      data-sidebar="menu-button"
+      data-size={size}
+      data-active={isActive}
+      className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
+      {...props}
+    />
+  )
+
+  if (!tooltip) {
+    return button
+  }
+
+  if (typeof tooltip === "string") {
+    tooltip = {
+      children: tooltip,
+    }
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent
+        side="right"
+        align="center"
+        hidden={state !== "collapsed" || isMobile}
+        {...tooltip}
+      />
+    </Tooltip>
+  )
+}
+
+function SidebarMenuAction({
+  className,
+  asChild = false,
+  showOnHover = false,
+  ...props
+}: React.ComponentProps<"button"> & {
+  asChild?: boolean
+  showOnHover?: boolean
+}) {
+  const Comp = asChild ? Slot : "button"
+
+  return (
+    <Comp
+      data-slot="sidebar-menu-action"
+      data-sidebar="menu-action"
+      className={cn(
+        "text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground peer-hover/menu-button:text-sidebar-accent-foreground absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md p-0 outline-hidden transition-transform focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+        // Increases the hit area of the button on mobile.
+        "after:absolute after:-inset-2 md:after:hidden",
+        "peer-data-[size=sm]/menu-button:top-1",
+        "peer-data-[size=default]/menu-button:top-1.5",
+        "peer-data-[size=lg]/menu-button:top-2.5",
+        "group-data-[collapsible=icon]:hidden",
+        showOnHover &&
+          "peer-data-[active=true]/menu-button:text-sidebar-accent-foreground group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 md:opacity-0",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function SidebarMenuBadge({
+  className,
+  ...props
+}: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="sidebar-menu-badge"
+      data-sidebar="menu-badge"
+      className={cn(
+        "text-sidebar-foreground pointer-events-none absolute right-1 flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-xs font-medium tabular-nums select-none",
+        "peer-hover/menu-button:text-sidebar-accent-foreground peer-data-[active=true]/menu-button:text-sidebar-accent-foreground",
+        "peer-data-[size=sm]/menu-button:top-1",
+        "peer-data-[size=default]/menu-button:top-1.5",
+        "peer-data-[size=lg]/menu-button:top-2.5",
+        "group-data-[collapsible=icon]:hidden",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function SidebarMenuSkeleton({
+  className,
+  showIcon = false,
+  ...props
+}: React.ComponentProps<"div"> & {
+  showIcon?: boolean
+}) {
+  // Random width between 50 to 90%.
+  const width = React.useMemo(() => {
+    return `${Math.floor(Math.random() * 40) + 50}%`
+  }, [])
+
+  return (
+    <div
+      data-slot="sidebar-menu-skeleton"
+      data-sidebar="menu-skeleton"
+      className={cn("flex h-8 items-center gap-2 rounded-md px-2", className)}
+      {...props}
+    >
+      {showIcon && (
+        <Skeleton
+          className="size-4 rounded-md"
+          data-sidebar="menu-skeleton-icon"
+        />
+      )}
+      <Skeleton
+        className="h-4 max-w-(--skeleton-width) flex-1"
+        data-sidebar="menu-skeleton-text"
+        style={
+          {
+            "--skeleton-width": width,
+          } as React.CSSProperties
+        }
+      />
+    </div>
+  )
+}
+
+function SidebarMenuSub({ className, ...props }: React.ComponentProps<"ul">) {
+  return (
+    <ul
+      data-slot="sidebar-menu-sub"
+      data-sidebar="menu-sub"
+      className={cn(
+        "border-sidebar-border mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l px-2.5 py-0.5",
+        "group-data-[collapsible=icon]:hidden",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function SidebarMenuSubItem({
+  className,
+  ...props
+}: React.ComponentProps<"li">) {
+  return (
+    <li
+      data-slot="sidebar-menu-sub-item"
+      data-sidebar="menu-sub-item"
+      className={cn("group/menu-sub-item relative", className)}
+      {...props}
+    />
+  )
+}
+
+function SidebarMenuSubButton({
+  asChild = false,
+  size = "md",
+  isActive = false,
+  className,
+  ...props
+}: React.ComponentProps<"a"> & {
+  asChild?: boolean
+  size?: "sm" | "md"
+  isActive?: boolean
+}) {
+  const Comp = asChild ? Slot : "a"
+
+  return (
+    <Comp
+      data-slot="sidebar-menu-sub-button"
+      data-sidebar="menu-sub-button"
+      data-size={size}
+      data-active={isActive}
+      className={cn(
+        "text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent active:text-sidebar-accent-foreground [&>svg]:text-sidebar-accent-foreground flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 outline-hidden focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
+        "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground",
+        size === "sm" && "text-xs",
+        size === "md" && "text-sm",
+        "group-data-[collapsible=icon]:hidden",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupAction,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInput,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuAction,
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSkeleton,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarSeparator,
+  SidebarTrigger,
+  useSidebar,
+}
+</file>
+
+<file path="src/components/ui/skeleton.tsx">
+import { cn } from "@/lib/utils"
+
+function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="skeleton"
+      className={cn("bg-accent animate-pulse rounded-md", className)}
+      {...props}
+    />
+  )
+}
+
+export { Skeleton }
+</file>
+
+<file path="src/components/ui/tooltip.tsx">
+"use client"
+
+import * as React from "react"
+import * as TooltipPrimitive from "@radix-ui/react-tooltip"
+
+import { cn } from "@/lib/utils"
+
+function TooltipProvider({
+  delayDuration = 0,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  return (
+    <TooltipPrimitive.Provider
+      data-slot="tooltip-provider"
+      delayDuration={delayDuration}
+      {...props}
+    />
+  )
+}
+
+function Tooltip({
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Root>) {
+  return (
+    <TooltipProvider>
+      <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+    </TooltipProvider>
+  )
+}
+
+function TooltipTrigger({
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
+  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
+}
+
+function TooltipContent({
+  className,
+  sideOffset = 0,
+  children,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+  return (
+    <TooltipPrimitive.Portal>
+      <TooltipPrimitive.Content
+        data-slot="tooltip-content"
+        sideOffset={sideOffset}
+        className={cn(
+          "bg-primary text-primary-foreground animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 w-fit origin-(--radix-tooltip-content-transform-origin) rounded-md px-3 py-1.5 text-xs text-balance",
+          className
+        )}
+        {...props}
+      >
+        {children}
+        <TooltipPrimitive.Arrow className="bg-primary fill-primary z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px]" />
+      </TooltipPrimitive.Content>
+    </TooltipPrimitive.Portal>
+  )
+}
+
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
+</file>
+
+<file path="src/components/CommandPalette.tsx">
+import { Command } from "cmdk";
+import { useEffect } from "react";
+
+export interface PaletteCommand {
+  label: string;
+  action: () => void;
+}
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  commands: PaletteCommand[];
+}
+
+export function CommandPalette({ open, onClose, commands }: Props) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    if (open) document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/40"
+      onClick={onClose}
+    >
+      <Command
+        className="bg-neutral-800 text-white rounded-md w-80 max-h-60 overflow-y-auto shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {commands.map((cmd) => (
+          <Command.Item
+            key={cmd.label}
+            onSelect={() => {
+              cmd.action();
+              onClose();
+            }}
+            className="px-3 py-2 cursor-pointer aria-selected:bg-neutral-700"
+          >
+            {cmd.label}
+          </Command.Item>
+        ))}
+      </Command>
+    </div>
+  );
+}
+</file>
+
+<file path="src/hooks/use-mobile.ts">
+import * as React from "react"
+
+const MOBILE_BREAKPOINT = 768
+
+export function useIsMobile() {
+  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
+
+  React.useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
+    const onChange = () => {
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    }
+    mql.addEventListener("change", onChange)
+    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    return () => mql.removeEventListener("change", onChange)
+  }, [])
+
+  return !!isMobile
+}
+</file>
+
+<file path="src/hooks/useTheme.ts">
+import { useEffect } from "react";
+import { listen } from "@tauri-apps/api/event";
+
+export type ThemePayload = {
+  vars?: Record<string, string>;
+};
+
+export function useTheme() {
+  useEffect(() => {
+    const unlisten = listen<ThemePayload>("theme-update", ({ payload }) => {
+      if (payload?.vars) {
+        const root = document.documentElement;
+        Object.entries(payload.vars).forEach(([k, v]) => {
+          root.style.setProperty(`--${k}`, v);
+        });
+      }
+    });
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, []);
+}
+</file>
+
+<file path="src/lib/utils.ts">
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+</file>
+
+<file path="src/App.tsx">
+import { listen } from "@tauri-apps/api/event";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import Logo from "./assets/logo.png";
+import { commands, type List, type ListItem } from "./bindings";
+import { CommandPalette, PaletteCommand } from "./components/CommandPalette";
+import { Folder as FolderIcon, List as ListIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useTheme } from "./hooks/useTheme";
+
+interface ListNode {
+  name: string;
+  path: string;
+  isList: boolean;
+  children: ListNode[];
+}
+
+/* ---------- helpers ---------- */
+function extractDate(name: string): Date | null {
+  // Matches YYYY-MM-DD or YYYYMMDD
+  const match = name.match(/(\d{4}-\d{2}-\d{2}|\d{8})/);
+  if (match) {
+    const dateStr = match[0].replace(/-/g, "");
+    const year = parseInt(dateStr.substring(0, 4), 10);
+    const month = parseInt(dateStr.substring(4, 6), 10) - 1; // Month is 0-indexed
+    const day = parseInt(dateStr.substring(6, 8), 10);
+    return new Date(year, month, day);
+  }
+  return null;
+}
+
+function buildListTree(paths: string[], sortOrder: "name" | "date-asc" | "date-desc"): ListNode[] {
+  const root: Record<string, any> = {};
+  for (const p of paths) {
+    const parts = p.split("/");
+    let node = root;
+    let prefix = "";
+    parts.forEach((part, idx) => {
+      prefix = prefix ? `${prefix}/${part}` : part;
+      if (!node[part]) {
+        node[part] = { name: part, path: prefix, isList: false, children: {} };
+      }
+      if (idx === parts.length - 1) node[part].isList = true;
+      node = node[part].children;
+    });
+  }
+  const convert = (obj: Record<string, any>): ListNode[] =>
+    Object.values(obj)
+      .map((n: any) => ({
+        name: n.name,
+        path: n.path,
+        isList: n.isList,
+        children: convert(n.children),
+      }))
+      .sort((a: ListNode, b: ListNode) => {
+        if (sortOrder === "name") {
+          return a.name.localeCompare(b.name);
+        }
+        const dateA = extractDate(a.name);
+        const dateB = extractDate(b.name);
+
+        if (dateA && dateB) {
+          return sortOrder === "date-asc"
+            ? dateA.getTime() - dateB.getTime()
+            : dateB.getTime() - dateA.getTime();
+        }
+        if (dateA) return -1; // lists with dates first
+        if (dateB) return 1;
+        return a.name.localeCompare(b.name);
+      });
+  return convert(root);
+}
+// ---------- date helpers ----------
+
+// Format 2025-06-23 → "20250623"
+const fmt = (date: Date): string =>
+  date.toISOString().slice(0, 10).replace(/-/g, "");
+
+// Keywords we support
+type DateKeyword = "today" | "yesterday" | "tomorrow";
+
+/**
+ * Resolve "today" / "yesterday" / "tomorrow" to YYYYMMDD.
+ * If the word isn’t one of those keywords it’s returned unchanged.
+ */
+export function resolveDateKeyword(word: string): string {
+  const now = new Date(); // Europe/Berlin local time by default
+
+  switch (word.toLowerCase() as DateKeyword) {
+    case "today":
+      return fmt(now);
+
+    case "yesterday": {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 1);
+      return fmt(d);
+    }
+
+    case "tomorrow": {
+      const d = new Date(now);
+      d.setDate(d.getDate() + 1);
+      return fmt(d);
+    }
+
+    default:
+      return word; // leave untouched
+  }
+}
+
+/**
+ * Replace standalone keywords in a free-text query.
+ *   "backup from yesterday" ➜ "backup from 20250622"
+ */
+export function translateQuery(q: string): string {
+  return q.replace(/\b(today|yesterday|tomorrow)\b/gi, resolveDateKeyword);
+}
+/* ---------- component ---------- */
+export default function App() {
+  /* refs & state */
+  const inputRef = useRef<HTMLInputElement>(null);
+  const addItemRef = useRef<HTMLInputElement>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
+
+  useTheme();
+
+  const [query, setQuery] = useState("");
+  const [lists, setLists] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [currentList, setCurrentList] = useState<List | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [currentName, setCurrentName] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [newListName, setNewListName] = useState("");
+  const [isDisabled, setIsDisabled] = useState(false);
+  const [newItem, setNewItem] = useState("");
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [editingAnchor, setEditingAnchor] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [selected] = useState<Set<string>>(new Set());
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [sortOrder, setSortOrder] = useState<"name" | "date-asc" | "date-desc">("name");
+
+  /* ---------- sidebar & responsive ---------- */
+  // sidebar is collapsed by default
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  // track if screen is mobile-sized (≤640 px)
+  // keyboard focus index inside sidebar
+  const [sidebarCursor, setSidebarCursor] = useState(0);
+
+  /* ----- vim-like mode (unchanged) ----- */
+  const [vimMode, setVimMode] = useState(false);
+  const [leaderKey, setLeaderKey] = useState(" ");
+  const [mode, setMode] = useState<"normal" | "edit">("edit");
+  const [cursorIndex, setCursorIndex] = useState(0);
+  const [leaderActive, setLeaderActive] = useState(false);
+  const [leaderSeq, setLeaderSeq] = useState("");
+  const [gPressed, setGPressed] = useState(false);
+  const dragIndex = useRef<number | null>(null);
+
+  /* ---------- folder management ---------- */
+  function toggleFolder(path: string) {
+    setExpandedFolders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(path)) {
+        newSet.delete(path);
+      } else {
+        newSet.add(path);
+      }
+      return newSet;
+    });
+  }
+
+  /* ---------- backend calls ---------- */
+  async function reloadCurrentList() {
+    if (!currentName) return;
+    const res = await commands.getList(currentName);
+    res.status === "ok" ? setCurrentList(res.data) : setError(res.error);
+  }
+
+  async function toggleItemStatus(anchor: string) {
+    if (!currentName) return;
+    const res = await commands.toggleItem(currentName, anchor);
+    if (res.status === "ok") {
+      setCurrentList(res.data);
+    } else setError(res.error);
+  }
+
+  async function fetchLists() {
+    const res = await commands.getLists();
+    res.status === "ok" ? setLists(res.data) : setError(res.error);
+  }
+
+  const loadList = useCallback(async (name: string) => {
+    console.log("📋 loadList called with name:", name);
+    const res = await commands.getList(name);
+    if (res.status === "ok") {
+      console.log("✅ Successfully loaded list:", res.data.title);
+      setCurrentList(res.data);
+      setCurrentName(name);
+      setShowSuggestions(false);
+      setQuery("");
+    } else {
+      console.error("❌ Failed to load list:", res.error);
+      setError(res.error);
+    }
+  }, []);
+
+  /* ---------- mutations ---------- */
+  async function createNewList(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newListName.trim()) return;
+    const res = await commands.createList(newListName.trim());
+    if (res.status === "ok") {
+      await fetchLists();
+      loadList(res.data.title);
+      setNewListName("");
+      setCreating(false);
+    } else setError(res.error);
+  }
+
+  async function quickAddItem(e: React.FormEvent) {
+    e.preventDefault();
+    if (!currentName || !newItem.trim()) return;
+    const res = await commands.addItem(currentName, newItem.trim());
+    if (res.status === "ok") {
+      setNewItem("");
+      setCurrentList(res.data);
+    } else setError(res.error);
+  }
+
+  /* ---------- item-level helpers ---------- */
+  function startEdit(item: ListItem) {
+    setEditingAnchor(item.anchor);
+    setEditText(item.text);
+  }
+
+  async function deleteItem(anchor: string) {
+    if (!currentName) return;
+    // if (!window.confirm("Delete this item?")) return;
+    const res = await commands.removeItem(currentName, anchor);
+    if (res.status === "ok") {
+      setCurrentList(res.data);
+    } else setError(res.error);
+  }
+
+  async function saveEdit(anchor: string) {
+    if (!currentName) return;
+    const res = await commands.editItem(currentName, anchor, editText);
+    if (res.status === "ok") {
+      setEditingAnchor(null);
+      setEditText("");
+      setCurrentList(res.data);
+    } else setError(res.error);
+  }
+
+  /* ---------- scroll helpers ---------- */
+  function scrollToItem(index: number) {
+    if (!listContainerRef.current || !currentList) return;
+
+    // If navigating to add item (index === currentList.items.length)
+    if (!currentList.items) return;
+    if (index === currentList.items.length) {
+      // Scroll the container to the bottom to show the add item form
+      const container = listContainerRef.current.parentElement; // The scrollable div
+      if (container) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: "smooth"
+        });
+      }
+      return;
+    }
+
+    // For regular list items, find the element by index
+    const listItems = listContainerRef.current.querySelectorAll("[data-item-index]");
+    const targetItem = listItems[index] as HTMLElement;
+
+    if (targetItem) {
+      targetItem.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest"
+      });
+    }
+  }
+
+  /* ---------- derived ---------- */
+
+  const resolvedQuery = useMemo(() => translateQuery(query), [query]);
+  const filtered = useMemo(
+    () =>
+      resolvedQuery === "*"
+        ? lists
+        : lists.filter((l) =>
+          l.toLowerCase().includes(resolvedQuery.toLowerCase())
+        ),
+    [resolvedQuery, lists]
+  );
+  const listTree = useMemo(() => buildListTree(lists, sortOrder), [lists, sortOrder]);
+  // flattened sidebar list for keyboard nav
+  const flatSidebarItems: { path: string; isList: boolean }[] = useMemo(() => {
+    const dfs = (nodes: ListNode[]): { path: string; isList: boolean }[] =>
+      nodes.flatMap((n) => {
+        const isFolder = !n.isList;
+        const children = (isFolder && expandedFolders.has(n.path)) ? dfs(n.children) : [];
+        return [
+          { path: n.path, isList: n.isList },
+          ...children,
+        ];
+      });
+    return dfs(listTree);
+  }, [listTree, expandedFolders]);
+
+  const paletteCommands = useMemo<PaletteCommand[]>(
+    () => [
+      { label: "New List", action: () => setCreating(true) },
+      ...lists.map((l) => ({ label: `Open ${l}`, action: () => loadList(l) })),
+    ],
+    [lists]
+  );
+
+  /* ---------- lifecycle ---------- */
+  // track screen size changes
+  useEffect(() => {
+    const listener = () =>
+      window.addEventListener("resize", listener);
+    return () => window.removeEventListener("resize", listener);
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      const res = await commands.getUiConfig();
+      if (res.status === "ok") { const { vim_mode = false, leader_key = "<leader>" } = res.data; setVimMode(vim_mode); setLeaderKey(leader_key); setMode(vim_mode ? "normal" : "edit"); }
+    })();
+  }, []);
+
+  useEffect(() => {
+    fetchLists();
+    openTodaysDailyList();
+  }, []);
+
+  async function openTodaysDailyList() {
+    const today = fmt(new Date());
+    const dailyListName = `daily_lists/${today}_daily_list`;
+
+    // Check if today's daily list exists in the current lists
+    const res = await commands.getLists();
+    if (res.status === "ok") {
+      const exists = res.data.includes(dailyListName);
+
+      if (exists) {
+        // Open existing daily list
+        loadList(dailyListName);
+      } else {
+        // Create new daily list using lst-cli command
+        try {
+          const createRes = await commands.createList(dailyListName);
+          if (createRes.status === "ok") {
+            await fetchLists(); // Refresh the lists
+            loadList(dailyListName);
+          }
+        } catch (error) {
+          console.error("Failed to create daily list:", error);
+        }
+      }
+    }
+  }
+
+  useEffect(() => {
+    console.log("🎧 Setting up event listener for 'switch-list'");
+    const unlisten = listen<string>("switch-list", (event) => {
+      console.log("📨 Received 'switch-list' event with payload:", event.payload);
+      loadList(event.payload);
+    });
+    return () => {
+      console.log("🔇 Cleaning up 'switch-list' event listener");
+      unlisten.then((fn) => fn());
+    };
+  }, [loadList]);
+
+  // Test event listener
+  useEffect(() => {
+    console.log("🧪 Setting up test event listener");
+    const unlisten = listen<string>("test-event", (event) => {
+      console.log("🎉 Received test event with payload:", event.payload);
+      alert("Test event received: " + event.payload);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  // Auto-refresh mechanism
+  useEffect(() => {
+    const refreshInterval = setInterval(async () => {
+      // Refresh the lists
+      await fetchLists();
+
+      // If we have a current list loaded, refresh it too
+      if (currentName) {
+        const res = await commands.getList(currentName);
+        if (res.status === "ok") {
+          setCurrentList(res.data);
+        }
+      }
+    }, 2000); // Refresh every 2 seconds
+
+    return () => clearInterval(refreshInterval);
+  }, [currentName]);
+
+  /* ---------- keybindings ---------- */
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      // Check if any input is focused - if so, don't process vim commands
+      const activeElement = document.activeElement;
+      const isInputFocused = activeElement && (
+        activeElement.tagName === "INPUT" ||
+        activeElement.tagName === "TEXTAREA" //||
+        // activeElement.contentEditable === "true"
+      );
+
+      // toggle sidebar with Ctrl-b
+      if (e.key.toLowerCase() === "/") {
+
+        e.preventDefault();
+        return;
+      }
+
+      // toggle sidebar with Ctrl-b
+      if (e.ctrlKey && e.key.toLowerCase() === "b") {
+        setSidebarCollapsed((c) => !c);
+        e.preventDefault();
+        return;
+      }
+
+      // sidebar navigation (when open)
+      if (!sidebarCollapsed) {
+        const next = (delta: number) => {
+          setSidebarCursor((i) =>
+            (i + delta + flatSidebarItems.length) % flatSidebarItems.length
+          );
+        };
+
+        // Vim or arrow keys
+        if (vimMode && mode === "normal") {
+          if (["j", "k"].includes(e.key)) {
+            next(e.key === "j" ? 1 : -1);
+            e.preventDefault();
+            return;
+          }
+          if (e.key === "l") {
+            const item = flatSidebarItems[sidebarCursor];
+            if (item?.isList) loadList(item.path);
+            e.preventDefault();
+            return;
+          }
+          if (e.key === " ") {
+            const item = flatSidebarItems[sidebarCursor];
+            if (item && !item.isList) toggleFolder(item.path);
+            e.preventDefault();
+            return;
+          }
+        } else {
+          if (["ArrowDown", "ArrowUp"].includes(e.key)) {
+            next(e.key === "ArrowDown" ? 1 : -1);
+            e.preventDefault();
+            return;
+          }
+          if (e.key === "ArrowRight") {
+            const item = flatSidebarItems[sidebarCursor];
+            if (item?.isList) loadList(item.path);
+            e.preventDefault();
+            return;
+          }
+          if (e.key === " ") {
+            const item = flatSidebarItems[sidebarCursor];
+            if (item && !item.isList) toggleFolder(item.path);
+            e.preventDefault();
+            return;
+          }
+        }
+      }
+
+      // List item navigation in vim mode (only if no input is focused)
+      if (vimMode && currentList && sidebarCollapsed && !isInputFocused) {
+        // ESC key - exit edit mode to normal mode
+        if (e.key === "Escape") {
+          if (mode === "edit") {
+            setMode("normal");
+            setEditingAnchor(null);
+            setEditText("");
+            e.preventDefault();
+            return;
+          }
+        }
+
+        // Normal mode keybindings
+        if (mode === "normal") {
+          // j/k navigation within list items (including add item input)
+          if (!currentList.items) { return; }
+          const maxIndex = currentList.items.length; // Add item is at currentList.items.length
+          if (e.key === "j") {
+            const newIndex = Math.min(cursorIndex + 1, maxIndex);
+            setCursorIndex(newIndex);
+            scrollToItem(newIndex);
+            if (newIndex === maxIndex) {
+              // Focus on add item input
+              addItemRef.current?.focus();
+            }
+            e.preventDefault();
+            return;
+          }
+          if (e.key === "k") {
+            const newIndex = Math.max(cursorIndex - 1, 0);
+            setCursorIndex(newIndex);
+            scrollToItem(newIndex);
+            if (cursorIndex === maxIndex) {
+              // Moving up from add item, blur it
+              addItemRef.current?.blur();
+            }
+            e.preventDefault();
+            return;
+          }
+
+          // 'g' handling for 'gg' sequence
+          if (e.key === "g") {
+            if (gPressed) {
+              // Second 'g' - jump to top
+              setCursorIndex(0);
+              scrollToItem(0);
+              addItemRef.current?.blur();
+              setGPressed(false);
+            } else {
+              // First 'g' - wait for second
+              setGPressed(true);
+              // Clear the g-pressed state after a timeout
+              setTimeout(() => setGPressed(false), 1000);
+            }
+            e.preventDefault();
+            return;
+          }
+
+          // 'G' to jump to bottom (Add item)
+          if (e.key === "G") {
+            setCursorIndex(maxIndex);
+            scrollToItem(maxIndex);
+            addItemRef.current?.focus();
+            setGPressed(false); // Clear any pending g press
+            e.preventDefault();
+            return;
+          }
+
+          // Reset g-pressed state on any other key
+          if (gPressed && e.key !== "g") {
+            setGPressed(false);
+          }
+
+          // 'i' to enter edit mode on current item
+          if (e.key === "i") {
+            const currentItem = currentList.items[cursorIndex];
+            if (currentItem) {
+              startEdit(currentItem);
+              setMode("edit");
+            }
+            e.preventDefault();
+            return;
+          }
+
+          // Leader key combinations
+          if (leaderActive) {
+            if (leaderSeq === "" && e.key === "d") {
+              setLeaderSeq("d");
+              e.preventDefault();
+              return;
+            }
+
+            // 'dd' to delete current item
+            if (leaderSeq === "d" && e.key === "d") {
+              const currentItem = currentList.items[cursorIndex];
+              if (currentItem) {
+                deleteItem(currentItem.anchor);
+              }
+              setLeaderActive(false);
+              setLeaderSeq("");
+              e.preventDefault();
+              return;
+            }
+
+            // 'md' to mark as done
+            if (leaderSeq === "m" && e.key === "d") {
+              const currentItem = currentList.items[cursorIndex];
+              if (currentItem) {
+                toggleItemStatus(currentItem.anchor);
+              }
+              setLeaderActive(false);
+              setLeaderSeq("");
+              e.preventDefault();
+              return;
+            }
+
+            if (e.key === "m") {
+              setLeaderSeq("m");
+              e.preventDefault();
+              return;
+            }
+
+            // Reset on any other key
+            setLeaderActive(false);
+            setLeaderSeq("");
+          } else if (e.key === leaderKey) {
+            // Activate leader key
+            setLeaderActive(true);
+            setLeaderSeq("");
+            e.preventDefault();
+            return;
+          }
+        }
+      }
+
+      /* other key handling (existing logic, omitted) */
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [
+    sidebarCollapsed,
+    flatSidebarItems,
+    sidebarCursor,
+    vimMode,
+    mode,
+    leaderActive,
+    leaderSeq,
+    leaderKey,
+    currentList,
+    cursorIndex,
+    editingAnchor,
+    currentName,
+    gPressed,
+  ]);
+
+  /* ---------- UI helpers ---------- */
+  function renderSuggestions() {
+    if (!showSuggestions || filtered.length === 0) return null;
+    return (
+      <div
+        className="absolute left-0 top-[40px] z-20 w-full rounded-lg border overflow-y-auto"
+        style={{ backgroundColor: "#45475a", border: "1px solid #494D51" }}
+      >
+        {filtered.map((item, idx) => (
+          <div
+            key={item}
+            className={`cursor-pointer px-3 py-2 text-xs ${idx === selectedIndex ? "bg-[#6c7086]" : ""
+              }`}
+            onMouseDown={() => loadList(item)}
+          >
+            {item}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  function renderCurrentList() {
+    if (!currentList) return null;
+
+    /* --- render --- */
+    return (
+      <div
+        className="mb-6 w-full h-full rounded-lg border p-4"
+        style={{ backgroundColor: "#1e1e2e", border: "1px solid #494D51" }}
+      >
+        {/* header row */}
+        {/* <div className="flex items-center gap-4"> */}
+        {/*   <h2 className="flex-1 text-base font-bold">{currentList.title}</h2> */}
+        {/* </div> */}
+
+        {/* list items */}
+        <div className="flex h-[80vh] w-full overflow-y-auto scroll-fade">
+          <div ref={listContainerRef} className="w-full h-full">
+            {(currentList.items ?? []).map((it, idx) =>
+              editingAnchor === it.anchor ? (
+                <form
+                  key={it.anchor}
+                  className="flex items-center"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    saveEdit(it.anchor);
+                  }}
+                >
+                  <Input
+                    className="flex-1"
+                    value={editText}
+                    onChange={(e) => setEditText(e.currentTarget.value)}
+                    onBlur={() => saveEdit(it.anchor)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape" && vimMode) {
+                        setMode("normal");
+                        setEditingAnchor(null);
+                        setEditText("");
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }
+                    }}
+                    autoFocus
+                  />
+                </form>
+              ) : (
+                <label
+                  key={it.anchor}
+                  data-item-index={idx}
+                  draggable
+                  onDragStart={() => (dragIndex.current = idx)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => {
+                    if (dragIndex.current === null || !currentName) return;
+                    if (!currentList.items) return;
+                    const fromAnchor =
+                      currentList.items[dragIndex.current].anchor;
+                    commands
+                      .reorderItem(currentName, fromAnchor, idx)
+                      .then((res) => {
+                        res.status === "ok"
+                          ? setCurrentList(res.data)
+                          : setError(res.error);
+                      });
+                    dragIndex.current = null;
+                  }}
+                  className={`text-[10pt]/4 flex items-center border-b min-h-10 py-2 mb-0 px-1 ${vimMode && mode === "normal" && idx === cursorIndex
+                    ? "border-b  border-[#a6e3a1]"
+                    : ""
+                    } ${selected.has(it.anchor) ? "bg-[#a6e3a1] text-black" : ""}`}
+                >
+                  <Checkbox
+                    className="h-4 w-4 hidden"
+                    checked={it.status === "Done"}
+                    onCheckedChange={() => toggleItemStatus(it.anchor)}
+                  />
+
+                  <span
+                    className={`flex-1 select-none ${it.status === "Done" ? "line-through text-muted" : ""
+                      }`}
+                    onDoubleClick={() => startEdit(it)}
+                  >
+                    {it.text}
+                  </span>
+
+                  {/* <Button */}
+                  {/*   variant="ghost" */}
+                  {/*   size="icon" */}
+                  {/*   onClick={() => startEdit(it)} */}
+                  {/*   aria-label="Edit" */}
+                  {/*   className="flex text-xl text-muted mr-2 h-6 w-6 rounded-sm" */}
+                  {/* > */}
+                  {/*    */}
+                  {/* </Button> */}
+                  {/* <Button */}
+                  {/*   variant="ghost" */}
+                  {/*   size="icon" */}
+                  {/*   onClick={() => deleteItem(it.anchor)} */}
+                  {/*   aria-label="Delete" */}
+                  {/*   className="flex text-sm text-muted gap-0 h-6 w-6 rounded-sm" */}
+                  {/* > */}
+                  {/*   󰆴 */}
+                  {/* </Button> */}
+                </label>
+              )
+            )}
+
+            {/* quick-add form */}
+            <form className={`flex gap-2 border-b ${vimMode && mode === "normal" && cursorIndex === (currentList.items?.length ?? 0)
+              ? "border-b border-[#a6e3a1]"
+              : ""
+              }`} onSubmit={quickAddItem}>
+              <Input
+                ref={addItemRef}
+                className="flex-1 text-[10pt] border-none"
+                placeholder="Add item"
+                value={newItem}
+                onChange={(e) => setNewItem(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape" && vimMode) {
+                    setMode("normal");
+                    addItemRef.current?.blur();
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }
+                }}
+              />
+              <Button type="submit" variant="ghost"></Button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderSidebar() {
+    if (sidebarCollapsed) {
+      return (
+        <aside className="hidden sm:flex w-12 flex-col gap-4 rounded-l-lg border-r border-[#494D51] bg-background p-4 min-w-0 shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSidebarCollapsed(false)}
+                className="h-6 w-6 p-0"
+              >
+                󰞘
+              </Button>
+              <div className="h-8"></div>
+            </div>
+          </div>
+        </aside>
+      );
+    }
+
+    const renderNodes = (
+      nodes: ListNode[],
+      depth = 0
+    ): JSX.Element[] =>
+      nodes.flatMap((node) => {
+        const isFolder = !node.isList;
+        const flatIndex = flatSidebarItems.findIndex(
+          (f) => f.path === node.path && f.isList === node.isList
+        );
+        const highlighted = flatIndex === sidebarCursor;
+
+        // ── class helpers ──────────────────────────────
+        const common = "cursor-pointer rounded-sm py-1 pl-2 text-sm flex items-center";
+        const listClasses =
+          node.isList && node.path === currentName
+            ? "bg-muted font-medium"
+            : highlighted
+              ? "bg-[#6c7086]"
+              : "hover:bg-muted";
+
+        const folderClasses =
+          highlighted ? "bg-[#4e5464]" : "hover:bg-blue-100";
+
+        return [
+          <div
+            key={node.path}
+            className={`${common} ${isFolder ? folderClasses : listClasses}`}
+            style={{ marginLeft: depth * 12 }}
+            onClick={() =>
+              node.isList ? loadList(node.path) : toggleFolder(node.path)
+            }
+          >
+            {isFolder ? (
+              <FolderIcon size={16} className="mr-1 flex-none" />
+            ) : (
+              <ListIcon size={16} className="mr-1 flex-none" />
+            )}
+            {node.name}
+          </div>,
+          ...(isFolder && expandedFolders.has(node.path) ? renderNodes(node.children, depth + 1) : []),
+        ];
+      });
+
+    const sidebarContent = (
+      <aside className="flex w-64 pl-2 flex-col gap-4 rounded-l-lg border-r border-[#494D51] bg-background p-4 min-w-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarCollapsed(true)}
+              className="h-6 w-6 p-0"
+            >
+              󰞗
+            </Button>
+            <h3 className="text-sm font-semibold">Lists</h3>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCreating((c) => !c)}
+          >
+             New
+          </Button>
+        </div>
+
+        {creating && (
+          <form className="flex gap-2" onSubmit={createNewList}>
+            <Input
+              className="flex-1"
+              placeholder="List name"
+              value={newListName}
+              onChange={(e) => setNewListName(e.target.value)}
+              disabled={isDisabled} // 🔒 fully blocks input
+              onClick={() => { setMode("edit"); setIsDisabled(false); }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  if (vimMode) {
+                    setMode("normal");
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }
+              }}
+            />
+            < Button size="sm" type="submit" >
+               Create
+            </Button>
+          </form>
+        )
+        }
+
+        <div className="flex-1 overflow-y-auto pl-2 w-auto">{renderNodes(listTree)}</div>
+      </aside >
+    );
+
+
+    // desktop regular sidebar
+    return sidebarContent;
+  }
+
+  const items = currentList?.items ?? [];
+  /* ---------- root render ---------- */
+  return (
+    <div
+      className="flex min-h-screen border border-border bg-background text-foreground min-w-0 w-full"
+      style={{ borderRadius: "10px", backgroundColor: "#24273a" }}
+    >
+      {renderSidebar()}
+
+      <main className="relative flex flex-1 flex-col p-6 min-w-0 overflow-hidden">
+        {/* top bar */}
+        <div className="mb-4 flex items-center gap-4">
+          <form
+            className="relative w-full"
+            onSubmit={(e) => e.preventDefault()}
+          >
+            <Input
+              ref={inputRef}
+              id="query"
+              value={query}
+              spellCheck={false}
+              placeholder=""
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setShowSuggestions(false);
+                  setQuery("");
+                  inputRef.current?.blur();
+                  if (vimMode) {
+                    setMode("normal");
+                  }
+                  e.preventDefault();
+                  return;
+                }
+
+                if (!showSuggestions) return;
+
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setSelectedIndex((i) => (i + 1) % filtered.length);
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setSelectedIndex((i) => (i - 1 + filtered.length) % filtered.length);
+                } else if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (filtered.length > 0) loadList(filtered[selectedIndex]);
+                }
+              }}
+              onFocus={() => {
+                fetchLists(); // still refresh data on focus
+              }}
+              onChange={(e) => {
+                const val = e.target.value;
+                setQuery(val);
+
+                const hasText = val.trim().length > 0;
+                setShowSuggestions(hasText);
+
+                if (!hasText) {
+                  setSelectedIndex(0); // reset highlight when list closes
+                }
+              }}
+            />
+            {renderSuggestions()}
+            <img
+              src={Logo}
+              alt="lst icon"
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 opacity-75"
+            />
+          </form>
+        </div>
+
+        {renderCurrentList()}
+
+
+        {/* command palette (portal inside) */}
+        <CommandPalette
+          open={paletteOpen}
+          onClose={() => setPaletteOpen(false)}
+          commands={paletteCommands}
+        />
+
+      </main>
+      {/* Status bar */}
+      <div
+        className="fixed bottom-0 left-0 right-0 h-5 border border-border bg-[#181921] text-xs flex items-center px-2 rounded-b-lg"
+      >
+        <span className="text-muted-foreground truncate pr-4">
+          lst {currentList ? `- ${currentList.title}.md` : ""}
+        </span>
+        <span className="text-muted-foreground">
+          {error && <p className="ml-2 text-red-600">{error}</p>}
+        </span>
+        <span className="ml-auto text-nowrap">
+          {currentList ? `${items.length} items` : "No list selected"}
+        </span>
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="src/bindings.ts">
+// This file was generated by [tauri-specta](https://github.com/oscartbeaumont/tauri-specta). Do not edit this file manually.
+
+/** user-defined commands **/
+
+
+export const commands = {
+async getLists() : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_lists") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getNotes() : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_notes") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getList(name: string) : Promise<Result<List, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_list", { name }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async createList(title: string) : Promise<Result<List, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_list", { title }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async addItem(list: string, text: string) : Promise<Result<List, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("add_item", { list, text }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async toggleItem(list: string, target: string) : Promise<Result<List, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("toggle_item", { list, target }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async editItem(list: string, target: string, text: string) : Promise<Result<List, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("edit_item", { list, target, text }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async removeItem(list: string, target: string) : Promise<Result<List, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("remove_item", { list, target }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async reorderItem(list: string, target: string, newIndex: number) : Promise<Result<List, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("reorder_item", { list, target, newIndex }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async saveList(list: List) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_list", { list }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getUiConfig() : Promise<Result<UiConfig, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_ui_config") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+}
+}
+
+/** user-defined events **/
+
+
+
+/** user-defined constants **/
+
+
+
+/** user-defined types **/
+
+/**
+ * Represents the status of a list item (done or not)
+ */
+export type ItemStatus = "Todo" | "Done"
+/**
+ * Represents a complete list with metadata and items
+ */
+export type List = 
+/**
+ * Metadata for the list
+ */
+({ 
+/**
+ * Unique identifier for the list
+ */
+id?: string; 
+/**
+ * Human-readable title of the list
+ */
+title: string; 
+/**
+ * List of users who have access to the list
+ */
+sharing?: string[]; 
+/**
+ * When the list was last updated
+ */
+updated?: string }) & { 
+/**
+ * List items; stored in markdown body, not in frontmatter
+ */
+items?: ListItem[] }
+/**
+ * Represents a single item in a list
+ */
+export type ListItem = { 
+/**
+ * The text content of the item
+ */
+text: string; 
+/**
+ * The status of the item (todo or done)
+ */
+status: ItemStatus; 
+/**
+ * Unique anchor identifier for the item
+ */
+anchor: string }
+export type ThemeConfig = { vars?: Partial<{ [key in string]: string }> }
+export type UiConfig = { resolution_order?: string[]; 
+/**
+ * Enable Vim-like keybindings in the frontend
+ */
+vim_mode?: boolean; 
+/**
+ * Leader key used for command sequences (defaults to space)
+ */
+leader_key?: string; theme?: ThemeConfig }
+
+/** tauri-specta globals **/
+
+import {
+	invoke as TAURI_INVOKE,
+	Channel as TAURI_CHANNEL,
+} from "@tauri-apps/api/core";
+import * as TAURI_API_EVENT from "@tauri-apps/api/event";
+import { type WebviewWindow as __WebviewWindow__ } from "@tauri-apps/api/webviewWindow";
+
+type __EventObj__<T> = {
+	listen: (
+		cb: TAURI_API_EVENT.EventCallback<T>,
+	) => ReturnType<typeof TAURI_API_EVENT.listen<T>>;
+	once: (
+		cb: TAURI_API_EVENT.EventCallback<T>,
+	) => ReturnType<typeof TAURI_API_EVENT.once<T>>;
+	emit: null extends T
+		? (payload?: T) => ReturnType<typeof TAURI_API_EVENT.emit>
+		: (payload: T) => ReturnType<typeof TAURI_API_EVENT.emit>;
+};
+
+export type Result<T, E> =
+	| { status: "ok"; data: T }
+	| { status: "error"; error: E };
+
+function __makeEvents__<T extends Record<string, any>>(
+	mappings: Record<keyof T, string>,
+) {
+	return new Proxy(
+		{} as unknown as {
+			[K in keyof T]: __EventObj__<T[K]> & {
+				(handle: __WebviewWindow__): __EventObj__<T[K]>;
+			};
+		},
+		{
+			get: (_, event) => {
+				const name = mappings[event as keyof T];
+
+				return new Proxy((() => {}) as any, {
+					apply: (_, __, [window]: [__WebviewWindow__]) => ({
+						listen: (arg: any) => window.listen(name, arg),
+						once: (arg: any) => window.once(name, arg),
+						emit: (arg: any) => window.emit(name, arg),
+					}),
+					get: (_, command: keyof __EventObj__<any>) => {
+						switch (command) {
+							case "listen":
+								return (arg: any) => TAURI_API_EVENT.listen(name, arg);
+							case "once":
+								return (arg: any) => TAURI_API_EVENT.once(name, arg);
+							case "emit":
+								return (arg: any) => TAURI_API_EVENT.emit(name, arg);
+						}
+					},
+				});
+			},
+		},
+	);
+}
+</file>
+
+<file path="src/index.css">
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@font-face {
+  font-family: 'JetBrainsMonoNerdFontMono';
+  src: url('/fonts/JetBrainsMono/JetBrainsMonoNerdFontMono-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'JetBrainsMonoNerdFontMono';
+  src: url('/fonts/JetBrainsMono/JetBrainsMonoNerdFontMono-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'JetBrainsMonoNerdFontMono';
+  src: url('/fonts/JetBrainsMono/JetBrainsMonoNerdFontMono-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'JetBrainsMonoNerdFontMono';
+  src: url('/fonts/JetBrainsMono/JetBrainsMonoNerdFontMono-BoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+}
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: #24273a;
+  --foreground: #f6f6f6;
+  --card: #313244;
+  --card-foreground: #f6f6f6;
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.147 0.004 49.25);
+  --primary: #a6e3a1;
+  --primary-foreground: #24273a;
+  --secondary: oklch(0.97 0.001 106.424);
+  --secondary-foreground: oklch(0.216 0.006 56.043);
+  --muted: #45475a;
+  --muted-foreground: #6c7086;
+  --accent: oklch(0.97 0.001 106.424);
+  --accent-foreground: oklch(0.216 0.006 56.043);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: #494D51;
+  --input: #494D51;
+  --ring: oklch(0.709 0.01 56.259);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0.001 106.423);
+  --sidebar-foreground: oklch(0.147 0.004 49.25);
+  --sidebar-primary: oklch(0.216 0.006 56.043);
+  --sidebar-primary-foreground: oklch(0.985 0.001 106.423);
+  --sidebar-accent: oklch(0.97 0.001 106.424);
+  --sidebar-accent-foreground: oklch(0.216 0.006 56.043);
+  --sidebar-border: oklch(0.923 0.003 48.717);
+  --sidebar-ring: oklch(0.709 0.01 56.259);
+}
+
+.dark {
+  --background: oklch(0.147 0.004 49.25);
+  --foreground: oklch(0.985 0.001 106.423);
+  --card: oklch(0.216 0.006 56.043);
+  --card-foreground: oklch(0.985 0.001 106.423);
+  --popover: oklch(0.216 0.006 56.043);
+  --popover-foreground: oklch(0.985 0.001 106.423);
+  --primary: oklch(0.923 0.003 48.717);
+  --primary-foreground: oklch(0.216 0.006 56.043);
+  --secondary: oklch(0.268 0.007 34.298);
+  --secondary-foreground: oklch(0.985 0.001 106.423);
+  --muted: oklch(0.268 0.007 34.298);
+  --muted-foreground: oklch(0.709 0.01 56.259);
+  --accent: oklch(0.268 0.007 34.298);
+  --accent-foreground: oklch(0.985 0.001 106.423);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.553 0.013 58.071);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.216 0.006 56.043);
+  --sidebar-foreground: oklch(0.985 0.001 106.423);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0.001 106.423);
+  --sidebar-accent: oklch(0.268 0.007 34.298);
+  --sidebar-accent-foreground: oklch(0.985 0.001 106.423);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.553 0.013 58.071);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  *::-webkit-scrollbar {
+    display: none;
+  }
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    font-family: 'JetBrainsMonoNerdFontMono', monospace;
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 400;
+    background-color: transparent;
+    border-radius: 10px;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+.scroll-fade {
+  /*  ⬇︎   both Safari and all modern browsers */
+  -webkit-mask-image: linear-gradient(to bottom,
+      transparent 0%,          /* fully transparent at the very top    */
+      black 10%,               /* opaque by 10 % of the height          */
+      black 90%,               /* stay opaque until 90 %                */
+      transparent 100%);       /* fade back to transparent at the end   */
+
+  mask-image: linear-gradient(to bottom,
+      transparent 0%,
+      black 1%,
+      black 99%,
+      transparent 100%);
+  mask-repeat: no-repeat;
+  mask-size: 100% 100%;
+}
+</file>
+
+<file path="src/main.tsx">
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import "./index.css";
+
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+);
+</file>
+
+<file path="src/vite-env.d.ts">
+/// <reference types="vite/client" />
+</file>
+
+<file path="src-tauri/capabilities/default.json">
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:event:allow-listen",
+    "opener:default"
+  ]
+}
+</file>
+
+<file path="src-tauri/src/command_server.rs">
+use axum::{routing::post, Router};
+use std::net::SocketAddr;
+use tauri::{AppHandle, Emitter, Manager};
+use tower_http::cors::{Any, CorsLayer};
+
+async fn test_handler(app_handle: AppHandle) {
+    println!("Test endpoint called");
+    match app_handle.emit("test-event", "Hello from backend!") {
+        Ok(_) => println!("󰸞 Test event emitted successfully"),
+        Err(e) => println!(" Failed to emit test event: {}", e),
+    }
+}
+
+async fn switch_list_handler(app_handle: AppHandle, list_name: String) {
+    println!("🔄 CLI command received: switching to list '{}'", list_name);
+
+    // // Try emitting globally
+    // match app_handle.emit("switch-list", &list_name) {
+    //     Ok(_) => println!(
+    //         "󰸞 Event 'switch-list' emitted globally with payload: '{}'",
+    //         list_name
+    //     ),
+    //     Err(e) => println!(" Failed to emit 'switch-list' event globally: {}", e),
+    // }
+    //
+    // Also try emitting to main window specifically
+    if let Some(window) = app_handle.get_webview_window("main") {
+        match window.emit("switch-list", &list_name) {
+            Ok(_) => println!(
+                "󰸞 Event 'switch-list' emitted to main window with payload: '{}'",
+                list_name
+            ),
+            Err(e) => println!(" Failed to emit 'switch-list' event to main window: {}", e),
+        }
+    } else {
+        println!(" Could not find main window");
+    }
+}
+
+pub fn start_command_server(app_handle: AppHandle) {
+    println!("🚀 Starting command server...");
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async move {
+            let cors = CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any);
+
+            let app_handle_1 = app_handle.clone();
+            let app_handle_2 = app_handle.clone();
+
+            let app = Router::new()
+                .route(
+                    "/command/switch-list",
+                    post(move |list_name: String| {
+                        switch_list_handler(app_handle_1.clone(), list_name)
+                    }),
+                )
+                .route(
+                    "/command/test",
+                    post(move |_: String| test_handler(app_handle_2.clone())),
+                )
+                .layer(cors);
+
+            let addr = SocketAddr::from(([127, 0, 0, 1], 33333));
+            println!("🎯 Binding command server to {}", addr);
+            let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+            println!("✅ Command server listening on http://{}", addr);
+            axum::serve(listener, app).await.unwrap();
+        });
+    });
+}
+</file>
+
+<file path="src-tauri/src/lib.rs">
+use anyhow::Result;
+use lst_cli::config::{get_config, UiConfig};
+use lst_cli::models::{fuzzy_find, is_valid_anchor, ItemStatus, List};
+use lst_cli::storage::{
+    list_lists, list_notes,
+    markdown::{self, load_list},
+};
+use specta_typescript::Typescript;
+use tauri::tray::TrayIconBuilder;
+use tauri::Manager;
+use tauri_specta::{collect_commands, Builder};
+
+mod command_server;
+mod theme;
+
+#[tauri::command]
+#[specta::specta]
+fn get_lists() -> Result<Vec<String>, String> {
+    list_lists().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn get_notes() -> Result<Vec<String>, String> {
+    list_notes().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn get_list(name: String) -> Result<List, String> {
+    load_list(&name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn create_list(title: String) -> Result<List, String> {
+    let list = List::new(title);
+    markdown::save_list(&list).map_err(|e| e.to_string())?;
+    Ok(list)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn add_item(list: String, text: String) -> Result<List, String> {
+    // create list if missing
+    if load_list(&list).is_err() {
+        markdown::create_list(&list).map_err(|e| e.to_string())?;
+    }
+    for item in text.split(',').map(|s| s.trim()) {
+        if !item.is_empty() {
+            markdown::add_item(&list, item).map_err(|e| e.to_string())?;
+        }
+    }
+    load_list(&list).map_err(|e| e.to_string())
+}
+
+fn find_item_index(list: &List, target: &str) -> Option<usize> {
+    if is_valid_anchor(target) {
+        if let Some(idx) = list.find_by_anchor(target) {
+            return Some(idx);
+        }
+    }
+    if let Some(idx) = list.find_by_text(target) {
+        return Some(idx);
+    }
+    if let Some(number_str) = target.strip_prefix('#') {
+        if let Ok(num) = number_str.parse::<usize>() {
+            if let Some(item) = list.get_by_index(num - 1) {
+                if let Some(idx) = list.find_by_anchor(&item.anchor) {
+                    return Some(idx);
+                }
+            }
+        }
+    }
+    let matches = fuzzy_find(&list.items, target, 0.75);
+    match matches.len() {
+        1 => Some(matches[0]),
+        _ => None,
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+fn toggle_item(list: String, target: String) -> Result<List, String> {
+    let current = load_list(&list).map_err(|e| e.to_string())?;
+    if let Some(idx) = find_item_index(&current, &target) {
+        let status = current.items[idx].status.clone();
+        drop(current);
+        match status {
+            ItemStatus::Todo => {
+                markdown::mark_done(&list, &target).map_err(|e| e.to_string())?;
+            }
+            ItemStatus::Done => {
+                markdown::mark_undone(&list, &target).map_err(|e| e.to_string())?;
+            }
+        }
+        load_list(&list).map_err(|e| e.to_string())
+    } else {
+        Err(format!("No item matching '{}'", target))
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+fn remove_item(list: String, target: String) -> Result<List, String> {
+    let current = load_list(&list).map_err(|e| e.to_string())?;
+    if let Some(_idx) = find_item_index(&current, &target) {
+        drop(current);
+        println!("deleting item {}", target);
+        markdown::delete_item(&list, &target).map_err(|e| e.to_string())?;
+        load_list(&list).map_err(|e| e.to_string())
+    } else {
+        Err(format!("No item matching '{}'", target))
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+fn get_ui_config() -> Result<UiConfig, String> {
+    Ok(get_config().ui.clone())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn edit_item(list: String, target: String, text: String) -> Result<List, String> {
+    markdown::edit_item_text(&list, &target, &text).map_err(|e| e.to_string())?;
+    load_list(&list).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn reorder_item(list: String, target: String, new_index: u32) -> Result<List, String> {
+    markdown::reorder_item(&list, &target, new_index as usize).map_err(|e| e.to_string())?;
+    load_list(&list).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn save_list(list: List) -> Result<(), String> {
+    markdown::save_list(&list).map_err(|e| e.to_string())
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    let builder = Builder::<tauri::Wry>::new()
+        // Then register them (separated by a comma)
+        .commands(collect_commands![
+            get_lists,
+            get_notes,
+            get_list,
+            create_list,
+            add_item,
+            toggle_item,
+            edit_item,
+            remove_item,
+            reorder_item,
+            save_list,
+            get_ui_config
+        ]);
+
+    #[cfg(debug_assertions)] // <- Only export on non-release builds
+    builder
+        .export(Typescript::default(), "../src/bindings.ts")
+        .expect("Failed to export typescript bindings");
+
+    tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            let _tray = TrayIconBuilder::new().build(app)?;
+            let _window = app.get_webview_window("main").unwrap();
+
+            command_server::start_command_server(app.handle().clone());
+            theme::broadcast_theme(&app.handle()).ok();
+
+            // #[cfg(target_os = "macos")]
+            // window_vibrancy::apply_vibrancy(
+            //     &window,
+            //     window_vibrancy::NSVisualEffectMaterial::HudWindow,
+            //     None,
+            //     Some(5.0),
+            // )
+            // .expect("Unsupported platform! 'apply_vibrancy' is only supported on macOS");
+
+            #[cfg(target_os = "windows")]
+            window_vibrancy::apply_blur(&window, Some((18, 18, 18, 125)))
+                .expect("Unsupported platform! 'apply_blur' is only supported on Windows");
+
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            get_lists,
+            get_notes,
+            get_list,
+            create_list,
+            add_item,
+            toggle_item,
+            edit_item,
+            remove_item,
+            reorder_item,
+            save_list,
+            get_ui_config
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+</file>
+
+<file path="src-tauri/src/main.rs">
+// Prevents additional console window on Windows in release, DO NOT REMOVE!!
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+fn main() {
+    lst_desktop_lib::run()
+}
+</file>
+
+<file path="src-tauri/src/theme.rs">
+use lst_cli::config::get_config;
+use tauri::{AppHandle, Emitter};
+
+pub fn broadcast_theme(app: &AppHandle) -> tauri::Result<()> {
+    let theme = get_config().ui.theme.clone();
+    // Only emit if there are any variables to set
+    if !theme.vars.is_empty() {
+        app.emit("theme-update", theme)?;
+    }
+    Ok(())
+}
+</file>
+
+<file path="src-tauri/.gitignore">
+# Generated by Cargo
+# will have compiled files and executables
+/target/
+
+# Generated by Tauri
+# will have schema files for capabilities auto-completion
+/gen/schemas
+</file>
+
+<file path="src-tauri/build.rs">
+fn main() {
+    tauri_build::build()
+}
+</file>
+
+<file path="src-tauri/Cargo.toml">
+[package]
+name = "lst-desktop"
+version = "0.1.3"
+description = "A Tauri App"
+authors = ["you"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "lst_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
+tauri-plugin-opener = "2"
+window-vibrancy = "0.6"
+serde = { workspace = true }
+serde_json = { workspace = true }
+specta = { workspace = true }
+specta-typescript = { workspace = true }
+tauri-specta = { version = "2.0.0-rc.21" }
+anyhow = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tower-http = { version = "0.5.2", features = ["cors"] }
+
+# Internal dependencies
+lst-proto = { path = "../../../crates/lst-proto", version = "0.1.3" }
+lst-cli = { path = "../../../crates/lst-cli/", version = "0.1.3" }
+</file>
+
+<file path="src-tauri/Logo_black_apple.svg">
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 1025 1025">
+  <!-- Generator: Adobe Illustrator 29.5.1, SVG Export Plug-In . SVG Version: 2.1.0 Build 141)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: #fff;
+      }
+    </style>
+  </defs>
+  <path d="M329.4,925.5h366.2c139.5,0,229.9-108.9,229.9-229.9v-366.2c0-121-90.3-229.9-229.9-229.9h-366.2c-139.5,0-229.9,108.9-229.9,229.9v366.2c0,121,90.3,229.9,229.9,229.9h0Z"/>
+  <g>
+    <path class="st0" d="M541.8,400.9c-5.5,0-10-4.5-10-10v-85.9c0-5.5-4.5-10-10-10h-72.2c-5.5,0-10,4.5-10,10v311c0,3.2,2.6,5.8,5.8,5.8h35.9c5.5,0,10,4.5,10,10v88.3c0,5.5,4.5,10,10,10h72.2c5.5,0,10-4.5,10-10v-313.4c0-3.2-2.6-5.8-5.8-5.8h-35.9Z"/>
+    <path class="st0" d="M557.6,294.9c-5.5,0-10,4.5-10,10v74.1c0,3.2,2.6,5.8,5.8,5.8h37.3c5.5,0,10,4.5,10,10v325.2c0,5.5,4.5,10,10,10h72.2c5.5,0,10-4.5,10-10v-415.1c0-5.5-4.5-10-10-10h-125.3Z"/>
+    <path class="st0" d="M434.3,637.9c-5.5,0-10-4.5-10-10v-323c0-5.5-4.5-10-10-10h-72.2c-5.5,0-10,4.5-10,10v415.1c0,5.5,4.5,10,10,10h121.7c5.5,0,10-4.5,10-10v-76.3c0-3.2-2.6-5.8-5.8-5.8h-33.7Z"/>
+  </g>
+</svg>
+</file>
+
+<file path="src-tauri/Logo_black.svg">
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 955.3 955.3">
+  <!-- Generator: Adobe Illustrator 29.5.1, SVG Export Plug-In . SVG Version: 2.1.0 Build 141)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: #fff;
+      }
+    </style>
+  </defs>
+  <rect x="77.7" y="77.7" width="800" height="800" rx="130" ry="130"/>
+  <g>
+    <path class="st0" d="M507,366.1c-5.5,0-10-4.5-10-10v-85.9c0-5.5-4.5-10-10-10h-72.2c-5.5,0-10,4.5-10,10v311c0,3.2,2.6,5.8,5.8,5.8h35.9c5.5,0,10,4.5,10,10v88.3c0,5.5,4.5,10,10,10h72.2c5.5,0,10-4.5,10-10v-313.4c0-3.2-2.6-5.8-5.8-5.8h-35.9Z"/>
+    <path class="st0" d="M522.8,260.1c-5.5,0-10,4.5-10,10v74.1c0,3.2,2.6,5.8,5.8,5.8h37.3c5.5,0,10,4.5,10,10v325.2c0,5.5,4.5,10,10,10h72.2c5.5,0,10-4.5,10-10v-415.1c0-5.5-4.5-10-10-10h-125.3Z"/>
+    <path class="st0" d="M399.5,603.1c-5.5,0-10-4.5-10-10v-323c0-5.5-4.5-10-10-10h-72.2c-5.5,0-10,4.5-10,10v415.1c0,5.5,4.5,10,10,10h121.7c5.5,0,10-4.5,10-10v-76.3c0-3.2-2.6-5.8-5.8-5.8h-33.7Z"/>
+  </g>
+</svg>
+</file>
+
+<file path="src-tauri/Logo_white.svg">
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 955.3 955.3">
+  <!-- Generator: Adobe Illustrator 29.5.1, SVG Export Plug-In . SVG Version: 2.1.0 Build 141)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: #fff;
+      }
+    </style>
+  </defs>
+  <rect class="st0" x="77.7" y="77.7" width="800" height="800" rx="130" ry="130"/>
+  <g>
+    <path d="M507,366.1c-5.5,0-10-4.5-10-10v-85.9c0-5.5-4.5-10-10-10h-72.2c-5.5,0-10,4.5-10,10v311c0,3.2,2.6,5.8,5.8,5.8h35.9c5.5,0,10,4.5,10,10v88.3c0,5.5,4.5,10,10,10h72.2c5.5,0,10-4.5,10-10v-313.4c0-3.2-2.6-5.8-5.8-5.8h-35.9,0Z"/>
+    <path d="M522.8,260.1c-5.5,0-10,4.5-10,10v74.1c0,3.2,2.6,5.8,5.8,5.8h37.3c5.5,0,10,4.5,10,10v325.2c0,5.5,4.5,10,10,10h72.2c5.5,0,10-4.5,10-10v-415.1c0-5.5-4.5-10-10-10h-125.3,0Z"/>
+    <path d="M399.5,603.1c-5.5,0-10-4.5-10-10v-323c0-5.5-4.5-10-10-10h-72.2c-5.5,0-10,4.5-10,10v415.1c0,5.5,4.5,10,10,10h121.7c5.5,0,10-4.5,10-10v-76.3c0-3.2-2.6-5.8-5.8-5.8h-33.7Z"/>
+  </g>
+</svg>
+</file>
+
+<file path="src-tauri/tauri.conf.json">
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "lst-desktop",
+  "version": "0.1.0",
+  "identifier": "com.lst-desktop.app",
+  "build": {
+    "beforeDevCommand": "bun run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "bun run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "title": "lst-desktop",
+        "width": 800,
+        "height": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false
+      }
+    ],
+    "security": {
+      "csp": null,
+      "capabilities": [
+        {
+          "identifier": "draggable-window",
+          "windows": [
+            "*"
+          ],
+          "permissions": [
+            "core:window:allow-start-dragging",
+            "core:event:allow-listen",
+            "core:event:default"
+          ]
+        }
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
+</file>
+
+<file path=".eslintrc.cjs">
+module.exports = {
+  env: {
+    browser: true,
+    es2021: true,
+  },
+  extends: [
+    'eslint:recommended',
+    'plugin:react/recommended',
+    'plugin:@typescript-eslint/recommended',
+  ],
+  parser: '@typescript-eslint/parser',
+  parserOptions: {
+    ecmaVersion: 'latest',
+    sourceType: 'module',
+  },
+  plugins: ['react', '@typescript-eslint'],
+  settings: {
+    react: { version: 'detect' },
+  },
+  rules: {
+    semi: ['error', 'always'],
+    quotes: ['error', 'double'],
+    '@typescript-eslint/no-unused-vars': ['warn'],
+    '@typescript-eslint/no-explicit-any': 'off',
+    'react/react-in-jsx-scope': 'off',
+    'react/jsx-no-target-blank': 'warn',
+  },
+};
+</file>
+
+<file path=".gitignore">
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+</file>
+
+<file path="components.json">
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "config": "tailwind.config.js",
+    "css": "src/index.css",
+    "baseColor": "stone",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils",
+    "ui": "@/components/ui",
+    "lib": "@/lib",
+    "hooks": "@/hooks"
+  },
+  "iconLibrary": "lucide"
+}
+</file>
+
+<file path="index.html">
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tauri + React + Typescript</title>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+</file>
+
+<file path="package.json">
+{
+  "name": "lst-mobile",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "lint": "eslint --ext .ts,.tsx -c .eslintrc.cjs src"
+  },
+  "dependencies": {
+    "@radix-ui/react-checkbox": "^1.3.2",
+    "@radix-ui/react-dialog": "^1.1.14",
+    "@radix-ui/react-icons": "^1.3.2",
+    "@radix-ui/react-scroll-area": "^1.2.9",
+    "@radix-ui/react-separator": "^1.1.7",
+    "@radix-ui/react-slot": "^1.2.3",
+    "@radix-ui/react-tooltip": "^1.2.7",
+    "@tailwindcss/postcss": "^4.1.10",
+    "@tailwindcss/vite": "^4.1.10",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
+    "lucide-react": "^0.522.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^3.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.10",
+    "@tauri-apps/cli": "^2",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "@typescript-eslint/eslint-plugin": "^6.9.1",
+    "@typescript-eslint/parser": "^6.9.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.33.2",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.10",
+    "tw-animate-css": "^1.3.4",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.3"
+  }
+}
+</file>
+
+<file path="postcss.config.cjs">
+module.exports = {
+  plugins: {
+    '@tailwindcss/postcss': {},
+    autoprefixer: {},
+  },
+};
+</file>
+
+<file path="README.md">
+# Tauri + React + Typescript
+
+This template should help get you started developing with Tauri, React and Typescript in Vite.
+
+## Recommended IDE Setup
+
+- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+</file>
+
+<file path="tailwind.config.js">
+module.exports = {
+  content: [
+    './index.html',
+    './src/**/*.{ts,tsx}',
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+};
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    },
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "./tsconfig.node.json"
+    }
+  ]
+}
+</file>
+
+<file path="tsconfig.node.json">
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["vite.config.ts"]
+}
+</file>
+
+<file path="vite.config.ts">
+import path from "path";
+import tailwindcss from "@tailwindcss/vite";
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+// @ts-expect-error process is a nodejs global
+const host = process.env.TAURI_DEV_HOST;
+
+// https://vitejs.dev/config/
+export default defineConfig(async () => ({
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+
+  // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
+  //
+  // 1. prevent vite from obscuring rust errors
+  clearScreen: false,
+  // 2. tauri expects a fixed port, fail if that port is not available
+  server: {
+    port: 1420,
+    strictPort: true,
+    host: host || false,
+    hmr: host
+      ? {
+        protocol: "ws",
+        host,
+        port: 1421,
+      }
+      : undefined,
+    watch: {
+      // 3. tell vite to ignore watching `src-tauri`
+      ignored: ["**/src-tauri/**"],
+    },
+  },
+}));
+</file>
+
+</files>

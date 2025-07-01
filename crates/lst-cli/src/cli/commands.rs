@@ -794,3 +794,86 @@ pub async fn remote_switch_list(list_name: &str) -> Result<()> {
 
     Ok(())
 }
+
+/// Tidy all lists: ensure they have proper YAML frontmatter and formatting
+pub fn tidy_lists(json: bool) -> Result<()> {
+    let entries = storage::list_lists_with_info()?;
+    let mut tidied_count = 0;
+    let mut errors = Vec::new();
+
+    for entry in entries {
+        match tidy_single_list(&entry.relative_path) {
+            Ok(was_modified) => {
+                if was_modified {
+                    tidied_count += 1;
+                    if !json {
+                        println!("Tidied: {}", entry.relative_path.cyan());
+                    }
+                }
+            }
+            Err(e) => {
+                errors.push(format!("Error tidying '{}': {}", entry.relative_path, e));
+            }
+        }
+    }
+
+    if json {
+        println!(
+            "{{\"tidied\": {}, \"errors\": {}}}",
+            tidied_count,
+            errors.len()
+        );
+    } else {
+        if tidied_count > 0 {
+            println!("Tidied {} list(s)", tidied_count);
+        } else {
+            println!("All lists are already properly formatted");
+        }
+
+        if !errors.is_empty() {
+            println!("\nErrors:");
+            for error in errors {
+                println!("  {}", error.red());
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Tidy a single list file, returning whether it was modified
+fn tidy_single_list(list_name: &str) -> Result<bool> {
+    // Load the list (this will parse and normalize it)
+    let mut list = storage::markdown::load_list(list_name)?;
+    
+    // Check if any items are missing proper anchors
+    let mut was_modified = false;
+    
+    for item in &mut list.items {
+        // Check if anchor is missing or invalid
+        if item.anchor.is_empty() || !crate::models::is_valid_anchor(&item.anchor) {
+            item.anchor = crate::models::generate_anchor();
+            was_modified = true;
+        }
+    }
+    
+    // Always save to ensure proper formatting (frontmatter + item formatting)
+    // The save operation will format everything properly
+    let original_content = std::fs::read_to_string(get_list_file_path(list_name)?)?;
+    storage::markdown::save_list_with_path(&list, list_name)?;
+    let new_content = std::fs::read_to_string(get_list_file_path(list_name)?)?;
+    
+    // Check if the content actually changed
+    if original_content != new_content {
+        was_modified = true;
+    }
+    
+    Ok(was_modified)
+}
+
+/// Helper to get the full file path for a list
+fn get_list_file_path(list_name: &str) -> Result<std::path::PathBuf> {
+    let lists_dir = storage::get_lists_dir()?;
+    let filename = format!("{}.md", list_name);
+    Ok(lists_dir.join(filename))
+}

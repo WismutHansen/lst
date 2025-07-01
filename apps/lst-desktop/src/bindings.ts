@@ -153,6 +153,7 @@ status: ItemStatus;
  * Unique anchor identifier for the item
  */
 anchor: string }
+export type ThemeConfig = { vars?: Partial<{ [key in string]: string }> }
 export type UiConfig = { resolution_order?: string[]; 
 /**
  * Enable Vim-like keybindings in the frontend
@@ -161,7 +162,7 @@ vim_mode?: boolean;
 /**
  * Leader key used for command sequences (defaults to space)
  */
-leader_key?: string }
+leader_key?: string; theme?: ThemeConfig }
 
 /** tauri-specta globals **/
 
