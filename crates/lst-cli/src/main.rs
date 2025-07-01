@@ -113,6 +113,9 @@ async fn main() -> Result<()> {
                 cli::commands::remote_switch_list(list).await?;
             }
         },
+        Commands::Tidy => {
+            cli::commands::tidy_lists(cli.json)?;
+        }
     }
 
     Ok(())

@@ -125,6 +125,10 @@ pub enum Commands {
     /// Send commands to a running lst-desktop instance
     #[clap(subcommand, name = "remote")]
     Remote(RemoteCommands),
+
+    /// Tidy all lists: ensure proper YAML frontmatter and formatting
+    #[clap(name = "tidy")]
+    Tidy,
 }
 
 #[derive(Subcommand)]
