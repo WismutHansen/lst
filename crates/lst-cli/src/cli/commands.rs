@@ -1,6 +1,7 @@
 use anyhow::{bail, Context, Result};
 use colored::{ColoredString, Colorize};
 use serde_json;
+use serde_yaml;
 use std::io::{self, BufRead};
 
 use crate::cli::{DlCmd, SyncCommands};
@@ -725,8 +726,6 @@ pub fn display_daily_list(json: bool) -> Result<()> {
     display_list(&list_name, json)
 }
 
-
-
 /// Share a document by updating writers and readers in the local sync database
 pub fn share_document(doc: &str, writers: Option<&str>, readers: Option<&str>) -> Result<()> {
     use rusqlite::Connection;
@@ -845,10 +844,10 @@ pub fn tidy_lists(json: bool) -> Result<()> {
 fn tidy_single_list(list_name: &str) -> Result<bool> {
     // Load the list (this will parse and normalize it)
     let mut list = storage::markdown::load_list(list_name)?;
-    
+
     // Check if any items are missing proper anchors
     let mut was_modified = false;
-    
+
     for item in &mut list.items {
         // Check if anchor is missing or invalid
         if item.anchor.is_empty() || !crate::models::is_valid_anchor(&item.anchor) {
@@ -856,18 +855,18 @@ fn tidy_single_list(list_name: &str) -> Result<bool> {
             was_modified = true;
         }
     }
-    
+
     // Always save to ensure proper formatting (frontmatter + item formatting)
     // The save operation will format everything properly
     let original_content = std::fs::read_to_string(get_list_file_path(list_name)?)?;
     storage::markdown::save_list_with_path(&list, list_name)?;
     let new_content = std::fs::read_to_string(get_list_file_path(list_name)?)?;
-    
+
     // Check if the content actually changed
     if original_content != new_content {
         was_modified = true;
     }
-    
+
     Ok(was_modified)
 }
 
@@ -876,4 +875,116 @@ fn get_list_file_path(list_name: &str) -> Result<std::path::PathBuf> {
     let lists_dir = storage::get_lists_dir()?;
     let filename = format!("{}.md", list_name);
     Ok(lists_dir.join(filename))
+}
+
+/// Structure of note frontmatter used for tidying
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+struct NoteFrontmatter {
+    title: Option<String>,
+    created: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// Tidy all notes: ensure they have proper YAML frontmatter
+pub fn tidy_notes(json: bool) -> Result<()> {
+    let entries = storage::list_notes_with_info()?;
+    let mut tidied_count = 0;
+    let mut errors = Vec::new();
+
+    for entry in entries {
+        match tidy_single_note(&entry.relative_path) {
+            Ok(was_modified) => {
+                if was_modified {
+                    tidied_count += 1;
+                    if !json {
+                        println!("Tidied: {}", entry.relative_path.cyan());
+                    }
+                }
+            }
+            Err(e) => {
+                errors.push(format!("Error tidying '{}': {}", entry.relative_path, e));
+            }
+        }
+    }
+
+    if json {
+        println!(
+            "{{\"tidied\": {}, \"errors\": {}}}",
+            tidied_count,
+            errors.len()
+        );
+    } else {
+        if tidied_count > 0 {
+            println!("Tidied {} note(s)", tidied_count);
+        } else {
+            println!("All notes are already properly formatted");
+        }
+
+        if !errors.is_empty() {
+            println!("\nErrors:");
+            for error in errors {
+                println!("  {}", error.red());
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Tidy a single note file, returning whether it was modified
+fn tidy_single_note(note_name: &str) -> Result<bool> {
+    let path = get_note_file_path(note_name)?;
+    let original_content = std::fs::read_to_string(&path)?;
+
+    let mut was_modified = false;
+    let mut frontmatter: NoteFrontmatter = NoteFrontmatter::default();
+    let body: String;
+
+    if original_content.starts_with("---") {
+        let parts: Vec<&str> = original_content.splitn(3, "---").collect();
+        if parts.len() >= 3 {
+            if let Ok(fm) = serde_yaml::from_str::<NoteFrontmatter>(parts[1]) {
+                frontmatter = fm;
+            } else {
+                was_modified = true;
+            }
+            body = parts[2].to_string();
+        } else {
+            body = parts.last().unwrap_or(&"").to_string();
+            was_modified = true;
+        }
+    } else {
+        body = original_content.clone();
+        was_modified = true;
+    }
+
+    if frontmatter.title.is_none() {
+        let title = std::path::Path::new(note_name)
+            .file_name()
+            .and_then(|f| f.to_str())
+            .unwrap_or(note_name)
+            .to_string();
+        frontmatter.title = Some(title);
+        was_modified = true;
+    }
+    if frontmatter.created.is_none() {
+        frontmatter.created = Some(chrono::Utc::now());
+        was_modified = true;
+    }
+
+    let fm_string = serde_yaml::to_string(&frontmatter)?;
+    let new_content = format!("---\n{}---\n\n{}", fm_string, body.trim_start_matches('\n'));
+
+    if new_content != original_content {
+        std::fs::write(&path, new_content)?;
+        was_modified = true;
+    }
+
+    Ok(was_modified)
+}
+
+/// Helper to get the full file path for a note
+fn get_note_file_path(note_name: &str) -> Result<std::path::PathBuf> {
+    let notes_dir = storage::get_notes_dir()?;
+    let filename = format!("{}.md", note_name);
+    Ok(notes_dir.join(filename))
 }
