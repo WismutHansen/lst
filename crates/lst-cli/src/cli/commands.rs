@@ -1045,7 +1045,7 @@ pub async fn auth_request(email: &str, host: Option<&str>, json: bool) -> Result
     });
 
     let response = client
-        .post(format!("{}/auth/request", server_url))
+        .post(format!("{}/api/auth/request", server_url))
         .json(&payload)
         .send()
         .await?;
@@ -1085,7 +1085,7 @@ pub async fn auth_verify(email: &str, token: &str, json: bool) -> Result<()> {
     });
 
     let response = client
-        .post(format!("{}/auth/verify", server_url))
+        .post(format!("{}/api/auth/verify", server_url))
         .json(&payload)
         .send()
         .await?;
