@@ -72,6 +72,16 @@ pub enum Commands {
         target: String,
     },
 
+    /// Delete all entries from a list
+    #[clap(name = "wipe")]
+    Wipe {
+        /// Name of the list
+        list: String,
+        /// Do not ask for confirmation
+        #[clap(short, long)]
+        force: bool,
+    },
+
     /// Read items from stdin and add them to a list
     #[clap(name = "pipe")]
     Pipe {
@@ -136,7 +146,7 @@ pub enum RemoteCommands {
     /// Switch the list in the desktop app
     #[clap(name = "switch")]
     Switch {
-        /// Name of the list to switch to
+        /// Name of the list to switch to (use `dl` for today's daily list)
         list: String,
     },
 }
