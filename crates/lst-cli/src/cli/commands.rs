@@ -404,6 +404,33 @@ pub fn remove_item(list: &str, target: &str, json: bool) -> Result<()> {
     Ok(())
 }
 
+/// Handle the 'wipe' command to delete all entries from a list
+pub fn wipe_list(list: &str, force: bool, json: bool) -> Result<()> {
+    let list_name = normalize_list(list)?;
+    if !force {
+        use dialoguer::Confirm;
+        let prompt = format!("Delete all items from '{}'?", list_name);
+        let proceed = Confirm::new()
+            .with_prompt(prompt)
+            .default(false)
+            .interact()?;
+        if !proceed {
+            println!("Aborted");
+            return Ok(());
+        }
+    }
+
+    let removed = storage::markdown::wipe_list(&list_name)?;
+
+    if json {
+        println!("{{\"deleted\": {}}}", removed);
+    } else {
+        println!("Deleted {} item(s) from {}", removed, list_name.cyan());
+    }
+
+    Ok(())
+}
+
 /// Handle the 'pipe' command to read items from stdin
 pub fn pipe(list: &str, json: bool) -> Result<()> {
     // Try to load the list, create it if it doesn't exist
@@ -777,7 +804,12 @@ pub fn unshare_document(doc: &str) -> Result<()> {
 }
 
 pub async fn remote_switch_list(list_name: &str) -> Result<()> {
-    let resolved_name = resolve_list(list_name)?;
+    let resolved_name = if list_name.trim_end_matches(".md") == "dl" {
+        let date = chrono::Local::now().format("%Y%m%d").to_string();
+        format!("daily_lists/{}_daily_list", date)
+    } else {
+        resolve_list(list_name)?
+    };
     let client = reqwest::Client::new();
     let res = client
         .post(format!("http://localhost:33333/command/switch-list"))
