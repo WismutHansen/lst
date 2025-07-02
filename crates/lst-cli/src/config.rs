@@ -68,6 +68,10 @@ pub struct PathsConfig {
 pub struct ServerConfig {
     pub url: Option<String>,
     pub auth_token: Option<String>,
+    /// JWT token for authentication (stored after successful login)
+    pub jwt_token: Option<String>,
+    /// Expiration timestamp for the JWT token
+    pub jwt_expires_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -186,6 +190,8 @@ impl Default for ServerConfig {
         Self {
             url: None,
             auth_token: None,
+            jwt_token: None,
+            jwt_expires_at: None,
         }
     }
 }
@@ -303,6 +309,37 @@ impl Config {
             });
         }
         Ok(())
+    }
+
+    /// Check if JWT token is valid and not expired
+    pub fn is_jwt_valid(&self) -> bool {
+        if let Some(ref jwt) = self.server.jwt_token {
+            if let Some(expires_at) = self.server.jwt_expires_at {
+                return !jwt.is_empty() && chrono::Utc::now() < expires_at;
+            }
+        }
+        false
+    }
+
+    /// Store JWT token with expiration
+    pub fn store_jwt(&mut self, jwt: String, expires_at: chrono::DateTime<chrono::Utc>) {
+        self.server.jwt_token = Some(jwt);
+        self.server.jwt_expires_at = Some(expires_at);
+    }
+
+    /// Clear JWT token
+    pub fn clear_jwt(&mut self) {
+        self.server.jwt_token = None;
+        self.server.jwt_expires_at = None;
+    }
+
+    /// Get valid JWT token if available
+    pub fn get_jwt(&self) -> Option<&str> {
+        if self.is_jwt_valid() {
+            self.server.jwt_token.as_deref()
+        } else {
+            None
+        }
     }
 }
 

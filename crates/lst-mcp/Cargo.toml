@@ -2,23 +2,29 @@
 name = "lst-mcp"
 version = "0.1.0"
 edition = "2021"
+description = "MCP server for lst todo list app"
+authors = ["Tommy Falkowski"]
+homepage = "https://github.com/WismutHansen/lst"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[package.metadata.dist]
+dist = true
 
 [dependencies]
-lst-cli = { path = "../lst-cli" }
-rmcp = { version = "0.1.0", features = [
-    "server",
-    "transport-io",
-    "macros",
+rust-mcp-sdk = { version = "0.4", default-features = false, features = [
+  "server",
+  "macros",
+  "hyper-server",
+  "ssl",
+  "2025_03_26",
 ] }
-tokio = { version = "1", features = [
-    "macros",
-    "rt",
-    "rt-multi-thread",
-    "io-std",
-] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-anyhow = "1.0"
-schemars = "0.8"
+
+anyhow = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { version = "0.1" }
+futures = { version = "0.3" }
+tracing = { version = "0.1" }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+lst-cli = { path = "../lst-cli", version = "0.1.3" }

@@ -139,6 +139,14 @@ pub enum Commands {
     /// Tidy all lists: ensure proper YAML frontmatter and formatting
     #[clap(name = "tidy")]
     Tidy,
+
+    /// Authentication commands for server access
+    #[clap(subcommand, name = "auth")]
+    Auth(AuthCommands),
+
+    /// Server content management commands
+    #[clap(subcommand, name = "server")]
+    Server(ServerCommands),
 }
 
 #[derive(Subcommand)]
@@ -313,5 +321,80 @@ pub enum SyncCommands {
         /// Number of lines to show
         #[clap(short, long, default_value = "50")]
         lines: usize,
+    },
+}
+
+/// Authentication subcommands
+#[derive(Subcommand)]
+pub enum AuthCommands {
+    /// Request authentication token from server
+    #[clap(name = "request")]
+    Request {
+        /// Email address for authentication
+        email: String,
+        /// Server hostname (optional, defaults to server URL from config)
+        #[clap(long)]
+        host: Option<String>,
+    },
+
+    /// Verify authentication token and store JWT
+    #[clap(name = "verify")]
+    Verify {
+        /// Email address used for authentication
+        email: String,
+        /// Token received via email or displayed by server
+        token: String,
+    },
+
+    /// Show current authentication status
+    #[clap(name = "status")]
+    Status,
+
+    /// Remove stored authentication token
+    #[clap(name = "logout")]
+    Logout,
+}
+
+/// Server content management subcommands
+#[derive(Subcommand)]
+pub enum ServerCommands {
+    /// Create content on the server
+    #[clap(name = "create")]
+    Create {
+        /// Kind of content (e.g., "notes", "lists")
+        kind: String,
+        /// Path for the content (e.g., "example.md")
+        path: String,
+        /// Content to create
+        content: String,
+    },
+
+    /// Get content from the server
+    #[clap(name = "get")]
+    Get {
+        /// Kind of content (e.g., "notes", "lists")
+        kind: String,
+        /// Path of the content (e.g., "example.md")
+        path: String,
+    },
+
+    /// Update content on the server
+    #[clap(name = "update")]
+    Update {
+        /// Kind of content (e.g., "notes", "lists")
+        kind: String,
+        /// Path of the content (e.g., "example.md")
+        path: String,
+        /// New content
+        content: String,
+    },
+
+    /// Delete content from the server
+    #[clap(name = "delete")]
+    Delete {
+        /// Kind of content (e.g., "notes", "lists")
+        kind: String,
+        /// Path of the content (e.g., "example.md")
+        path: String,
     },
 }

@@ -16,6 +16,153 @@ cd lst
 cargo install --path .
 ```
 
+### Server Setup
+
+The `lst-server` provides a centralized API for content synchronization and multi-device access.
+
+#### Building the Server
+
+```bash
+# Build the server binary
+cargo build --release --bin lst-server
+
+# Or install it system-wide
+cargo install --path crates/lst-server
+```
+
+#### Configuration
+
+1. Create a configuration file at `~/.config/lst/lst.toml` (see [examples/lst.toml](examples/lst.toml) for reference):
+
+```toml
+[server]
+host = "127.0.0.1"  # or "0.0.0.0" for all interfaces
+port = 5673
+
+[database]
+# Directory for server databases (tokens.db, content.db, sync.db)
+data_dir = "~/.config/lst/lst_server_data"
+
+[email]
+# Optional: SMTP settings for login tokens (if omitted, tokens are logged to stdout)
+smtp_host = "smtp.gmail.com"
+smtp_user = "your-email@gmail.com"
+smtp_pass = "${SMTP_PASSWORD}"  # Environment variable
+sender = "noreply@yourdomain.com"
+```
+
+2. Set up environment variables (if using email):
+```bash
+export SMTP_PASSWORD="your-app-password"
+```
+
+#### Running the Server
+
+```bash
+# Using the installed binary
+lst-server
+
+# Or with custom config path
+lst-server --config /path/to/your/lst.toml
+
+# Or directly from source
+cargo run --bin lst-server
+```
+
+The server will:
+- Listen on the configured host:port (default: `127.0.0.1:5673`)
+- Create SQLite databases in the configured data directory
+- Provide REST API endpoints at `/api/*`
+- Send login tokens via email (if configured) or log them to stdout
+
+#### API Usage
+
+1. **Request login token**:
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "host": "your.server.com"}' \
+  http://localhost:5673/api/auth/request
+```
+
+2. **Verify token and get JWT**:
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "token": "RECEIVED-TOKEN"}' \
+  http://localhost:5673/api/auth/verify
+```
+
+3. **Use JWT for authenticated requests**:
+```bash
+JWT_TOKEN="your-jwt-token"
+curl -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $JWT_TOKEN" \
+  -d '{"kind": "notes", "path": "example.md", "content": "Hello from API!"}' \
+  http://localhost:5673/api/content
+```
+
+For complete API documentation, see [SPEC.md](SPEC.md).
+
+#### CLI Authentication Workflow
+
+The CLI provides a streamlined authentication flow that integrates with the server's email-based token system:
+
+1. **Configure server URL** (if not done already):
+```bash
+lst sync setup --server http://localhost:5673/api
+```
+
+2. **Request authentication**:
+```bash
+lst auth request user@example.com
+```
+This sends a token to your email address.
+
+3. **Verify and store JWT**:
+```bash
+lst auth verify user@example.com YOUR-TOKEN-HERE
+```
+This exchanges the email token for a JWT that's stored locally for future requests.
+
+4. **Use authenticated commands**:
+```bash
+lst server create notes "test.md" "Hello from authenticated CLI!"
+```
+
+#### CLI Authentication Commands
+
+The CLI includes these authentication commands:
+
+```bash
+# Request authentication token
+lst auth request user@example.com
+
+# Verify token and store JWT
+lst auth verify user@example.com RECEIVED-TOKEN
+
+# Check authentication status
+lst auth status
+
+# Logout (remove stored JWT)
+lst auth logout
+```
+
+#### Server Content Commands
+
+Once authenticated, you can interact with server content directly:
+
+```bash
+# Create content on the server
+lst server create notes "example.md" "Hello from CLI!"
+
+# Get content from the server
+lst server get notes "example.md"
+
+# Update content on the server
+lst server update notes "example.md" "Updated content"
+
+# Delete content from the server
+lst server delete notes "example.md"
+```
+
 ## Features
 
 - Manage to-do lists from the command line

@@ -1020,3 +1020,324 @@ fn get_note_file_path(note_name: &str) -> Result<std::path::PathBuf> {
     let filename = format!("{}.md", note_name);
     Ok(notes_dir.join(filename))
 }
+
+// Authentication command implementations
+
+/// Request authentication token from server
+pub async fn auth_request(email: &str, host: Option<&str>, json: bool) -> Result<()> {
+    let config = get_config();
+    let server_url = config.server.url.as_ref()
+        .context("No server URL configured. Run 'lst sync setup' first.")?;
+    
+    let host = if let Some(h) = host {
+        h.to_string()
+    } else {
+        url::Url::parse(server_url)
+            .ok()
+            .and_then(|u| u.host_str().map(|s| s.to_string()))
+            .unwrap_or_else(|| "localhost".to_string())
+    };
+
+    let client = reqwest::Client::new();
+    let payload = serde_json::json!({
+        "email": email,
+        "host": host
+    });
+
+    let response = client
+        .post(format!("{}/auth/request", server_url))
+        .json(&payload)
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        let auth_response: serde_json::Value = response.json().await?;
+        
+        if json {
+            println!("{}", serde_json::to_string_pretty(&auth_response)?);
+        } else {
+            println!("Authentication token requested for {}", email.cyan());
+            println!("Check your email for the token, then run:");
+            println!("  lst auth verify {} <token>", email.cyan());
+            
+            if let Some(_qr_code) = auth_response.get("qr_png_base64") {
+                println!("\nQR code available for easy login (base64 encoded)");
+            }
+        }
+    } else {
+        let error_text = response.text().await?;
+        bail!("Failed to request authentication token: {}", error_text);
+    }
+
+    Ok(())
+}
+
+/// Verify authentication token and store JWT
+pub async fn auth_verify(email: &str, token: &str, json: bool) -> Result<()> {
+    let mut config = Config::load()?;
+    let server_url = config.server.url.as_ref()
+        .context("No server URL configured. Run 'lst sync setup' first.")?;
+
+    let client = reqwest::Client::new();
+    let payload = serde_json::json!({
+        "email": email,
+        "token": token
+    });
+
+    let response = client
+        .post(format!("{}/auth/verify", server_url))
+        .json(&payload)
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        let verify_response: serde_json::Value = response.json().await?;
+        
+        if let Some(jwt) = verify_response.get("jwt").and_then(|j| j.as_str()) {
+            // Parse JWT to get expiration (basic extraction without validation)
+            let expires_at = chrono::Utc::now() + chrono::Duration::hours(1); // Default 1 hour
+            
+            config.store_jwt(jwt.to_string(), expires_at);
+            config.save()?;
+            
+            if json {
+                println!("{}", serde_json::to_string_pretty(&verify_response)?);
+            } else {
+                println!("Successfully authenticated as {}", email.green());
+                println!("JWT token stored and ready for use");
+            }
+        } else {
+            bail!("Invalid response: missing JWT token");
+        }
+    } else {
+        let error_text = response.text().await?;
+        bail!("Failed to verify token: {}", error_text);
+    }
+
+    Ok(())
+}
+
+/// Show current authentication status
+pub fn auth_status(json: bool) -> Result<()> {
+    let config = get_config();
+    
+    let has_server_url = config.server.url.is_some();
+    let has_jwt = config.server.jwt_token.is_some();
+    let jwt_valid = config.is_jwt_valid();
+    
+    if json {
+        println!("{}", serde_json::json!({
+            "server_configured": has_server_url,
+            "jwt_token_present": has_jwt,
+            "jwt_valid": jwt_valid,
+            "jwt_expires_at": config.server.jwt_expires_at
+        }));
+    } else {
+        println!("Authentication Status:");
+        
+        if !has_server_url {
+            println!("  Server: {}", "Not configured".red());
+            println!("  Run 'lst sync setup' to configure server URL");
+        } else {
+            println!("  Server: {}", config.server.url.as_ref().unwrap().cyan());
+        }
+        
+        if !has_jwt {
+            println!("  JWT Token: {}", "Not present".red());
+            println!("  Run 'lst auth request <email>' to authenticate");
+        } else if jwt_valid {
+            println!("  JWT Token: {}", "Valid".green());
+            if let Some(expires_at) = config.server.jwt_expires_at {
+                println!("  Expires: {}", expires_at.format("%Y-%m-%d %H:%M:%S UTC"));
+            }
+        } else {
+            println!("  JWT Token: {}", "Expired".yellow());
+            println!("  Run 'lst auth request <email>' to re-authenticate");
+        }
+    }
+    
+    Ok(())
+}
+
+/// Remove stored authentication token
+pub fn auth_logout(json: bool) -> Result<()> {
+    let mut config = Config::load()?;
+    config.clear_jwt();
+    config.save()?;
+    
+    if json {
+        println!("{}", serde_json::json!({"status": "logged_out"}));
+    } else {
+        println!("Successfully logged out. JWT token removed.");
+    }
+    
+    Ok(())
+}
+
+/// Helper function to make authenticated requests to the server
+pub async fn make_authenticated_request(
+    method: reqwest::Method,
+    endpoint: &str,
+    body: Option<serde_json::Value>,
+) -> Result<reqwest::Response> {
+    let config = get_config();
+    
+    let server_url = config.server.url.as_ref()
+        .context("No server URL configured")?;
+    
+    let jwt = config.get_jwt()
+        .context("No valid JWT token. Run 'lst auth request <email>' to authenticate")?;
+    
+    let client = reqwest::Client::new();
+    let mut request = client
+        .request(method, format!("{}/{}", server_url, endpoint.trim_start_matches('/')))
+        .header("Authorization", format!("Bearer {}", jwt));
+    
+    if let Some(body) = body {
+        request = request.json(&body);
+    }
+    
+    let response = request.send().await?;
+    
+    if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+        bail!("Authentication failed. JWT token may be expired. Run 'lst auth request <email>' to re-authenticate");
+    }
+    
+    Ok(response)
+}
+
+// Server content management commands
+
+/// Create content on the server
+pub async fn server_create(kind: &str, path: &str, content: &str, json: bool) -> Result<()> {
+    let payload = serde_json::json!({
+        "kind": kind,
+        "path": path,
+        "content": content
+    });
+
+    let response = make_authenticated_request(
+        reqwest::Method::POST,
+        "/api/content",
+        Some(payload),
+    ).await?;
+
+    if response.status().is_success() {
+        let result: serde_json::Value = response.json().await?;
+        
+        if json {
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        } else {
+            println!("Successfully created {}/{}", kind.cyan(), path.cyan());
+        }
+    } else {
+        let error_text = response.text().await?;
+        bail!("Failed to create content: {}", error_text);
+    }
+
+    Ok(())
+}
+
+/// Get content from the server
+pub async fn server_get(kind: &str, path: &str, json: bool) -> Result<()> {
+    let endpoint = format!("/api/content/{}/{}", kind, path);
+    
+    let response = make_authenticated_request(
+        reqwest::Method::GET,
+        &endpoint,
+        None,
+    ).await?;
+
+    if response.status().is_success() {
+        let content = response.text().await?;
+        
+        if json {
+            println!("{}", serde_json::json!({
+                "kind": kind,
+                "path": path,
+                "content": content
+            }));
+        } else {
+            println!("Content from {}/{}:", kind.cyan(), path.cyan());
+            println!("{}", content);
+        }
+    } else if response.status() == reqwest::StatusCode::NOT_FOUND {
+        if json {
+            println!("{}", serde_json::json!({"error": "Content not found"}));
+        } else {
+            println!("Content not found: {}/{}", kind, path);
+        }
+    } else {
+        let error_text = response.text().await?;
+        bail!("Failed to get content: {}", error_text);
+    }
+
+    Ok(())
+}
+
+/// Update content on the server
+pub async fn server_update(kind: &str, path: &str, content: &str, json: bool) -> Result<()> {
+    let endpoint = format!("/api/content/{}/{}", kind, path);
+    let payload = serde_json::json!({
+        "content": content
+    });
+
+    let response = make_authenticated_request(
+        reqwest::Method::PUT,
+        &endpoint,
+        Some(payload),
+    ).await?;
+
+    if response.status().is_success() {
+        let result: serde_json::Value = response.json().await?;
+        
+        if json {
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        } else {
+            println!("Successfully updated {}/{}", kind.cyan(), path.cyan());
+        }
+    } else if response.status() == reqwest::StatusCode::NOT_FOUND {
+        if json {
+            println!("{}", serde_json::json!({"error": "Content not found"}));
+        } else {
+            bail!("Content not found: {}/{}", kind, path);
+        }
+    } else {
+        let error_text = response.text().await?;
+        bail!("Failed to update content: {}", error_text);
+    }
+
+    Ok(())
+}
+
+/// Delete content from the server
+pub async fn server_delete(kind: &str, path: &str, json: bool) -> Result<()> {
+    let endpoint = format!("/api/content/{}/{}", kind, path);
+    
+    let response = make_authenticated_request(
+        reqwest::Method::DELETE,
+        &endpoint,
+        None,
+    ).await?;
+
+    if response.status().is_success() {
+        let result: serde_json::Value = response.json().await?;
+        
+        if json {
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        } else {
+            println!("Successfully deleted {}/{}", kind.cyan(), path.cyan());
+        }
+    } else if response.status() == reqwest::StatusCode::NOT_FOUND {
+        if json {
+            println!("{}", serde_json::json!({"error": "Content not found"}));
+        } else {
+            bail!("Content not found: {}/{}", kind, path);
+        }
+    } else {
+        let error_text = response.text().await?;
+        bail!("Failed to delete content: {}", error_text);
+    }
+
+    Ok(())
+}
