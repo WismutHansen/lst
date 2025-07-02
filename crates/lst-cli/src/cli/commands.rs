@@ -1026,9 +1026,12 @@ fn get_note_file_path(note_name: &str) -> Result<std::path::PathBuf> {
 /// Request authentication token from server
 pub async fn auth_request(email: &str, host: Option<&str>, json: bool) -> Result<()> {
     let config = get_config();
-    let server_url = config.server.url.as_ref()
+    let server_url = config
+        .server
+        .url
+        .as_ref()
         .context("No server URL configured. Run 'lst sync setup' first.")?;
-    
+
     let host = if let Some(h) = host {
         h.to_string()
     } else {
@@ -1038,10 +1041,25 @@ pub async fn auth_request(email: &str, host: Option<&str>, json: bool) -> Result
             .unwrap_or_else(|| "localhost".to_string())
     };
 
+    use dialoguer::Password;
+    use argon2::{Argon2, Algorithm, Params, PasswordHasher, Version};
+    use argon2::password_hash::SaltString;
+
+    let password = Password::new().with_prompt("Account password").interact()?;
+
+    let params = Params::new(128 * 1024, 3, 2, None).expect("invalid params");
+    let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
+    let salt = SaltString::encode_b64(b"clientstatic").expect("salt");
+    let password_hash = argon2
+        .hash_password(password.as_bytes(), &salt)
+        .expect("hashing failed")
+        .to_string();
+
     let client = reqwest::Client::new();
     let payload = serde_json::json!({
         "email": email,
-        "host": host
+        "host": host,
+        "password_hash": password_hash
     });
 
     let response = client
@@ -1051,18 +1069,17 @@ pub async fn auth_request(email: &str, host: Option<&str>, json: bool) -> Result
         .await?;
 
     if response.status().is_success() {
-        let auth_response: serde_json::Value = response.json().await?;
-        
+        let auth_response: serde_json::Value = response
+            .json()
+            .await
+            .unwrap_or_else(|_| serde_json::json!({"status":"ok"}));
+
         if json {
             println!("{}", serde_json::to_string_pretty(&auth_response)?);
         } else {
             println!("Authentication token requested for {}", email.cyan());
-            println!("Check your email for the token, then run:");
+            println!("Check your email or server logs for the token, then run:");
             println!("  lst auth verify {} <token>", email.cyan());
-            
-            if let Some(_qr_code) = auth_response.get("qr_png_base64") {
-                println!("\nQR code available for easy login (base64 encoded)");
-            }
         }
     } else {
         let error_text = response.text().await?;
@@ -1075,7 +1092,10 @@ pub async fn auth_request(email: &str, host: Option<&str>, json: bool) -> Result
 /// Verify authentication token and store JWT
 pub async fn auth_verify(email: &str, token: &str, json: bool) -> Result<()> {
     let mut config = Config::load()?;
-    let server_url = config.server.url.as_ref()
+    let server_url = config
+        .server
+        .url
+        .as_ref()
         .context("No server URL configured. Run 'lst sync setup' first.")?;
 
     let client = reqwest::Client::new();
@@ -1092,14 +1112,14 @@ pub async fn auth_verify(email: &str, token: &str, json: bool) -> Result<()> {
 
     if response.status().is_success() {
         let verify_response: serde_json::Value = response.json().await?;
-        
+
         if let Some(jwt) = verify_response.get("jwt").and_then(|j| j.as_str()) {
             // Parse JWT to get expiration (basic extraction without validation)
             let expires_at = chrono::Utc::now() + chrono::Duration::hours(1); // Default 1 hour
-            
+
             config.store_jwt(jwt.to_string(), expires_at);
             config.save()?;
-            
+
             if json {
                 println!("{}", serde_json::to_string_pretty(&verify_response)?);
             } else {
@@ -1120,28 +1140,31 @@ pub async fn auth_verify(email: &str, token: &str, json: bool) -> Result<()> {
 /// Show current authentication status
 pub fn auth_status(json: bool) -> Result<()> {
     let config = get_config();
-    
+
     let has_server_url = config.server.url.is_some();
     let has_jwt = config.server.jwt_token.is_some();
     let jwt_valid = config.is_jwt_valid();
-    
+
     if json {
-        println!("{}", serde_json::json!({
-            "server_configured": has_server_url,
-            "jwt_token_present": has_jwt,
-            "jwt_valid": jwt_valid,
-            "jwt_expires_at": config.server.jwt_expires_at
-        }));
+        println!(
+            "{}",
+            serde_json::json!({
+                "server_configured": has_server_url,
+                "jwt_token_present": has_jwt,
+                "jwt_valid": jwt_valid,
+                "jwt_expires_at": config.server.jwt_expires_at
+            })
+        );
     } else {
         println!("Authentication Status:");
-        
+
         if !has_server_url {
             println!("  Server: {}", "Not configured".red());
             println!("  Run 'lst sync setup' to configure server URL");
         } else {
             println!("  Server: {}", config.server.url.as_ref().unwrap().cyan());
         }
-        
+
         if !has_jwt {
             println!("  JWT Token: {}", "Not present".red());
             println!("  Run 'lst auth request <email>' to authenticate");
@@ -1155,7 +1178,7 @@ pub fn auth_status(json: bool) -> Result<()> {
             println!("  Run 'lst auth request <email>' to re-authenticate");
         }
     }
-    
+
     Ok(())
 }
 
@@ -1164,13 +1187,13 @@ pub fn auth_logout(json: bool) -> Result<()> {
     let mut config = Config::load()?;
     config.clear_jwt();
     config.save()?;
-    
+
     if json {
         println!("{}", serde_json::json!({"status": "logged_out"}));
     } else {
         println!("Successfully logged out. JWT token removed.");
     }
-    
+
     Ok(())
 }
 
@@ -1181,28 +1204,35 @@ pub async fn make_authenticated_request(
     body: Option<serde_json::Value>,
 ) -> Result<reqwest::Response> {
     let config = get_config();
-    
-    let server_url = config.server.url.as_ref()
+
+    let server_url = config
+        .server
+        .url
+        .as_ref()
         .context("No server URL configured")?;
-    
-    let jwt = config.get_jwt()
+
+    let jwt = config
+        .get_jwt()
         .context("No valid JWT token. Run 'lst auth request <email>' to authenticate")?;
-    
+
     let client = reqwest::Client::new();
     let mut request = client
-        .request(method, format!("{}/{}", server_url, endpoint.trim_start_matches('/')))
+        .request(
+            method,
+            format!("{}/{}", server_url, endpoint.trim_start_matches('/')),
+        )
         .header("Authorization", format!("Bearer {}", jwt));
-    
+
     if let Some(body) = body {
         request = request.json(&body);
     }
-    
+
     let response = request.send().await?;
-    
+
     if response.status() == reqwest::StatusCode::UNAUTHORIZED {
         bail!("Authentication failed. JWT token may be expired. Run 'lst auth request <email>' to re-authenticate");
     }
-    
+
     Ok(response)
 }
 
@@ -1216,15 +1246,12 @@ pub async fn server_create(kind: &str, path: &str, content: &str, json: bool) ->
         "content": content
     });
 
-    let response = make_authenticated_request(
-        reqwest::Method::POST,
-        "/api/content",
-        Some(payload),
-    ).await?;
+    let response =
+        make_authenticated_request(reqwest::Method::POST, "/api/content", Some(payload)).await?;
 
     if response.status().is_success() {
         let result: serde_json::Value = response.json().await?;
-        
+
         if json {
             println!("{}", serde_json::to_string_pretty(&result)?);
         } else {
@@ -1241,22 +1268,21 @@ pub async fn server_create(kind: &str, path: &str, content: &str, json: bool) ->
 /// Get content from the server
 pub async fn server_get(kind: &str, path: &str, json: bool) -> Result<()> {
     let endpoint = format!("/api/content/{}/{}", kind, path);
-    
-    let response = make_authenticated_request(
-        reqwest::Method::GET,
-        &endpoint,
-        None,
-    ).await?;
+
+    let response = make_authenticated_request(reqwest::Method::GET, &endpoint, None).await?;
 
     if response.status().is_success() {
         let content = response.text().await?;
-        
+
         if json {
-            println!("{}", serde_json::json!({
-                "kind": kind,
-                "path": path,
-                "content": content
-            }));
+            println!(
+                "{}",
+                serde_json::json!({
+                    "kind": kind,
+                    "path": path,
+                    "content": content
+                })
+            );
         } else {
             println!("Content from {}/{}:", kind.cyan(), path.cyan());
             println!("{}", content);
@@ -1282,15 +1308,12 @@ pub async fn server_update(kind: &str, path: &str, content: &str, json: bool) ->
         "content": content
     });
 
-    let response = make_authenticated_request(
-        reqwest::Method::PUT,
-        &endpoint,
-        Some(payload),
-    ).await?;
+    let response =
+        make_authenticated_request(reqwest::Method::PUT, &endpoint, Some(payload)).await?;
 
     if response.status().is_success() {
         let result: serde_json::Value = response.json().await?;
-        
+
         if json {
             println!("{}", serde_json::to_string_pretty(&result)?);
         } else {
@@ -1313,16 +1336,12 @@ pub async fn server_update(kind: &str, path: &str, content: &str, json: bool) ->
 /// Delete content from the server
 pub async fn server_delete(kind: &str, path: &str, json: bool) -> Result<()> {
     let endpoint = format!("/api/content/{}/{}", kind, path);
-    
-    let response = make_authenticated_request(
-        reqwest::Method::DELETE,
-        &endpoint,
-        None,
-    ).await?;
+
+    let response = make_authenticated_request(reqwest::Method::DELETE, &endpoint, None).await?;
 
     if response.status().is_success() {
         let result: serde_json::Value = response.json().await?;
-        
+
         if json {
             println!("{}", serde_json::to_string_pretty(&result)?);
         } else {
