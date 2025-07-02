@@ -41,6 +41,9 @@ async fn main() -> Result<()> {
         Commands::Rm { list, target } => {
             cli::commands::remove_item(list, target, cli.json)?;
         }
+        Commands::Wipe { list, force } => {
+            cli::commands::wipe_list(list, *force, cli.json)?;
+        }
         Commands::Pipe { list } => {
             cli::commands::pipe(list, cli.json)?;
         }

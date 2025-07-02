@@ -47,8 +47,6 @@ pub fn load_list(list_name: &str) -> Result<List> {
     }
 }
 
-
-
 /// Save a list to a markdown file using the original list name path
 pub fn save_list_with_path(list: &List, list_name: &str) -> Result<()> {
     let lists_dir = super::get_lists_dir()?;
@@ -484,4 +482,17 @@ pub fn find_item_for_removal<'a>(list: &'a List, target: &str) -> Result<(usize,
             target
         ),
     }
+}
+
+/// Remove all items from a list, returning the number of removed entries
+pub fn wipe_list(list_name: &str) -> Result<usize> {
+    let mut list = load_list(list_name)?;
+    let removed = list.items.len();
+    if removed == 0 {
+        return Ok(0);
+    }
+    list.items.clear();
+    list.metadata.updated = chrono::Utc::now();
+    save_list_with_path(&list, list_name)?;
+    Ok(removed)
 }
