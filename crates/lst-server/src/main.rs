@@ -13,20 +13,21 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use base64::{engine::general_purpose, Engine as _};
 use clap::Parser;
 use config::Settings;
 use futures_util::{SinkExt, StreamExt};
-use image::Luma;
+use hex;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{
     message::Message as EmailMessage, AsyncSmtpTransport, AsyncTransport, Tokio1Executor,
 };
+use qrcode::render::unicode;
 use qrcode::QrCode;
 use rand::seq::SliceRandom;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+use argon2::{password_hash::{SaltString, PasswordHash}, Argon2, Algorithm, Params, PasswordHasher, PasswordVerifier, Version};
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 use sqlx::{FromRow, Row};
 use std::net::{IpAddr, SocketAddr};
@@ -99,6 +100,17 @@ impl SqliteTokenStore {
         )
         .execute(&pool)
         .await?;
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS users (
+                email TEXT PRIMARY KEY NOT NULL,
+                password_hash TEXT NOT NULL,
+                salt TEXT NOT NULL
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await?;
         Ok(SqliteTokenStore { pool })
     }
 
@@ -143,6 +155,35 @@ impl SqliteTokenStore {
             }
             None => Ok(false),
         }
+    }
+
+    pub async fn get_user(&self, email: &str) -> Result<Option<(String, String)>, sqlx::Error> {
+        if let Some(row) = sqlx::query("SELECT password_hash, salt FROM users WHERE email = ?")
+            .bind(email)
+            .fetch_optional(&self.pool)
+            .await?
+        {
+            let password_hash: String = row.get(0);
+            let salt: String = row.get(1);
+            Ok(Some((password_hash, salt)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn set_user(
+        &self,
+        email: &str,
+        password_hash: &str,
+        salt: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query("INSERT OR REPLACE INTO users (email, password_hash, salt) VALUES (?, ?, ?)")
+            .bind(email)
+            .bind(password_hash)
+            .bind(salt)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 }
 
@@ -311,13 +352,12 @@ struct AppState {
 struct AuthRequest {
     email: String,
     host: String,
+    password_hash: String,
 }
 
 #[derive(Serialize)]
-struct AuthToken {
-    token: String,
-    qr_png_base64: String,
-    login_url: String,
+struct AuthResponse {
+    status: String,
 }
 
 #[derive(Parser)]
@@ -452,7 +492,43 @@ async fn auth_request_handler(
     Json(req): Json<AuthRequest>,
     token_store: TokenStore,
     settings: Arc<Settings>,
-) -> Result<Json<AuthToken>, (StatusCode, String)> {
+) -> Result<Json<AuthResponse>, (StatusCode, String)> {
+    // verify or create user
+    let params = Params::new(128 * 1024, 3, 2, None).expect("invalid params");
+    let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
+
+    if let Ok(Some((stored, _salt))) = token_store.get_user(&req.email).await {
+        let parsed = PasswordHash::new(&stored).map_err(|_| {
+            (StatusCode::INTERNAL_SERVER_ERROR, "Corrupt password hash".into())
+        })?;
+        if argon2
+            .verify_password(req.password_hash.as_bytes(), &parsed)
+            .is_err()
+        {
+            return Err((StatusCode::UNAUTHORIZED, "Invalid password".into()));
+        }
+    } else {
+        let salt = SaltString::encode_b64(rand::random::<[u8; 16]>())
+            .expect("salt");
+        let final_hash = argon2
+            .hash_password(req.password_hash.as_bytes(), &salt)
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to hash password".to_string(),
+                )
+            })?
+            .to_string();
+        token_store
+            .set_user(&req.email, &final_hash, salt.as_str())
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to store user".to_string(),
+                )
+            })?;
+    }
     let token = generate_token();
     let expiry = SystemTime::now() + Duration::from_secs(TOKEN_VALID_FOR_SECS);
     if let Err(e) = token_store
@@ -472,22 +548,7 @@ async fn auth_request_handler(
         urlencoding::encode(&req.email)
     );
     let code = QrCode::new(login_url.as_bytes()).unwrap();
-    let img = code.render::<Luma<u8>>().max_dimensions(300, 300).build();
-    let mut buf = std::io::Cursor::new(Vec::new());
-    {
-        use image::codecs::png::PngEncoder;
-        use image::ColorType;
-        use image::ImageEncoder;
-        PngEncoder::new(&mut buf)
-            .write_image(
-                img.as_raw(),
-                img.width(),
-                img.height(),
-                ColorType::L8.into(),
-            )
-            .unwrap();
-    }
-    let base64_png = general_purpose::STANDARD.encode(buf.get_ref());
+    let qr_string = code.render::<unicode::Dense1x2>().build();
     if let Some(email_cfg) = &settings.email {
         let email_message = EmailMessage::builder()
             .from(email_cfg.sender.parse().map_err(|e| {
@@ -530,12 +591,13 @@ async fn auth_request_handler(
             )
         })?;
     } else {
-        println!("Login link for {}: {}", req.email, login_url);
+        println!("Authentication token for {}: {}", req.email, token);
+        println!("Login link: {}", login_url);
+        println!("\nScan the following QR code to log in:");
+        println!("{}", qr_string);
     }
-    Ok(Json(AuthToken {
-        token,
-        qr_png_base64: base64_png,
-        login_url,
+    Ok(Json(AuthResponse {
+        status: "ok".to_string(),
     }))
 }
 

@@ -333,10 +333,11 @@ impl SyncManager {
             Some(u) => u,
             None => return Ok(()),
         };
-        let token = syncd
-            .auth_token
-            .as_ref()
-            .context("auth_token not configured")?;
+        let token = self
+            .config
+            .get_jwt()
+            .context("No valid JWT token. Run 'lst auth request <email>' to authenticate")?
+            .to_string();
 
         let device_id = syncd
             .device_id
@@ -346,9 +347,7 @@ impl SyncManager {
         let (ws, _) = connect_async(url).await?;
         let (mut write, mut read) = ws.split();
 
-        let auth_msg = lst_proto::ClientMessage::Authenticate {
-            jwt: token.clone(),
-        };
+        let auth_msg = lst_proto::ClientMessage::Authenticate { jwt: token.clone() };
         write
             .send(Message::Text(serde_json::to_string(&auth_msg)?))
             .await?;

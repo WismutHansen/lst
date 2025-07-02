@@ -55,6 +55,9 @@ tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
 reqwest = { workspace = true, features = ["json"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 url = "2.5.0"
+sha2 = "0.10"
+hex = "0.4"
+argon2 = { workspace = true }
 
 [features]
 default = ["lists"]
