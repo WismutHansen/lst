@@ -5,7 +5,7 @@ mod storage;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{Cli, Commands, ImageCommands, NoteCommands, RemoteCommands};
+use cli::{AuthCommands, Cli, Commands, ImageCommands, NoteCommands, RemoteCommands, ServerCommands};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -126,6 +126,34 @@ async fn main() -> Result<()> {
         Commands::Tidy => {
             cli::commands::tidy_lists(cli.json)?;
         }
+        Commands::Auth(auth_cmd) => match auth_cmd {
+            AuthCommands::Request { email, host } => {
+                cli::commands::auth_request(email, host.as_deref(), cli.json).await?;
+            }
+            AuthCommands::Verify { email, token } => {
+                cli::commands::auth_verify(email, token, cli.json).await?;
+            }
+            AuthCommands::Status => {
+                cli::commands::auth_status(cli.json)?;
+            }
+            AuthCommands::Logout => {
+                cli::commands::auth_logout(cli.json)?;
+            }
+        },
+        Commands::Server(server_cmd) => match server_cmd {
+            ServerCommands::Create { kind, path, content } => {
+                cli::commands::server_create(kind, path, content, cli.json).await?;
+            }
+            ServerCommands::Get { kind, path } => {
+                cli::commands::server_get(kind, path, cli.json).await?;
+            }
+            ServerCommands::Update { kind, path, content } => {
+                cli::commands::server_update(kind, path, content, cli.json).await?;
+            }
+            ServerCommands::Delete { kind, path } => {
+                cli::commands::server_delete(kind, path, cli.json).await?;
+            }
+        },
     }
 
     Ok(())
