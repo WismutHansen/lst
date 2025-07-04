@@ -508,7 +508,7 @@ async fn auth_request_handler(
             return Err((StatusCode::UNAUTHORIZED, "Invalid password".into()));
         }
     } else {
-        let salt = SaltString::encode_b64(rand::random::<[u8; 16]>())
+        let salt = SaltString::encode_b64(&rand::random::<[u8; 16]>())
             .expect("salt");
         let final_hash = argon2
             .hash_password(req.password_hash.as_bytes(), &salt)

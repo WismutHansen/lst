@@ -12,7 +12,7 @@ use rust_mcp_sdk::{
 //****************//
 #[mcp_tool(
     name = "list_lists",
-    description = "lists the names of all available todo lists",
+    description = "lists the names of all available lists (could be todo lists, shopping lists etc)",
     idempotent_hint = false,
     destructive_hint = false,
     open_world_hint = false,
@@ -26,14 +26,24 @@ impl ListListsTool {
         match storage::list_lists() {
             Ok(lists) => {
                 if lists.is_empty() {
-                    Ok(CallToolResult::text_content("No lists found.".to_string(), None))
+                    Ok(CallToolResult::text_content(
+                        "No lists found.".to_string(),
+                        None,
+                    ))
                 } else {
-                    let lists_json = serde_json::to_string(&lists)
-                        .map_err(|e| CallToolError::new(std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to serialize lists: {}", e))))?;
+                    let lists_json = serde_json::to_string(&lists).map_err(|e| {
+                        CallToolError::new(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("Failed to serialize lists: {}", e),
+                        ))
+                    })?;
                     Ok(CallToolResult::text_content(lists_json, None))
                 }
-            },
-            Err(e) => Err(CallToolError::new(std::io::Error::new(std::io::ErrorKind::Other, format!("{}", e)))),
+            }
+            Err(e) => Err(CallToolError::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("{}", e),
+            ))),
         }
     }
 }
@@ -43,7 +53,7 @@ impl ListListsTool {
 //******************//
 #[mcp_tool(
     name = "add_to_list",
-    description = "adds one or multiple items to a specified todo list, creates list if it does not yet exist",
+    description = "adds one or multiple items to a specified list, creates list if it does not yet exist",
     idempotent_hint = false,
     destructive_hint = false,
     open_world_hint = false,
@@ -59,14 +69,133 @@ pub struct AddToListTool {
 impl AddToListTool {
     pub fn call_tool(&self) -> Result<CallToolResult, CallToolError> {
         match commands::add_item(&self.list, &self.item, false) {
-            Ok(_) => Ok(CallToolResult::text_content(format!("Added '{}' to list '{}'", self.item, self.list), None)),
-            Err(e) => Err(CallToolError::new(std::io::Error::new(std::io::ErrorKind::Other, format!("{}", e)))),
+            Ok(_) => {
+                // Try to switch to the list remotely on success
+                let rt = tokio::runtime::Runtime::new().map_err(|e| {
+                    CallToolError::new(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("Failed to create runtime: {}", e),
+                    ))
+                })?;
+                
+                if let Err(e) = rt.block_on(commands::remote_switch_list(&self.list)) {
+                    // Don't fail the entire operation if remote switch fails
+                    eprintln!("Warning: Failed to switch remote list: {}", e);
+                }
+                
+                Ok(CallToolResult::text_content(
+                    format!("Added '{}' to list '{}'", self.item, self.list),
+                    None,
+                ))
+            }
+            Err(e) => Err(CallToolError::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("{}", e),
+            ))),
         }
     }
 }
 
 //******************//
-//  GreetingTools  //
+//  MarkDoneTool   //
 //******************//
-// Generates an enum names GreetingTools, with SayHelloTool and SayGoodbyeTool variants
-tool_box!(LstTools, [ListListsTool, AddToListTool]);
+#[mcp_tool(
+    name = "mark_done",
+    description = "marks one or more items as done in a specified list",
+    idempotent_hint = false,
+    destructive_hint = false,
+    open_world_hint = false,
+    read_only_hint = false
+)]
+#[derive(Debug, ::serde::Deserialize, ::serde::Serialize, JsonSchema)]
+pub struct MarkDoneTool {
+    /// The name of the list containing the item(s) to mark as done.
+    list: String,
+    /// The target item(s) to mark as done (can be anchor, text, index, or comma-separated multiple items).
+    target: String,
+}
+
+impl MarkDoneTool {
+    pub fn call_tool(&self) -> Result<CallToolResult, CallToolError> {
+        match commands::mark_done(&self.list, &self.target, false) {
+            Ok(_) => {
+                // Try to switch to the list remotely on success
+                let rt = tokio::runtime::Runtime::new().map_err(|e| {
+                    CallToolError::new(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("Failed to create runtime: {}", e),
+                    ))
+                })?;
+                
+                if let Err(e) = rt.block_on(commands::remote_switch_list(&self.list)) {
+                    // Don't fail the entire operation if remote switch fails
+                    eprintln!("Warning: Failed to switch remote list: {}", e);
+                }
+                
+                Ok(CallToolResult::text_content(
+                    format!("Marked '{}' as done in list '{}'", self.target, self.list),
+                    None,
+                ))
+            }
+            Err(e) => Err(CallToolError::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("{}", e),
+            ))),
+        }
+    }
+}
+
+//******************//
+//  MarkUndoneTool //
+//******************//
+#[mcp_tool(
+    name = "mark_undone",
+    description = "marks one or more completed items as not done in a specified list",
+    idempotent_hint = false,
+    destructive_hint = false,
+    open_world_hint = false,
+    read_only_hint = false
+)]
+#[derive(Debug, ::serde::Deserialize, ::serde::Serialize, JsonSchema)]
+pub struct MarkUndoneTool {
+    /// The name of the list containing the item(s) to mark as undone.
+    list: String,
+    /// The target item(s) to mark as undone (can be anchor, text, index, or comma-separated multiple items).
+    target: String,
+}
+
+impl MarkUndoneTool {
+    pub fn call_tool(&self) -> Result<CallToolResult, CallToolError> {
+        match commands::mark_undone(&self.list, &self.target, false) {
+            Ok(_) => {
+                // Try to switch to the list remotely on success
+                let rt = tokio::runtime::Runtime::new().map_err(|e| {
+                    CallToolError::new(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("Failed to create runtime: {}", e),
+                    ))
+                })?;
+                
+                if let Err(e) = rt.block_on(commands::remote_switch_list(&self.list)) {
+                    // Don't fail the entire operation if remote switch fails
+                    eprintln!("Warning: Failed to switch remote list: {}", e);
+                }
+                
+                Ok(CallToolResult::text_content(
+                    format!("Marked '{}' as undone in list '{}'", self.target, self.list),
+                    None,
+                ))
+            }
+            Err(e) => Err(CallToolError::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("{}", e),
+            ))),
+        }
+    }
+}
+
+//******************//
+//  LstTools Enum  //
+//******************//
+// Generates an enum names LstTools, with all tool variants
+tool_box!(LstTools, [ListListsTool, AddToListTool, MarkDoneTool, MarkUndoneTool]);

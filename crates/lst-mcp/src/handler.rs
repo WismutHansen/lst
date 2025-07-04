@@ -43,6 +43,8 @@ impl ServerHandler for MyServerHandler {
         match tool_params {
             LstTools::ListListsTool(list_list_tool) => list_list_tool.call_tool(),
             LstTools::AddToListTool(add_to_list_tool) => add_to_list_tool.call_tool(),
+            LstTools::MarkDoneTool(mark_done_tool) => mark_done_tool.call_tool(),
+            LstTools::MarkUndoneTool(mark_undone_tool) => mark_undone_tool.call_tool(),
         }
     }
 }

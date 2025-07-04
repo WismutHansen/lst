@@ -19,7 +19,7 @@ async fn main() -> SdkResult<()> {
     let server_details = InitializeResult {
         // server name and version
         server_info: Implementation {
-            name: "Hello World MCP Server".to_string(),
+            name: "lst MCP server".to_string(),
             version: "0.1.0".to_string(),
         },
         capabilities: ServerCapabilities {
@@ -28,7 +28,7 @@ async fn main() -> SdkResult<()> {
             ..Default::default() // Using default values for other fields
         },
         meta: None,
-        instructions: Some("server instructions...".to_string()),
+        instructions: Some("MCP server for interacting with personal lists like todo lists, shopping lists, daily lists etc".to_string()),
         protocol_version: LATEST_PROTOCOL_VERSION.to_string(),
     };
 
