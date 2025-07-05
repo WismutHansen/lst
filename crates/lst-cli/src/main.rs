@@ -5,7 +5,7 @@ mod storage;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{AuthCommands, Cli, Commands, ImageCommands, NoteCommands, RemoteCommands, ServerCommands};
+use cli::{AuthCommands, Cli, Commands, GuiCommands, ImageCommands, NoteCommands, ServerCommands};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -118,8 +118,8 @@ async fn main() -> Result<()> {
         Commands::Unshare { document } => {
             cli::commands::unshare_document(document)?;
         }
-        Commands::Remote(remote_cmd) => match remote_cmd {
-            RemoteCommands::Switch { list } => {
+        Commands::Gui(remote_cmd) => match remote_cmd {
+            GuiCommands::Switch { list } => {
                 cli::commands::remote_switch_list(list).await?;
             }
         },
@@ -141,13 +141,21 @@ async fn main() -> Result<()> {
             }
         },
         Commands::Server(server_cmd) => match server_cmd {
-            ServerCommands::Create { kind, path, content } => {
+            ServerCommands::Create {
+                kind,
+                path,
+                content,
+            } => {
                 cli::commands::server_create(kind, path, content, cli.json).await?;
             }
             ServerCommands::Get { kind, path } => {
                 cli::commands::server_get(kind, path, cli.json).await?;
             }
-            ServerCommands::Update { kind, path, content } => {
+            ServerCommands::Update {
+                kind,
+                path,
+                content,
+            } => {
                 cli::commands::server_update(kind, path, content, cli.json).await?;
             }
             ServerCommands::Delete { kind, path } => {

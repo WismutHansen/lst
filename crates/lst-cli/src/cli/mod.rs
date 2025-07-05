@@ -133,8 +133,8 @@ pub enum Commands {
     },
 
     /// Send commands to a running lst-desktop instance
-    #[clap(subcommand, name = "remote")]
-    Remote(RemoteCommands),
+    #[clap(subcommand, name = "gui")]
+    Gui(GuiCommands),
 
     /// Tidy all lists: ensure proper YAML frontmatter and formatting
     #[clap(name = "tidy")]
@@ -150,7 +150,7 @@ pub enum Commands {
 }
 
 #[derive(Subcommand)]
-pub enum RemoteCommands {
+pub enum GuiCommands {
     /// Switch the list in the desktop app
     #[clap(name = "switch")]
     Switch {

@@ -3370,11 +3370,21 @@ dependencies = [
 name = "lst-mobile"
 version = "0.1.3"
 dependencies = [
+ "anyhow",
+ "axum",
+ "lst-cli",
+ "lst-proto",
  "serde",
  "serde_json",
+ "specta",
+ "specta-typescript",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
+ "tauri-specta",
+ "tokio",
+ "tower-http 0.5.2",
+ "window-vibrancy",
 ]
 
 [[package]]

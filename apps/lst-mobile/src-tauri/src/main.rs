@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    lst_mobile_lib::run()
+    lst_desktop_lib::run()
 }
