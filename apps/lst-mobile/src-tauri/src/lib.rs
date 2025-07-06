@@ -1,13 +1,16 @@
 use anyhow::Result;
 use lst_cli::config::{get_config, UiConfig};
-use lst_cli::models::{fuzzy_find, is_valid_anchor, ItemStatus, List};
-use lst_cli::storage::{
-    list_lists, list_notes,
-    markdown::{self, load_list},
-};
+use lst_cli::models::List;
+use lst_cli::storage::list_notes;
+
+mod crypto;
+mod database;
+mod sync;
+mod sync_db;
+use database::Database;
 use specta_typescript::Typescript;
-use tauri::tray::TrayIconBuilder;
 use tauri::Manager;
+use tauri_plugin_opener;
 use tauri_specta::{collect_commands, Builder};
 
 mod command_server;
@@ -15,8 +18,8 @@ mod theme;
 
 #[tauri::command]
 #[specta::specta]
-fn get_lists() -> Result<Vec<String>, String> {
-    list_lists().map_err(|e| e.to_string())
+fn get_lists(db: tauri::State<'_, Database>) -> Result<Vec<String>, String> {
+    db.list_titles().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -27,91 +30,40 @@ fn get_notes() -> Result<Vec<String>, String> {
 
 #[tauri::command]
 #[specta::specta]
-fn get_list(name: String) -> Result<List, String> {
-    load_list(&name).map_err(|e| e.to_string())
+fn get_list(name: String, db: tauri::State<'_, Database>) -> Result<List, String> {
+    db.load_list(&name).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
-fn create_list(title: String) -> Result<List, String> {
-    let list = List::new(title);
-    markdown::save_list(&list).map_err(|e| e.to_string())?;
-    Ok(list)
+fn create_list(title: String, db: tauri::State<'_, Database>) -> Result<List, String> {
+    db.create_list(&title).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
-fn add_item(list: String, text: String) -> Result<List, String> {
-    // create list if missing
-    if load_list(&list).is_err() {
-        markdown::create_list(&list).map_err(|e| e.to_string())?;
-    }
-    for item in text.split(',').map(|s| s.trim()) {
-        if !item.is_empty() {
-            markdown::add_item(&list, item).map_err(|e| e.to_string())?;
-        }
-    }
-    load_list(&list).map_err(|e| e.to_string())
-}
-
-fn find_item_index(list: &List, target: &str) -> Option<usize> {
-    if is_valid_anchor(target) {
-        if let Some(idx) = list.find_by_anchor(target) {
-            return Some(idx);
-        }
-    }
-    if let Some(idx) = list.find_by_text(target) {
-        return Some(idx);
-    }
-    if let Some(number_str) = target.strip_prefix('#') {
-        if let Ok(num) = number_str.parse::<usize>() {
-            if let Some(item) = list.get_by_index(num - 1) {
-                if let Some(idx) = list.find_by_anchor(&item.anchor) {
-                    return Some(idx);
-                }
-            }
-        }
-    }
-    let matches = fuzzy_find(&list.items, target, 0.75);
-    match matches.len() {
-        1 => Some(matches[0]),
-        _ => None,
-    }
+fn add_item(list: String, text: String, db: tauri::State<'_, Database>) -> Result<List, String> {
+    db.add_item(&list, &text).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
-fn toggle_item(list: String, target: String) -> Result<List, String> {
-    let current = load_list(&list).map_err(|e| e.to_string())?;
-    if let Some(idx) = find_item_index(&current, &target) {
-        let status = current.items[idx].status.clone();
-        drop(current);
-        match status {
-            ItemStatus::Todo => {
-                markdown::mark_done(&list, &target).map_err(|e| e.to_string())?;
-            }
-            ItemStatus::Done => {
-                markdown::mark_undone(&list, &target).map_err(|e| e.to_string())?;
-            }
-        }
-        load_list(&list).map_err(|e| e.to_string())
-    } else {
-        Err(format!("No item matching '{}'", target))
-    }
+fn toggle_item(
+    list: String,
+    target: String,
+    db: tauri::State<'_, Database>,
+) -> Result<List, String> {
+    db.toggle_item(&list, &target).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
-fn remove_item(list: String, target: String) -> Result<List, String> {
-    let current = load_list(&list).map_err(|e| e.to_string())?;
-    if let Some(_idx) = find_item_index(&current, &target) {
-        drop(current);
-        println!("deleting item {}", target);
-        markdown::delete_item(&list, &target).map_err(|e| e.to_string())?;
-        load_list(&list).map_err(|e| e.to_string())
-    } else {
-        Err(format!("No item matching '{}'", target))
-    }
+fn remove_item(
+    list: String,
+    target: String,
+    db: tauri::State<'_, Database>,
+) -> Result<List, String> {
+    db.remove_item(&list, &target).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -122,22 +74,32 @@ fn get_ui_config() -> Result<UiConfig, String> {
 
 #[tauri::command]
 #[specta::specta]
-fn edit_item(list: String, target: String, text: String) -> Result<List, String> {
-    markdown::edit_item_text(&list, &target, &text).map_err(|e| e.to_string())?;
-    load_list(&list).map_err(|e| e.to_string())
+fn edit_item(
+    list: String,
+    target: String,
+    text: String,
+    db: tauri::State<'_, Database>,
+) -> Result<List, String> {
+    db.edit_item(&list, &target, &text)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
-fn reorder_item(list: String, target: String, new_index: u32) -> Result<List, String> {
-    markdown::reorder_item(&list, &target, new_index as usize).map_err(|e| e.to_string())?;
-    load_list(&list).map_err(|e| e.to_string())
+fn reorder_item(
+    list: String,
+    target: String,
+    new_index: u32,
+    db: tauri::State<'_, Database>,
+) -> Result<List, String> {
+    db.reorder_item(&list, &target, new_index as usize)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
-fn save_list(list: List) -> Result<(), String> {
-    markdown::save_list(&list).map_err(|e| e.to_string())
+fn save_list(list: List, db: tauri::State<'_, Database>) -> Result<(), String> {
+    db.save_list(&list).map_err(|e| e.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -166,11 +128,26 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let _tray = TrayIconBuilder::new().build(app)?;
+            let handle = app.handle();
+            let db = Database::new(&handle)?;
+            app.manage(db);
             let _window = app.get_webview_window("main").unwrap();
 
             command_server::start_command_server(app.handle().clone());
             theme::broadcast_theme(&app.handle()).ok();
+
+            // spawn background sync task
+            let config = get_config().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Ok(mut mgr) = sync::SyncManager::new(config).await {
+                    loop {
+                        if let Err(e) = mgr.periodic_sync().await {
+                            eprintln!("sync error: {e}");
+                        }
+                        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                    }
+                }
+            });
 
             // #[cfg(target_os = "macos")]
             // window_vibrancy::apply_vibrancy(
