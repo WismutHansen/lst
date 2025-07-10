@@ -37,6 +37,22 @@ async fn switch_list_handler(app_handle: AppHandle, list_name: String) {
     }
 }
 
+async fn show_message_handler(app_handle: AppHandle, message: String) {
+    println!("💬 CLI command received: showing message '{}'", message);
+
+    if let Some(window) = app_handle.get_webview_window("main") {
+        match window.emit("show-message", &message) {
+            Ok(_) => println!(
+                "󰸞 Event 'show-message' emitted to main window with payload: '{}'",
+                message
+            ),
+            Err(e) => println!(" Failed to emit 'show-message' event to main window: {}", e),
+        }
+    } else {
+        println!(" Could not find main window");
+    }
+}
+
 pub fn start_command_server(app_handle: AppHandle) {
     println!("🚀 Starting command server...");
     std::thread::spawn(move || {
@@ -49,6 +65,7 @@ pub fn start_command_server(app_handle: AppHandle) {
 
             let app_handle_1 = app_handle.clone();
             let app_handle_2 = app_handle.clone();
+            let app_handle_3 = app_handle.clone();
 
             let app = Router::new()
                 .route(
@@ -58,8 +75,14 @@ pub fn start_command_server(app_handle: AppHandle) {
                     }),
                 )
                 .route(
+                    "/command/show-message",
+                    post(move |message: String| {
+                        show_message_handler(app_handle_2.clone(), message)
+                    }),
+                )
+                .route(
                     "/command/test",
-                    post(move |_: String| test_handler(app_handle_2.clone())),
+                    post(move |_: String| test_handler(app_handle_3.clone())),
                 )
                 .layer(cors);
 

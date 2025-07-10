@@ -122,6 +122,9 @@ async fn main() -> Result<()> {
             GuiCommands::Switch { list } => {
                 cli::commands::remote_switch_list(list).await?;
             }
+            GuiCommands::Message { text } => {
+                cli::commands::remote_show_message(text).await?;
+            }
         },
         Commands::Tidy => {
             cli::commands::tidy_lists(cli.json)?;

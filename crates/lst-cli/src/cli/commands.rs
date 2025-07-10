@@ -826,6 +826,23 @@ pub async fn remote_switch_list(list_name: &str) -> Result<()> {
     Ok(())
 }
 
+pub async fn remote_show_message(message: &str) -> Result<()> {
+    let client = reqwest::Client::new();
+    let res = client
+        .post(format!("http://localhost:33333/command/show-message"))
+        .body(message.to_string())
+        .send()
+        .await?;
+
+    if res.status().is_success() {
+        println!("Message sent to desktop app");
+    } else {
+        bail!("Failed to send message: {}", res.status());
+    }
+
+    Ok(())
+}
+
 /// Tidy all lists: ensure they have proper YAML frontmatter and formatting
 pub fn tidy_lists(json: bool) -> Result<()> {
     let entries = storage::list_lists_with_info()?;

@@ -130,6 +130,8 @@ export default function App() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [currentList, setCurrentList] = useState<List | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [messageTimeoutId, setMessageTimeoutId] = useState<number | null>(null);
   const [currentName, setCurrentName] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newListName, setNewListName] = useState("");
@@ -191,6 +193,24 @@ export default function App() {
     const res = await commands.getLists();
     res.status === "ok" ? setLists(res.data) : setError(res.error);
   }
+
+  const showMessage = useCallback((text: string, duration: number = 3000) => {
+    // Clear any existing timeout
+    if (messageTimeoutId) {
+      clearTimeout(messageTimeoutId);
+    }
+    
+    // Set the new message
+    setMessage(text);
+    
+    // Set timeout to clear the message
+    const timeoutId = setTimeout(() => {
+      setMessage(null);
+      setMessageTimeoutId(null);
+    }, duration);
+    
+    setMessageTimeoutId(timeoutId);
+  }, [messageTimeoutId]);
 
   const loadList = useCallback(async (name: string) => {
     console.log("📋 loadList called with name:", name);
@@ -379,6 +399,18 @@ export default function App() {
     };
   }, [loadList]);
 
+  useEffect(() => {
+    console.log("🎧 Setting up event listener for 'show-message'");
+    const unlisten = listen<string>("show-message", (event) => {
+      console.log("📨 Received 'show-message' event with payload:", event.payload);
+      showMessage(event.payload);
+    });
+    return () => {
+      console.log("🔇 Cleaning up 'show-message' event listener");
+      unlisten.then((fn) => fn());
+    };
+  }, [showMessage]);
+
   // Test event listener
   useEffect(() => {
     console.log("🧪 Setting up test event listener");
@@ -390,6 +422,15 @@ export default function App() {
       unlisten.then((fn) => fn());
     };
   }, []);
+
+  // Cleanup message timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (messageTimeoutId) {
+        clearTimeout(messageTimeoutId);
+      }
+    };
+  }, [messageTimeoutId]);
 
   // Auto-refresh mechanism
   useEffect(() => {
@@ -1002,10 +1043,13 @@ export default function App() {
         className="fixed bottom-0 left-0 right-0 h-5 border border-border bg-[#181921] text-xs flex items-center px-2 rounded-b-lg"
       >
         <span className="text-muted-foreground truncate pr-4">
-          lst {currentList ? `- ${currentList.title}.md` : ""}
-        </span>
-        <span className="text-muted-foreground">
-          {error && <p className="ml-2 text-red-600">{error}</p>}
+          {message && !error ? (
+            <span className="text-green-600">{message}</span>
+          ) : error ? (
+            <span className="text-red-600">{error}</span>
+          ) : (
+            `lst ${currentList ? `- ${currentList.title}.md` : ""}`
+          )}
         </span>
         <span className="ml-auto text-nowrap">
           {currentList ? `${items.length} items` : "No list selected"}

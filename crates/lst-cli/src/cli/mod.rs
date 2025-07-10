@@ -157,6 +157,12 @@ pub enum GuiCommands {
         /// Name of the list to switch to (use `dl` for today's daily list)
         list: String,
     },
+    /// Show a temporary message in the desktop app status bar
+    #[clap(name = "message")]
+    Message {
+        /// The message text to display
+        text: String,
+    },
 }
 
 #[derive(Subcommand)]
