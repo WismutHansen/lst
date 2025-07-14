@@ -1,7 +1,8 @@
 use anyhow::Result;
 use lst_cli::config::{get_config, UiConfig};
 use lst_cli::models::List;
-use lst_cli::storage::list_notes;
+use serde::{Deserialize, Serialize};
+use specta::Type;
 
 mod crypto;
 mod database;
@@ -16,6 +17,14 @@ use tauri_specta::{collect_commands, Builder};
 mod command_server;
 mod theme;
 
+#[derive(Debug, Serialize, Deserialize, Type)]
+pub struct Note {
+    pub title: String,
+    pub content: String,
+    pub created: Option<String>,
+    pub file_path: String,
+}
+
 #[tauri::command]
 #[specta::specta]
 fn get_lists(db: tauri::State<'_, Database>) -> Result<Vec<String>, String> {
@@ -24,8 +33,32 @@ fn get_lists(db: tauri::State<'_, Database>) -> Result<Vec<String>, String> {
 
 #[tauri::command]
 #[specta::specta]
-fn get_notes() -> Result<Vec<String>, String> {
-    list_notes().map_err(|e| e.to_string())
+fn get_notes(db: tauri::State<'_, Database>) -> Result<Vec<String>, String> {
+    db.list_note_titles().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn get_note(name: String, db: tauri::State<'_, Database>) -> Result<Note, String> {
+    db.load_note(&name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn create_note_cmd(title: String, db: tauri::State<'_, Database>) -> Result<Note, String> {
+    db.create_note(&title).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn save_note(note: Note, db: tauri::State<'_, Database>) -> Result<(), String> {
+    db.save_note(&note).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn delete_note_cmd(name: String, db: tauri::State<'_, Database>) -> Result<(), String> {
+    db.delete_note(&name).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -109,6 +142,10 @@ pub fn run() {
         .commands(collect_commands![
             get_lists,
             get_notes,
+            get_note,
+            create_note_cmd,
+            save_note,
+            delete_note_cmd,
             get_list,
             create_list,
             add_item,
@@ -167,6 +204,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_lists,
             get_notes,
+            get_note,
+            create_note_cmd,
+            save_note,
+            delete_note_cmd,
             get_list,
             create_list,
             add_item,

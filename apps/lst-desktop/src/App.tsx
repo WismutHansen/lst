@@ -3,7 +3,8 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import Logo from "./assets/logo.png";
 import { commands, type List, type ListItem } from "./bindings";
 import { CommandPalette, PaletteCommand } from "./components/CommandPalette";
-import { Folder as FolderIcon, List as ListIcon } from "lucide-react";
+import { NotesPanel } from "./components/NotesPanel";
+import { Folder as FolderIcon, List as ListIcon, FileText, Clipboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -71,6 +72,48 @@ function buildListTree(paths: string[], sortOrder: "name" | "date-asc" | "date-d
       });
   return convert(root);
 }
+
+function buildNotesTree(paths: string[], sortOrder: "name" | "date-asc" | "date-desc"): ListNode[] {
+  const root: Record<string, any> = {};
+  for (const p of paths) {
+    const parts = p.split("/");
+    let node = root;
+    let prefix = "";
+    parts.forEach((part, idx) => {
+      prefix = prefix ? `${prefix}/${part}` : part;
+      if (!node[part]) {
+        node[part] = { name: part, path: prefix, isList: false, children: {} };
+      }
+      if (idx === parts.length - 1) node[part].isList = true;
+      node = node[part].children;
+    });
+  }
+  const convert = (obj: Record<string, any>): ListNode[] =>
+    Object.values(obj)
+      .map((n: any) => ({
+        name: n.name,
+        path: n.path,
+        isList: n.isList,
+        children: convert(n.children),
+      }))
+      .sort((a: ListNode, b: ListNode) => {
+        if (sortOrder === "name") {
+          return a.name.localeCompare(b.name);
+        }
+        const dateA = extractDate(a.name);
+        const dateB = extractDate(b.name);
+
+        if (dateA && dateB) {
+          return sortOrder === "date-asc"
+            ? dateA.getTime() - dateB.getTime()
+            : dateB.getTime() - dateA.getTime();
+        }
+        if (dateA) return -1; // notes with dates first
+        if (dateB) return 1;
+        return a.name.localeCompare(b.name);
+      });
+  return convert(root);
+}
 // ---------- date helpers ----------
 
 // Format 2025-06-23 → "20250623"
@@ -126,6 +169,7 @@ export default function App() {
 
   const [query, setQuery] = useState("");
   const [lists, setLists] = useState<string[]>([]);
+  const [notes, setNotes] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [currentList, setCurrentList] = useState<List | null>(null);
@@ -143,6 +187,7 @@ export default function App() {
   const [selected] = useState<Set<string>>(new Set());
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<"name" | "date-asc" | "date-desc">("name");
+  const [currentView, setCurrentView] = useState<"lists" | "notes">("lists");
 
   /* ---------- sidebar & responsive ---------- */
   // sidebar is collapsed by default
@@ -194,6 +239,11 @@ export default function App() {
     res.status === "ok" ? setLists(res.data) : setError(res.error);
   }
 
+  async function fetchNotes() {
+    const res = await commands.getNotes();
+    res.status === "ok" ? setNotes(res.data) : setError(res.error);
+  }
+
   const showMessage = useCallback((text: string, duration: number = 3000) => {
     // Clear any existing timeout
     if (messageTimeoutId) {
@@ -219,6 +269,7 @@ export default function App() {
       console.log("✅ Successfully loaded list:", res.data.title);
       setCurrentList(res.data);
       setCurrentName(name);
+      setCurrentView("lists");
       setShowSuggestions(false);
       setQuery("");
     } else {
@@ -227,17 +278,37 @@ export default function App() {
     }
   }, []);
 
+  const loadNote = useCallback(async (name: string) => {
+    console.log("📝 loadNote called with name:", name);
+    setCurrentList(null);
+    setCurrentName(name);
+    setCurrentView("notes");
+    setShowSuggestions(false);
+    setQuery("");
+  }, []);
+
   /* ---------- mutations ---------- */
   async function createNewList(e: React.FormEvent) {
     e.preventDefault();
     if (!newListName.trim()) return;
-    const res = await commands.createList(newListName.trim());
-    if (res.status === "ok") {
-      await fetchLists();
-      loadList(res.data.title);
-      setNewListName("");
-      setCreating(false);
-    } else setError(res.error);
+    
+    if (currentView === "lists") {
+      const res = await commands.createList(newListName.trim());
+      if (res.status === "ok") {
+        await fetchLists();
+        loadList(res.data.title);
+        setNewListName("");
+        setCreating(false);
+      } else setError(res.error);
+    } else {
+      const res = await commands.createNoteCmd(newListName.trim());
+      if (res.status === "ok") {
+        await fetchNotes();
+        loadNote(res.data.title);
+        setNewListName("");
+        setCreating(false);
+      } else setError(res.error);
+    }
   }
 
   async function quickAddItem(e: React.FormEvent) {
@@ -318,6 +389,7 @@ export default function App() {
     [resolvedQuery, lists]
   );
   const listTree = useMemo(() => buildListTree(lists, sortOrder), [lists, sortOrder]);
+  const notesTree = useMemo(() => buildNotesTree(notes, sortOrder), [notes, sortOrder]);
   // flattened sidebar list for keyboard nav
   const flatSidebarItems: { path: string; isList: boolean }[] = useMemo(() => {
     const dfs = (nodes: ListNode[]): { path: string; isList: boolean }[] =>
@@ -329,8 +401,8 @@ export default function App() {
           ...children,
         ];
       });
-    return dfs(listTree);
-  }, [listTree, expandedFolders]);
+    return currentView === "lists" ? dfs(listTree) : dfs(notesTree);
+  }, [listTree, notesTree, expandedFolders, currentView]);
 
   const paletteCommands = useMemo<PaletteCommand[]>(
     () => [
@@ -357,6 +429,7 @@ export default function App() {
 
   useEffect(() => {
     fetchLists();
+    fetchNotes();
     openTodaysDailyList();
   }, []);
 
@@ -435,11 +508,12 @@ export default function App() {
   // Auto-refresh mechanism
   useEffect(() => {
     const refreshInterval = setInterval(async () => {
-      // Refresh the lists
+      // Refresh the lists and notes
       await fetchLists();
+      await fetchNotes();
 
       // If we have a current list loaded, refresh it too
-      if (currentName) {
+      if (currentName && currentView === "lists") {
         const res = await commands.getList(currentName);
         if (res.status === "ok") {
           setCurrentList(res.data);
@@ -448,7 +522,7 @@ export default function App() {
     }, 2000); // Refresh every 2 seconds
 
     return () => clearInterval(refreshInterval);
-  }, [currentName]);
+  }, [currentName, currentView]);
 
   /* ---------- keybindings ---------- */
   useEffect(() => {
@@ -492,7 +566,13 @@ export default function App() {
           }
           if (e.key === "l") {
             const item = flatSidebarItems[sidebarCursor];
-            if (item?.isList) loadList(item.path);
+            if (item?.isList) {
+              if (currentView === "lists") {
+                loadList(item.path);
+              } else {
+                loadNote(item.path);
+              }
+            }
             e.preventDefault();
             return;
           }
@@ -510,7 +590,13 @@ export default function App() {
           }
           if (e.key === "ArrowRight") {
             const item = flatSidebarItems[sidebarCursor];
-            if (item?.isList) loadList(item.path);
+            if (item?.isList) {
+              if (currentView === "lists") {
+                loadList(item.path);
+              } else {
+                loadNote(item.path);
+              }
+            }
             e.preventDefault();
             return;
           }
@@ -885,13 +971,17 @@ export default function App() {
             className={`${common} ${isFolder ? folderClasses : listClasses}`}
             style={{ marginLeft: depth * 12 }}
             onClick={() =>
-              node.isList ? loadList(node.path) : toggleFolder(node.path)
+              node.isList 
+                ? (currentView === "lists" ? loadList(node.path) : loadNote(node.path))
+                : toggleFolder(node.path)
             }
           >
             {isFolder ? (
               <FolderIcon size={16} className="mr-1 flex-none" />
-            ) : (
+            ) : currentView === "lists" ? (
               <ListIcon size={16} className="mr-1 flex-none" />
+            ) : (
+              <FileText size={16} className="mr-1 flex-none" />
             )}
             {node.name}
           </div>,
@@ -911,7 +1001,26 @@ export default function App() {
             >
               󰞗
             </Button>
-            <h3 className="text-sm font-semibold">Lists</h3>
+            <div className="flex gap-1">
+              <Button
+                variant={currentView === "lists" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setCurrentView("lists")}
+                className="h-7 px-2 text-xs"
+              >
+                <Clipboard className="h-3 w-3 mr-1" />
+                Lists
+              </Button>
+              <Button
+                variant={currentView === "notes" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setCurrentView("notes")}
+                className="h-7 px-2 text-xs"
+              >
+                <FileText className="h-3 w-3 mr-1" />
+                Notes
+              </Button>
+            </div>
           </div>
           <Button
             variant="outline"
@@ -926,7 +1035,7 @@ export default function App() {
           <form className="flex gap-2" onSubmit={createNewList}>
             <Input
               className="flex-1"
-              placeholder="List name"
+              placeholder={currentView === "lists" ? "List name" : "Note name"}
               value={newListName}
               onChange={(e) => setNewListName(e.target.value)}
               disabled={isDisabled} // 🔒 fully blocks input
@@ -947,7 +1056,13 @@ export default function App() {
         )
         }
 
-        <div className="flex-1 overflow-y-auto pl-2 w-auto">{renderNodes(listTree)}</div>
+        {currentView === "lists" && (
+          <div className="flex-1 overflow-y-auto pl-2 w-auto">{renderNodes(listTree)}</div>
+        )}
+
+        {currentView === "notes" && (
+          <div className="flex-1 overflow-y-auto pl-2 w-auto">{renderNodes(notesTree)}</div>
+        )}
       </aside >
     );
 
@@ -1027,8 +1142,11 @@ export default function App() {
           </form>
         </div>
 
-        {renderCurrentList()}
-
+{currentView === "lists" ? (
+          renderCurrentList()
+        ) : (
+          <NotesPanel vimMode={vimMode} theme="dark" selectedNoteName={currentName} />
+        )}
 
         {/* command palette (portal inside) */}
         <CommandPalette

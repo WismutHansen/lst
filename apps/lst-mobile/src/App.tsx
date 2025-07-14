@@ -3,7 +3,8 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import Logo from "./assets/logo.png";
 import { commands, type List, type ListItem } from "./bindings";
 import { CommandPalette, PaletteCommand } from "./components/CommandPalette";
-import { Folder as FolderIcon, List as ListIcon } from "lucide-react";
+import { MobileNotesPanel } from "./components/MobileNotesPanel";
+import { Folder as FolderIcon, List as ListIcon, FileText, Clipboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -141,6 +142,7 @@ export default function App() {
   const [selected] = useState<Set<string>>(new Set());
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<"name" | "date-asc" | "date-desc">("name");
+  const [currentView, setCurrentView] = useState<"lists" | "notes">("lists");
 
   /* ---------- sidebar & responsive ---------- */
   // sidebar is collapsed by default
@@ -870,7 +872,26 @@ export default function App() {
             >
               󰞗
             </Button>
-            <h3 className="text-sm font-semibold">Lists</h3>
+            <div className="flex gap-1">
+              <Button
+                variant={currentView === "lists" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setCurrentView("lists")}
+                className="h-7 px-2 text-xs"
+              >
+                <Clipboard className="h-3 w-3 mr-1" />
+                Lists
+              </Button>
+              <Button
+                variant={currentView === "notes" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setCurrentView("notes")}
+                className="h-7 px-2 text-xs"
+              >
+                <FileText className="h-3 w-3 mr-1" />
+                Notes
+              </Button>
+            </div>
           </div>
           <Button
             variant="outline"
@@ -881,7 +902,7 @@ export default function App() {
           </Button>
         </div>
 
-        {creating && (
+        {currentView === "lists" && creating && (
           <form className="flex gap-2" onSubmit={createNewList}>
             <Input
               className="flex-1"
@@ -906,7 +927,9 @@ export default function App() {
         )
         }
 
-        <div className="flex-1 overflow-y-auto pl-2 w-auto">{renderNodes(listTree)}</div>
+        {currentView === "lists" && (
+          <div className="flex-1 overflow-y-auto pl-2 w-auto">{renderNodes(listTree)}</div>
+        )}
       </aside >
     );
 
@@ -986,7 +1009,11 @@ export default function App() {
           </form>
         </div>
 
-        {renderCurrentList()}
+{currentView === "lists" ? (
+          renderCurrentList()
+        ) : (
+          <MobileNotesPanel vimMode={vimMode} theme="dark" />
+        )}
 
 
         {/* command palette (portal inside) */}

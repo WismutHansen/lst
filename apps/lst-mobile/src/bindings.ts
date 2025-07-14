@@ -85,6 +85,38 @@ async saveList(list: List) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async getNote(name: string) : Promise<Result<Note, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_note", { name }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async createNoteCmd(title: string) : Promise<Result<Note, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_note_cmd", { title }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async saveNote(note: Note) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_note", { note }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteNoteCmd(name: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_note_cmd", { name }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getUiConfig() : Promise<Result<UiConfig, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_ui_config") };
@@ -163,6 +195,26 @@ vim_mode?: boolean;
  * Leader key used for command sequences (defaults to space)
  */
 leader_key?: string; theme?: ThemeConfig }
+/**
+ * Represents a note with content and metadata
+ */
+export type Note = { 
+/**
+ * The title of the note
+ */
+title: string; 
+/**
+ * The content of the note (markdown)
+ */
+content: string; 
+/**
+ * When the note was created (ISO 8601 format)
+ */
+created?: string; 
+/**
+ * The file path of the note
+ */
+file_path: string }
 
 /** tauri-specta globals **/
 

@@ -5,6 +5,7 @@ use r2d2::{Pool, PooledConnection};
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{params, OptionalExtension};
 use tauri::Manager;
+use crate::Note;
 
 pub struct Database {
     pool: Pool<SqliteConnectionManager>,
@@ -32,7 +33,13 @@ impl Database {
     fn init(&self) -> Result<()> {
         let conn = self.pool.get()?;
         conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS lists (title TEXT PRIMARY KEY, data TEXT NOT NULL);",
+            "CREATE TABLE IF NOT EXISTS lists (title TEXT PRIMARY KEY, data TEXT NOT NULL);
+             CREATE TABLE IF NOT EXISTS notes (
+                 title TEXT PRIMARY KEY,
+                 content TEXT NOT NULL,
+                 created TEXT,
+                 file_path TEXT NOT NULL
+             );",
         )?;
         Ok(())
     }
@@ -144,6 +151,76 @@ impl Database {
         } else {
             Err(anyhow!("No item matching '{}'", target))
         }
+    }
+
+    // Note-related methods
+    pub fn list_note_titles(&self) -> Result<Vec<String>> {
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare("SELECT title FROM notes ORDER BY title")?;
+        let rows = stmt.query_map([], |row| row.get(0))?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    pub fn create_note(&self, title: &str) -> Result<Note> {
+        let created = Utc::now().to_rfc3339();
+        let file_path = format!("notes/{}.md", title.replace(' ', "_").to_lowercase());
+        let note = Note {
+            title: title.to_string(),
+            content: String::new(),
+            created: Some(created.clone()),
+            file_path,
+        };
+        
+        let conn = self.conn()?;
+        conn.execute(
+            "INSERT INTO notes (title, content, created, file_path) VALUES (?1, ?2, ?3, ?4)",
+            params![note.title, note.content, created, note.file_path],
+        )?;
+        Ok(note)
+    }
+
+    pub fn load_note(&self, title: &str) -> Result<Note> {
+        let conn = self.conn()?;
+        let result = conn.query_row(
+            "SELECT title, content, created, file_path FROM notes WHERE title=?1",
+            [title],
+            |row| {
+                Ok(Note {
+                    title: row.get(0)?,
+                    content: row.get(1)?,
+                    created: row.get(2).ok(),
+                    file_path: row.get(3)?,
+                })
+            },
+        ).optional()?;
+        
+        result.ok_or_else(|| anyhow!("Note '{}' not found", title))
+    }
+
+    pub fn save_note(&self, note: &Note) -> Result<()> {
+        let conn = self.conn()?;
+        conn.execute(
+            "INSERT INTO notes (title, content, created, file_path) VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(title) DO UPDATE SET 
+                content=excluded.content, 
+                created=excluded.created,
+                file_path=excluded.file_path",
+            params![note.title, note.content, note.created, note.file_path],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_note(&self, title: &str) -> Result<()> {
+        let conn = self.conn()?;
+        let changes = conn.execute("DELETE FROM notes WHERE title=?1", [title])?;
+        if changes == 0 {
+            return Err(anyhow!("Note '{}' not found", title));
+        }
+        Ok(())
     }
 }
 

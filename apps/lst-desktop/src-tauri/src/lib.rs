@@ -4,14 +4,26 @@ use lst_cli::models::{fuzzy_find, is_valid_anchor, ItemStatus, List};
 use lst_cli::storage::{
     list_lists, list_notes,
     markdown::{self, load_list},
+    notes::{create_note, delete_note, load_note},
 };
+use serde::{Deserialize, Serialize};
+use specta::Type;
 use specta_typescript::Typescript;
+use std::fs;
 use tauri::tray::TrayIconBuilder;
 use tauri::Manager;
 use tauri_specta::{collect_commands, Builder};
 
 mod command_server;
 mod theme;
+
+#[derive(Debug, Serialize, Deserialize, Type)]
+pub struct Note {
+    pub title: String,
+    pub content: String,
+    pub created: Option<String>,
+    pub file_path: String,
+}
 
 #[tauri::command]
 #[specta::specta]
@@ -116,6 +128,106 @@ fn remove_item(list: String, target: String) -> Result<List, String> {
 
 #[tauri::command]
 #[specta::specta]
+fn get_note(name: String) -> Result<Note, String> {
+    let path = load_note(&name).map_err(|e| e.to_string())?;
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    
+    // Parse frontmatter to extract title and created date
+    let (title, created, content_without_frontmatter) = parse_note_frontmatter(&content, &name);
+    
+    Ok(Note {
+        title,
+        content: content_without_frontmatter,
+        created,
+        file_path: path.to_string_lossy().to_string(),
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+fn create_note_cmd(title: String) -> Result<Note, String> {
+    let path = create_note(&title).map_err(|e| e.to_string())?;
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    
+    let (parsed_title, created, content_without_frontmatter) = parse_note_frontmatter(&content, &title);
+    
+    Ok(Note {
+        title: parsed_title,
+        content: content_without_frontmatter,
+        created,
+        file_path: path.to_string_lossy().to_string(),
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+fn save_note(note: Note) -> Result<(), String> {
+    let path = std::path::Path::new(&note.file_path);
+    
+    // Build content with frontmatter
+    let frontmatter = if let Some(created) = &note.created {
+        format!("---\ntitle: \"{}\"\ncreated: {}\n---\n\n", note.title, created)
+    } else {
+        format!("---\ntitle: \"{}\"\n---\n\n", note.title)
+    };
+    
+    let full_content = format!("{}{}", frontmatter, note.content);
+    fs::write(path, full_content).map_err(|e| e.to_string())?;
+    
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn delete_note_cmd(name: String) -> Result<(), String> {
+    delete_note(&name).map_err(|e| e.to_string())
+}
+
+fn parse_note_frontmatter(content: &str, fallback_title: &str) -> (String, Option<String>, String) {
+    let lines: Vec<&str> = content.lines().collect();
+    
+    if lines.is_empty() || lines[0] != "---" {
+        return (fallback_title.to_string(), None, content.to_string());
+    }
+    
+    let mut frontmatter_end = None;
+    for (i, line) in lines.iter().enumerate().skip(1) {
+        if *line == "---" {
+            frontmatter_end = Some(i);
+            break;
+        }
+    }
+    
+    let Some(end_idx) = frontmatter_end else {
+        return (fallback_title.to_string(), None, content.to_string());
+    };
+    
+    let mut title = fallback_title.to_string();
+    let mut created = None;
+    
+    // Parse frontmatter
+    for line in &lines[1..end_idx] {
+        if let Some(title_value) = line.strip_prefix("title: ") {
+            title = title_value.trim_matches('"').to_string();
+        } else if let Some(created_value) = line.strip_prefix("created: ") {
+            created = Some(created_value.to_string());
+        }
+    }
+    
+    // Get content after frontmatter
+    let content_lines = if end_idx + 1 < lines.len() {
+        &lines[end_idx + 1..]
+    } else {
+        &[]
+    };
+    
+    let content_without_frontmatter = content_lines.join("\n").trim_start().to_string();
+    
+    (title, created, content_without_frontmatter)
+}
+
+#[tauri::command]
+#[specta::specta]
 fn get_ui_config() -> Result<UiConfig, String> {
     Ok(get_config().ui.clone())
 }
@@ -155,6 +267,10 @@ pub fn run() {
             remove_item,
             reorder_item,
             save_list,
+            get_note,
+            create_note_cmd,
+            save_note,
+            delete_note_cmd,
             get_ui_config
         ]);
 
@@ -198,6 +314,10 @@ pub fn run() {
             remove_item,
             reorder_item,
             save_list,
+            get_note,
+            create_note_cmd,
+            save_note,
+            delete_note_cmd,
             get_ui_config
         ])
         .run(tauri::generate_context!())
