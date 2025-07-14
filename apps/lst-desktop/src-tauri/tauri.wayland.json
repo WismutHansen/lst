@@ -18,9 +18,9 @@
         "height": 600,
         "resizable": true,
         "fullscreen": false,
-        "decorations": false,
-        "transparent": true,
-        "shadow": false
+        "decorations": true,
+        "transparent": false,
+        "shadow": true
       }
     ],
     "security": {
@@ -49,6 +49,27 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "linux": {
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0",
+          "libayatana-appindicator3-1",
+          "libwayland-client0",
+          "libwayland-cursor0",
+          "libwayland-egl1"
+        ]
+      },
+      "rpm": {
+        "requires": [
+          "webkit2gtk4.1",
+          "gtk3",
+          "libayatana-appindicator-gtk3",
+          "wayland",
+          "wayland-protocols"
+        ]
+      }
+    }
   }
 }
