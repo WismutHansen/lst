@@ -140,9 +140,9 @@ fn parse_items(list: &mut List, content: &str) {
 
 /// Format a list as markdown
 fn format_list_as_markdown(list: &List) -> String {
-    // Format frontmatter
+    // Format frontmatter - only serialize metadata, not items
     let frontmatter =
-        serde_yaml::to_string(list).unwrap_or_else(|_| "title: Untitled List\n".to_string());
+        serde_yaml::to_string(&list.metadata).unwrap_or_else(|_| "title: Untitled List\n".to_string());
 
     let mut content = format!("---\n{}---\n\n", frontmatter);
 
