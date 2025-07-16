@@ -1047,7 +1047,7 @@ export default function App() {
       });
 
     const sidebarContent = (
-      <aside className="flex w-64 pl-2 flex-col gap-4 rounded-l-lg border-r border-[#494D51] bg-background mt-2 p-4 min-w-0">
+      <aside className="flex w-64 pl-2 flex-col gap-4 rounded-l-lg border-r border-[#494D51] bg-background mt-2 p-4 min-w-0 h-screen overflow-hidden">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Button
@@ -1071,7 +1071,7 @@ export default function App() {
           </Button>
         </div>
 
-        <Tabs value={currentView} onValueChange={(value) => setCurrentView(value as "lists" | "notes")} className="flex-1 flex flex-col">
+        <Tabs value={currentView} onValueChange={(value) => setCurrentView(value as "lists" | "notes")} className="flex-1 flex flex-col min-h-0">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="lists" className="flex items-center gap-1">
               <Clipboard className="h-3 w-3" />
@@ -1107,11 +1107,21 @@ export default function App() {
             </form>
           )}
 
-          <TabsContent value="lists" className="flex-1 overflow-y-auto pl-2 w-auto mt-2">
+          <TabsContent 
+            value="lists" 
+            className="flex-1 overflow-y-auto pl-2 w-auto mt-2 min-h-0"
+            onWheel={(e) => e.stopPropagation()}
+            onScroll={(e) => e.stopPropagation()}
+          >
             {renderNodes(listTree)}
           </TabsContent>
 
-          <TabsContent value="notes" className="flex-1 overflow-y-auto pl-2 w-auto mt-2">
+          <TabsContent 
+            value="notes" 
+            className="flex-1 overflow-y-auto pl-2 w-auto mt-2 min-h-0"
+            onWheel={(e) => e.stopPropagation()}
+            onScroll={(e) => e.stopPropagation()}
+          >
             {renderNodes(notesTree)}
           </TabsContent>
         </Tabs>

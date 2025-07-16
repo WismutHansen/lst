@@ -143,6 +143,8 @@
     @apply border-border outline-ring/50;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    overscroll-behavior: none;
+    -webkit-overscroll-behavior: none;
   }
   *::-webkit-scrollbar {
     display: none;
@@ -161,6 +163,8 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     -webkit-text-size-adjust: 100%;
+    overscroll-behavior: none;
+    -webkit-overscroll-behavior: none;
   }
   body {
     @apply bg-background text-foreground;
