@@ -239,6 +239,10 @@ export default function App() {
     res.status === "ok" ? setLists(res.data) : setError(res.error);
   }
 
+  const loadLists = useCallback(async () => {
+    await fetchLists();
+  }, []);
+
   async function fetchNotes() {
     const res = await commands.getNotes();
     res.status === "ok" ? setNotes(res.data) : setError(res.error);
@@ -484,6 +488,55 @@ export default function App() {
     };
   }, [showMessage]);
 
+  // List updated event listener
+  useEffect(() => {
+    console.log("🎧 Setting up event listener for 'list-updated'");
+    const unlisten = listen<string>("list-updated", (event) => {
+      console.log("📨 Received 'list-updated' event with payload:", event.payload);
+      // If the updated list is the currently loaded list, reload it
+      if (currentName === event.payload) {
+        loadList(event.payload);
+      }
+      // Also refresh the lists sidebar to show any new lists
+      loadLists();
+    });
+    return () => {
+      console.log("🔇 Cleaning up 'list-updated' event listener");
+      unlisten.then((fn) => fn());
+    };
+  }, [currentName, loadList, loadLists]);
+
+  // Note updated event listener
+  useEffect(() => {
+    console.log("🎧 Setting up event listener for 'note-updated'");
+    const unlisten = listen<string>("note-updated", (event) => {
+      console.log("📨 Received 'note-updated' event with payload:", event.payload);
+      // Refresh the notes panel to show any changes
+      // This will be handled by the NotesPanel component if it's listening
+      // For now, we could show a message or trigger a refresh
+      showMessage(`Note '${event.payload}' was updated`);
+    });
+    return () => {
+      console.log("🔇 Cleaning up 'note-updated' event listener");
+      unlisten.then((fn) => fn());
+    };
+  }, [showMessage]);
+
+  // File changed event listener
+  useEffect(() => {
+    console.log("🎧 Setting up event listener for 'file-changed'");
+    const unlisten = listen<string>("file-changed", (event) => {
+      console.log("📨 Received 'file-changed' event with payload:", event.payload);
+      // Generic file change handler - could be used for future enhancements
+      // For now, just log it
+      console.log("📁 File changed:", event.payload);
+    });
+    return () => {
+      console.log("🔇 Cleaning up 'file-changed' event listener");
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
   // Test event listener
   useEffect(() => {
     console.log("🧪 Setting up test event listener");
@@ -535,9 +588,9 @@ export default function App() {
         // activeElement.contentEditable === "true"
       );
 
-      // toggle sidebar with Ctrl-b
-      if (e.key.toLowerCase() === "/") {
-
+      // focus search bar with "/"
+      if (e.key.toLowerCase() === "/" && !isInputFocused) {
+        inputRef.current?.focus();
         e.preventDefault();
         return;
       }

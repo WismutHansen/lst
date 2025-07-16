@@ -29,7 +29,7 @@ pub fn list_lists(json: bool) -> Result<()> {
     }
 
     if lists.is_empty() {
-        println!("No lists found. Create one with 'lst add <list> <text>'");
+        println!("No lists found. Create one with 'lst new <list>'");
         return Ok(());
     }
 
@@ -41,25 +41,25 @@ pub fn list_lists(json: bool) -> Result<()> {
     Ok(())
 }
 /// Handle daily list commands: create/display/add/done/undone for YYYYMMDD_daily_list
-pub fn daily_list(cmd: Option<&DlCmd>, json: bool) -> Result<()> {
+pub async fn daily_list(cmd: Option<&DlCmd>, json: bool) -> Result<()> {
     let date = Local::now().format("%Y%m%d").to_string();
     let list_name = format!("daily_lists/{}_daily_list", date);
     // No subcommand: ensure exists then display
     match cmd {
         Some(DlCmd::Add { item }) => {
-            add_item(&list_name, item, json)?;
+            add_item(&list_name, item, json).await?;
         }
         Some(DlCmd::Done { item }) => {
-            mark_done(&list_name, item, json)?;
+            mark_done(&list_name, item, json).await?;
         }
         Some(DlCmd::Undone { item }) => {
-            mark_undone(&list_name, item, json)?;
+            mark_undone(&list_name, item, json).await?;
         }
         Some(DlCmd::List) => {
             display_daily_list(json)?;
         }
         Some(DlCmd::Remove { item }) => {
-            remove_item(&list_name, item, json)?;
+            remove_item(&list_name, item, json).await?;
         }
         None => {
             // create if missing
@@ -121,11 +121,15 @@ pub fn list_notes(json: bool) -> Result<()> {
 }
 
 /// Create a new note: initializes file and opens in editor
-pub fn note_new(title: &str) -> Result<()> {
+pub async fn note_new(title: &str) -> Result<()> {
     // Normalize title (omit .md)
     let key = title.trim_end_matches(".md");
     // Create the note file (with frontmatter)
     let path = storage::notes::create_note(key).context("Failed to create note")?;
+    
+    // Notify desktop app that a note was updated
+    let _ = notify_note_updated(key).await;
+    
     // Open in editor
     open_editor(&path)
 }
@@ -139,28 +143,31 @@ pub fn note_open(title: &str) -> Result<()> {
     open_editor(&path)
 }
 /// Append text to an existing note (or create one), then open in editor
-pub fn note_add(title: &str, text: &str) -> Result<()> {
+pub async fn note_add(title: &str, text: &str) -> Result<()> {
     // Resolve note key for append (omit .md)
     let key = title.trim_end_matches(".md");
     let note = resolve_note(key).unwrap_or_else(|_| key.to_string());
     // Append to note, creating if missing
     let path = storage::notes::append_to_note(&note, text).context("Failed to append to note")?;
-    // Inform user of success
-    println!(
-        "Appended to note '{}' (file: {})",
-        title.cyan(),
-        path.display()
-    );
-    Ok(())
+    
+    // Notify desktop app that a note was updated
+    let _ = notify_note_updated(&note).await;
+    
+    open_editor(&path)
 }
 
 /// Delete a note
-pub fn note_delete(title: &str) -> Result<()> {
+pub async fn note_delete(title: &str) -> Result<()> {
     // Determine the note file path
     // Resolve note to delete
     let key = title.trim_end_matches(".md");
     let note = resolve_note(key)?;
-    delete_note(&note)
+    let result = delete_note(&note);
+    
+    // Notify desktop app that a note was updated (deleted)
+    let _ = notify_note_updated(&note).await;
+    
+    result
 }
 
 /// Spawn the user's editor (from $EDITOR or default 'vi') on the given path
@@ -292,7 +299,7 @@ pub fn open_list(list: &str) -> Result<()> {
     open_editor(&path)
 }
 /// Handle the 'add' command to add an item to a list
-pub fn add_item(list: &str, text: &str, json: bool) -> Result<()> {
+pub async fn add_item(list: &str, text: &str, json: bool) -> Result<()> {
     // Try to load the list, create it if it doesn't exist
     // Resolve list name (omit .md, fuzzy match)
     let list_name = normalize_list(list)?;
@@ -330,7 +337,7 @@ pub fn add_item(list: &str, text: &str, json: bool) -> Result<()> {
 }
 
 /// Handle the 'done' command to mark an item as done
-pub fn mark_done(list: &str, target: &str, json: bool) -> Result<()> {
+pub async fn mark_done(list: &str, target: &str, json: bool) -> Result<()> {
     let list_name = normalize_list(list)?;
     let items = storage::markdown::mark_done(&list_name, target)?;
 
@@ -352,11 +359,14 @@ pub fn mark_done(list: &str, target: &str, json: bool) -> Result<()> {
         }
     }
 
+    // Notify desktop app that the list was updated
+    let _ = notify_list_updated(&list_name).await;
+
     Ok(())
 }
 
 /// Handle the 'undone' command to mark a completed item as not done
-pub fn mark_undone(list: &str, target: &str, json: bool) -> Result<()> {
+pub async fn mark_undone(list: &str, target: &str, json: bool) -> Result<()> {
     let list_name = normalize_list(list)?;
     let items = storage::markdown::mark_undone(&list_name, target)?;
 
@@ -378,10 +388,13 @@ pub fn mark_undone(list: &str, target: &str, json: bool) -> Result<()> {
         }
     }
 
+    // Notify desktop app that the list was updated
+    let _ = notify_list_updated(&list_name).await;
+
     Ok(())
 }
 /// Handle the 'rm' command to remove an item from a list
-pub fn remove_item(list: &str, target: &str, json: bool) -> Result<()> {
+pub async fn remove_item(list: &str, target: &str, json: bool) -> Result<()> {
     let list_name = normalize_list(list)?;
 
     // Use the storage layer implementation
@@ -838,6 +851,69 @@ pub async fn remote_show_message(message: &str) -> Result<()> {
         println!("Message sent to desktop app");
     } else {
         bail!("Failed to send message: {}", res.status());
+    }
+
+    Ok(())
+}
+
+/// Send notification to desktop app that a list was updated
+async fn notify_list_updated(list_name: &str) -> Result<()> {
+    let client = reqwest::Client::new();
+    let res = client
+        .post("http://localhost:33333/command/list-updated")
+        .body(list_name.to_string())
+        .send()
+        .await;
+
+    match res {
+        Ok(response) if response.status().is_success() => {
+            // Notification sent successfully, but don't print anything to avoid cluttering CLI output
+        }
+        _ => {
+            // Silently ignore notification failures - the CLI should work even if GUI isn't running
+        }
+    }
+
+    Ok(())
+}
+
+/// Send notification to desktop app that a note was updated
+async fn notify_note_updated(note_name: &str) -> Result<()> {
+    let client = reqwest::Client::new();
+    let res = client
+        .post("http://localhost:33333/command/note-updated")
+        .body(note_name.to_string())
+        .send()
+        .await;
+
+    match res {
+        Ok(response) if response.status().is_success() => {
+            // Notification sent successfully, but don't print anything to avoid cluttering CLI output
+        }
+        _ => {
+            // Silently ignore notification failures - the CLI should work even if GUI isn't running
+        }
+    }
+
+    Ok(())
+}
+
+/// Send notification to desktop app that a file was changed
+async fn notify_file_changed(file_path: &str) -> Result<()> {
+    let client = reqwest::Client::new();
+    let res = client
+        .post("http://localhost:33333/command/file-changed")
+        .body(file_path.to_string())
+        .send()
+        .await;
+
+    match res {
+        Ok(response) if response.status().is_success() => {
+            // Notification sent successfully, but don't print anything to avoid cluttering CLI output
+        }
+        _ => {
+            // Silently ignore notification failures - the CLI should work even if GUI isn't running
+        }
     }
 
     Ok(())

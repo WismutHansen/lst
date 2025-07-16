@@ -27,19 +27,19 @@ async fn main() -> Result<()> {
             cli::commands::new_list(list)?;
         }
         Commands::Add { list, text } => {
-            cli::commands::add_item(list, text, cli.json)?;
+            cli::commands::add_item(list, text, cli.json).await?;
         }
         Commands::Open { list } => {
             cli::commands::open_list(list)?;
         }
         Commands::Done { list, target } => {
-            cli::commands::mark_done(list, target, cli.json)?;
+            cli::commands::mark_done(list, target, cli.json).await?;
         }
         Commands::Undone { list, target } => {
-            cli::commands::mark_undone(list, target, cli.json)?;
+            cli::commands::mark_undone(list, target, cli.json).await?;
         }
         Commands::Rm { list, target } => {
-            cli::commands::remove_item(list, target, cli.json)?;
+            cli::commands::remove_item(list, target, cli.json).await?;
         }
         Commands::Wipe { list, force } => {
             cli::commands::wipe_list(list, *force, cli.json)?;
@@ -48,12 +48,12 @@ async fn main() -> Result<()> {
             cli::commands::pipe(list, cli.json)?;
         }
         Commands::Note(note_cmd) => match note_cmd {
-            NoteCommands::New { title } => cli::commands::note_new(title)?,
+            NoteCommands::New { title } => cli::commands::note_new(title).await?,
             NoteCommands::Add { title, text } => {
-                cli::commands::note_add(title, text)?;
+                cli::commands::note_add(title, text).await?;
             }
             NoteCommands::Open { title } => cli::commands::note_open(title)?,
-            NoteCommands::Remove { title } => cli::commands::note_delete(title)?,
+            NoteCommands::Remove { title } => cli::commands::note_delete(title).await?,
             NoteCommands::ListNotes {} => {
                 cli::commands::list_notes(cli.json)?;
             }
@@ -75,7 +75,7 @@ async fn main() -> Result<()> {
         //     }
         // },
         Commands::Dl { cmd } => {
-            cli::commands::daily_list(cmd.as_ref(), cli.json)?;
+            cli::commands::daily_list(cmd.as_ref(), cli.json).await?;
         }
         Commands::Dn => {
             cli::commands::daily_note(cli.json)?;

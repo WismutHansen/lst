@@ -68,16 +68,16 @@ pub struct AddToListTool {
 }
 impl AddToListTool {
     pub fn call_tool(&self) -> Result<CallToolResult, CallToolError> {
-        match commands::add_item(&self.list, &self.item, false) {
+        let rt = tokio::runtime::Runtime::new().map_err(|e| {
+            CallToolError::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to create runtime: {}", e),
+            ))
+        })?;
+        
+        match rt.block_on(commands::add_item(&self.list, &self.item, false)) {
             Ok(_) => {
                 // Try to switch to the list remotely on success
-                let rt = tokio::runtime::Runtime::new().map_err(|e| {
-                    CallToolError::new(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        format!("Failed to create runtime: {}", e),
-                    ))
-                })?;
-                
                 if let Err(e) = rt.block_on(commands::remote_switch_list(&self.list)) {
                     // Don't fail the entire operation if remote switch fails
                     eprintln!("Warning: Failed to switch remote list: {}", e);
@@ -117,16 +117,16 @@ pub struct MarkDoneTool {
 
 impl MarkDoneTool {
     pub fn call_tool(&self) -> Result<CallToolResult, CallToolError> {
-        match commands::mark_done(&self.list, &self.target, false) {
+        let rt = tokio::runtime::Runtime::new().map_err(|e| {
+            CallToolError::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to create runtime: {}", e),
+            ))
+        })?;
+        
+        match rt.block_on(commands::mark_done(&self.list, &self.target, false)) {
             Ok(_) => {
                 // Try to switch to the list remotely on success
-                let rt = tokio::runtime::Runtime::new().map_err(|e| {
-                    CallToolError::new(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        format!("Failed to create runtime: {}", e),
-                    ))
-                })?;
-                
                 if let Err(e) = rt.block_on(commands::remote_switch_list(&self.list)) {
                     // Don't fail the entire operation if remote switch fails
                     eprintln!("Warning: Failed to switch remote list: {}", e);
@@ -166,16 +166,16 @@ pub struct MarkUndoneTool {
 
 impl MarkUndoneTool {
     pub fn call_tool(&self) -> Result<CallToolResult, CallToolError> {
-        match commands::mark_undone(&self.list, &self.target, false) {
+        let rt = tokio::runtime::Runtime::new().map_err(|e| {
+            CallToolError::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to create runtime: {}", e),
+            ))
+        })?;
+        
+        match rt.block_on(commands::mark_undone(&self.list, &self.target, false)) {
             Ok(_) => {
                 // Try to switch to the list remotely on success
-                let rt = tokio::runtime::Runtime::new().map_err(|e| {
-                    CallToolError::new(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        format!("Failed to create runtime: {}", e),
-                    ))
-                })?;
-                
                 if let Err(e) = rt.block_on(commands::remote_switch_list(&self.list)) {
                     // Don't fail the entire operation if remote switch fails
                     eprintln!("Warning: Failed to switch remote list: {}", e);

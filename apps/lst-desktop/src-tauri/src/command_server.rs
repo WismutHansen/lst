@@ -53,6 +53,54 @@ async fn show_message_handler(app_handle: AppHandle, message: String) {
     }
 }
 
+async fn list_updated_handler(app_handle: AppHandle, list_name: String) {
+    println!("📝 CLI command received: list '{}' was updated", list_name);
+
+    if let Some(window) = app_handle.get_webview_window("main") {
+        match window.emit("list-updated", &list_name) {
+            Ok(_) => println!(
+                "󰸞 Event 'list-updated' emitted to main window with payload: '{}'",
+                list_name
+            ),
+            Err(e) => println!(" Failed to emit 'list-updated' event to main window: {}", e),
+        }
+    } else {
+        println!(" Could not find main window");
+    }
+}
+
+async fn note_updated_handler(app_handle: AppHandle, note_name: String) {
+    println!("📄 CLI command received: note '{}' was updated", note_name);
+
+    if let Some(window) = app_handle.get_webview_window("main") {
+        match window.emit("note-updated", &note_name) {
+            Ok(_) => println!(
+                "󰸞 Event 'note-updated' emitted to main window with payload: '{}'",
+                note_name
+            ),
+            Err(e) => println!(" Failed to emit 'note-updated' event to main window: {}", e),
+        }
+    } else {
+        println!(" Could not find main window");
+    }
+}
+
+async fn file_changed_handler(app_handle: AppHandle, file_path: String) {
+    println!("📁 CLI command received: file '{}' was changed", file_path);
+
+    if let Some(window) = app_handle.get_webview_window("main") {
+        match window.emit("file-changed", &file_path) {
+            Ok(_) => println!(
+                "󰸞 Event 'file-changed' emitted to main window with payload: '{}'",
+                file_path
+            ),
+            Err(e) => println!(" Failed to emit 'file-changed' event to main window: {}", e),
+        }
+    } else {
+        println!(" Could not find main window");
+    }
+}
+
 pub fn start_command_server(app_handle: AppHandle) {
     println!("🚀 Starting command server...");
     std::thread::spawn(move || {
@@ -66,6 +114,9 @@ pub fn start_command_server(app_handle: AppHandle) {
             let app_handle_1 = app_handle.clone();
             let app_handle_2 = app_handle.clone();
             let app_handle_3 = app_handle.clone();
+            let app_handle_4 = app_handle.clone();
+            let app_handle_5 = app_handle.clone();
+            let app_handle_6 = app_handle.clone();
 
             let app = Router::new()
                 .route(
@@ -83,6 +134,24 @@ pub fn start_command_server(app_handle: AppHandle) {
                 .route(
                     "/command/test",
                     post(move |_: String| test_handler(app_handle_3.clone())),
+                )
+                .route(
+                    "/command/list-updated",
+                    post(move |list_name: String| {
+                        list_updated_handler(app_handle_4.clone(), list_name)
+                    }),
+                )
+                .route(
+                    "/command/note-updated",
+                    post(move |note_name: String| {
+                        note_updated_handler(app_handle_5.clone(), note_name)
+                    }),
+                )
+                .route(
+                    "/command/file-changed",
+                    post(move |file_path: String| {
+                        file_changed_handler(app_handle_6.clone(), file_path)
+                    }),
                 )
                 .layer(cors);
 
