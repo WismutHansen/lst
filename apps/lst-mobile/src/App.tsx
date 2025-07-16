@@ -806,7 +806,7 @@ export default function App() {
                 variant="ghost"
                 size="icon"
                 onClick={() => setSidebarCollapsed(false)}
-                className="h-6 w-6 p-0"
+                className="h-6 w-6 p-0 pt-8"
               >
                 󰞘
               </Button>
@@ -1009,7 +1009,7 @@ export default function App() {
           </form>
         </div>
 
-{currentView === "lists" ? (
+        {currentView === "lists" ? (
           renderCurrentList()
         ) : (
           <MobileNotesPanel vimMode={vimMode} theme="dark" />

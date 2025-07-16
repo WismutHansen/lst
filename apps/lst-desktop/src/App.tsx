@@ -4,10 +4,11 @@ import Logo from "./assets/logo.png";
 import { commands, type List, type ListItem } from "./bindings";
 import { CommandPalette, PaletteCommand } from "./components/CommandPalette";
 import { NotesPanel } from "./components/NotesPanel";
-import { Folder as FolderIcon, List as ListIcon, FileText, Clipboard } from "lucide-react";
+import { Folder as FolderIcon, List as ListIcon, FileText, Clipboard, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useTheme } from "./hooks/useTheme";
 
 interface ListNode {
@@ -188,6 +189,7 @@ export default function App() {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<"name" | "date-asc" | "date-desc">("name");
   const [currentView, setCurrentView] = useState<"lists" | "notes">("lists");
+  const [vimStatus, setVimStatus] = useState<{ mode: string; status?: string } | null>(null);
 
   /* ---------- sidebar & responsive ---------- */
   // sidebar is collapsed by default
@@ -253,16 +255,16 @@ export default function App() {
     if (messageTimeoutId) {
       clearTimeout(messageTimeoutId);
     }
-    
+
     // Set the new message
     setMessage(text);
-    
+
     // Set timeout to clear the message
     const timeoutId = setTimeout(() => {
       setMessage(null);
       setMessageTimeoutId(null);
     }, duration);
-    
+
     setMessageTimeoutId(timeoutId);
   }, [messageTimeoutId]);
 
@@ -276,6 +278,7 @@ export default function App() {
       setCurrentView("lists");
       setShowSuggestions(false);
       setQuery("");
+      setVimStatus(null); // Clear vim status when switching to lists
     } else {
       console.error("❌ Failed to load list:", res.error);
       setError(res.error);
@@ -289,13 +292,14 @@ export default function App() {
     setCurrentView("notes");
     setShowSuggestions(false);
     setQuery("");
+    setVimStatus(null); // Clear vim status when switching notes
   }, []);
 
   /* ---------- mutations ---------- */
   async function createNewList(e: React.FormEvent) {
     e.preventDefault();
     if (!newListName.trim()) return;
-    
+
     if (currentView === "lists") {
       const res = await commands.createList(newListName.trim());
       if (res.status === "ok") {
@@ -977,14 +981,14 @@ export default function App() {
   function renderSidebar() {
     if (sidebarCollapsed) {
       return (
-        <aside className="hidden sm:flex w-12 flex-col gap-4 rounded-l-lg border-r border-[#494D51] bg-background p-4 min-w-0 shrink-0">
+        <aside className="hidden sm:flex w-12 flex-col gap-4 rounded-l-lg border-r border-[#494D51] bg-background pl-2 pt-2 min-w-0 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setSidebarCollapsed(false)}
-                className="h-6 w-6 p-0"
+                className="mt-4 h-9 w-9 p-0"
               >
                 󰞘
               </Button>
@@ -1024,7 +1028,7 @@ export default function App() {
             className={`${common} ${isFolder ? folderClasses : listClasses}`}
             style={{ marginLeft: depth * 12 }}
             onClick={() =>
-              node.isList 
+              node.isList
                 ? (currentView === "lists" ? loadList(node.path) : loadNote(node.path))
                 : toggleFolder(node.path)
             }
@@ -1043,80 +1047,75 @@ export default function App() {
       });
 
     const sidebarContent = (
-      <aside className="flex w-64 pl-2 flex-col gap-4 rounded-l-lg border-r border-[#494D51] bg-background p-4 min-w-0">
+      <aside className="flex w-64 pl-2 flex-col gap-4 rounded-l-lg border-r border-[#494D51] bg-background mt-2 p-4 min-w-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Button
-              variant="ghost"
-              size="icon"
+              variant="outline"
+              size="sm"
               onClick={() => setSidebarCollapsed(true)}
-              className="h-6 w-6 p-0"
+              className="h-9 w-9 p-0"
             >
               󰞗
             </Button>
-            <div className="flex gap-1">
-              <Button
-                variant={currentView === "lists" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setCurrentView("lists")}
-                className="h-7 px-2 text-xs"
-              >
-                <Clipboard className="h-3 w-3 mr-1" />
-                Lists
-              </Button>
-              <Button
-                variant={currentView === "notes" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setCurrentView("notes")}
-                className="h-7 px-2 text-xs"
-              >
-                <FileText className="h-3 w-3 mr-1" />
-                Notes
-              </Button>
-            </div>
           </div>
+          <Input className="mx-2">
+          </Input>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setCreating((c) => !c)}
+            className="h-9 w-9"
           >
-             New
+            <Plus />
           </Button>
         </div>
 
-        {creating && (
-          <form className="flex gap-2" onSubmit={createNewList}>
-            <Input
-              className="flex-1"
-              placeholder={currentView === "lists" ? "List name" : "Note name"}
-              value={newListName}
-              onChange={(e) => setNewListName(e.target.value)}
-              disabled={isDisabled} // 🔒 fully blocks input
-              onClick={() => { setMode("edit"); setIsDisabled(false); }}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  if (vimMode) {
-                    setMode("normal");
-                    (e.target as HTMLInputElement).blur();
+        <Tabs value={currentView} onValueChange={(value) => setCurrentView(value as "lists" | "notes")} className="flex-1 flex flex-col">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="lists" className="flex items-center gap-1">
+              <Clipboard className="h-3 w-3" />
+              Lists
+            </TabsTrigger>
+            <TabsTrigger value="notes" className="flex items-center gap-1">
+              <FileText className="h-3 w-3" />
+              Notes
+            </TabsTrigger>
+          </TabsList>
+
+          {creating && (
+            <form className="flex gap-2 mt-2" onSubmit={createNewList}>
+              <Input
+                className="flex-1"
+                placeholder={currentView === "lists" ? "List name" : "Note name"}
+                value={newListName}
+                onChange={(e) => setNewListName(e.target.value)}
+                disabled={isDisabled} // 🔒 fully blocks input
+                onClick={() => { setMode("edit"); setIsDisabled(false); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    if (vimMode) {
+                      setMode("normal");
+                      (e.target as HTMLInputElement).blur();
+                    }
                   }
-                }
-              }}
-            />
-            < Button size="sm" type="submit" >
-               Create
-            </Button>
-          </form>
-        )
-        }
+                }}
+              />
+              <Button size="sm" type="submit">
+                Create
+              </Button>
+            </form>
+          )}
 
-        {currentView === "lists" && (
-          <div className="flex-1 overflow-y-auto pl-2 w-auto">{renderNodes(listTree)}</div>
-        )}
+          <TabsContent value="lists" className="flex-1 overflow-y-auto pl-2 w-auto mt-2">
+            {renderNodes(listTree)}
+          </TabsContent>
 
-        {currentView === "notes" && (
-          <div className="flex-1 overflow-y-auto pl-2 w-auto">{renderNodes(notesTree)}</div>
-        )}
-      </aside >
+          <TabsContent value="notes" className="flex-1 overflow-y-auto pl-2 w-auto mt-2">
+            {renderNodes(notesTree)}
+          </TabsContent>
+        </Tabs>
+      </aside>
     );
 
 
@@ -1195,10 +1194,15 @@ export default function App() {
           </form>
         </div>
 
-{currentView === "lists" ? (
+        {currentView === "lists" ? (
           renderCurrentList()
         ) : (
-          <NotesPanel vimMode={vimMode} theme="dark" selectedNoteName={currentName} />
+          <NotesPanel
+            vimMode={vimMode}
+            theme="dark"
+            selectedNoteName={currentName}
+            onVimStatusChange={setVimStatus}
+          />
         )}
 
         {/* command palette (portal inside) */}
@@ -1219,11 +1223,26 @@ export default function App() {
           ) : error ? (
             <span className="text-red-600">{error}</span>
           ) : (
-            `lst ${currentList ? `- ${currentList.title}.md` : ""}`
+            `lst ${currentView === "lists" && currentList ? `- ${currentList.title}.md` :
+              currentView === "notes" && currentName ? `- ${currentName}.md` : ""}`
           )}
         </span>
-        <span className="ml-auto text-nowrap">
-          {currentList ? `${items.length} items` : "No list selected"}
+        <span className="ml-auto text-nowrap flex items-center gap-2">
+          {vimStatus && currentView === "notes" && (
+            <span className={`px-2 py-0.5 rounded text-xs ${vimStatus.mode === "INSERT"
+              ? "bg-blue-500/20 text-blue-600"
+              : vimStatus.mode === "VISUAL"
+                ? "bg-orange-500/20 text-orange-600"
+                : "bg-green-500/20 text-green-600"
+              }`}>
+              {vimStatus.mode}
+            </span>
+          )}
+          <span>
+            {currentView === "lists" && currentList ? `${items.length} items` :
+              currentView === "notes" && currentName ? "Note" :
+                currentView === "lists" ? "No list selected" : "No note selected"}
+          </span>
         </span>
       </div>
     </div>

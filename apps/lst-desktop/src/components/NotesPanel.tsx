@@ -13,9 +13,10 @@ interface NotesPanelProps {
   vimMode?: boolean
   theme?: 'light' | 'dark'
   selectedNoteName?: string | null
+  onVimStatusChange?: (status: { mode: string; status?: string } | null) => void
 }
 
-export function NotesPanel({ vimMode = false, theme = 'light', selectedNoteName = null }: NotesPanelProps) {
+export function NotesPanel({ vimMode = false, theme = 'light', selectedNoteName = null, onVimStatusChange }: NotesPanelProps) {
   const [notes, setNotes] = useState<string[]>([])
   const [selectedNote, setSelectedNote] = useState<Note | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -60,6 +61,7 @@ export function NotesPanel({ vimMode = false, theme = 'light', selectedNoteName 
       if (result.status === 'ok') {
         setSelectedNote(result.data)
         setIsEditing(false)
+        onVimStatusChange?.(null) // Clear vim status when switching notes
       } else {
         setError(result.error)
       }
@@ -102,6 +104,7 @@ export function NotesPanel({ vimMode = false, theme = 'light', selectedNoteName 
       const result = await commands.saveNote(selectedNote)
       if (result.status === 'ok') {
         setIsEditing(false)
+        onVimStatusChange?.(null) // Clear vim status when exiting edit mode
       } else {
         setError(result.error)
       }
@@ -147,8 +150,10 @@ export function NotesPanel({ vimMode = false, theme = 'light', selectedNoteName 
     if (event.key === 'Escape') {
       if (isEditing) {
         setIsEditing(false)
+        onVimStatusChange?.(null) // Clear vim status when exiting edit mode
       } else if (selectedNote) {
         setSelectedNote(null)
+        onVimStatusChange?.(null) // Clear vim status when closing note
       }
       return
     }
@@ -220,13 +225,19 @@ export function NotesPanel({ vimMode = false, theme = 'light', selectedNoteName 
                   onSave={handleSaveNote}
                   onEscape={() => setIsEditing(false)}
                   placeholder="Write your note here..."
+                  onVimStatusChange={onVimStatusChange}
                 />
               ) : (
                 <div 
-                  className="prose max-w-none cursor-text"
+                  className="cursor-text min-h-[300px]"
                   onClick={() => setIsEditing(true)}
+                  style={{
+                    fontSize: '14px',
+                    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace',
+                    lineHeight: '1.6'
+                  }}
                 >
-                  <pre className="whitespace-pre-wrap font-mono text-sm">
+                  <pre className="whitespace-pre-wrap m-0 p-0 bg-transparent border-none">
                     {selectedNote.content || 'This note is empty. Click here or press i to add content.'}
                   </pre>
                 </div>

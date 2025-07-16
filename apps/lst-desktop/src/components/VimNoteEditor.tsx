@@ -14,6 +14,7 @@ interface VimNoteEditorProps {
   onSave?: () => void
   onEscape?: () => void
   placeholder?: string
+  onVimStatusChange?: (status: { mode: string; status?: string } | null) => void
 }
 
 export function VimNoteEditor({
@@ -23,7 +24,8 @@ export function VimNoteEditor({
   theme = 'light',
   onSave,
   onEscape,
-  placeholder = 'Start writing your note...'
+  placeholder = 'Start writing your note...',
+  onVimStatusChange
 }: VimNoteEditorProps) {
   const editorRef = useRef<any>(null)
   const [isVimMode, setIsVimMode] = useState(vimMode)
@@ -36,15 +38,16 @@ export function VimNoteEditor({
         fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace'
       },
       '.cm-content': {
-        padding: '12px',
-        minHeight: '300px'
+        padding: '0',
+        minHeight: '300px',
+        backgroundColor: 'transparent'
       },
       '.cm-focused': {
         outline: 'none'
       },
       '.cm-editor': {
-        borderRadius: '6px',
-        border: '1px solid hsl(var(--border))'
+        border: 'none',
+        backgroundColor: 'transparent'
       },
       '.cm-scroller': {
         lineHeight: '1.6'
@@ -132,29 +135,51 @@ export function VimNoteEditor({
     }
   }, [handleKeyDown, vimMode])
 
-  const vimModeStatus = useCallback((view: EditorView) => {
-    if (!vimMode) return null
+  // Track vim status and notify parent
+  const trackVimStatus = useCallback((view: EditorView) => {
+    if (!vimMode || !onVimStatusChange) return
     
     const vimState = (view.state as any).vim
-    if (!vimState) return null
-    
-    return (
-      <div className="flex items-center gap-2 px-3 py-1 text-xs text-muted-foreground bg-muted/50 border-t">
-        <span className={`px-2 py-0.5 rounded ${
-          vimState.mode === 'insert' 
-            ? 'bg-blue-500/20 text-blue-600' 
-            : vimState.mode === 'visual'
-            ? 'bg-orange-500/20 text-orange-600'
-            : 'bg-green-500/20 text-green-600'
-        }`}>
-          {vimState.mode?.toUpperCase() || 'NORMAL'}
-        </span>
-        {vimState.status && (
-          <span className="text-muted-foreground">{vimState.status}</span>
-        )}
-      </div>
-    )
-  }, [vimMode])
+    if (vimState) {
+      onVimStatusChange({
+        mode: vimState.mode?.toUpperCase() || 'NORMAL',
+        status: vimState.status
+      })
+    } else {
+      onVimStatusChange(null)
+    }
+  }, [vimMode, onVimStatusChange])
+
+  // Create a custom dark theme that inherits background
+  const customDarkTheme = EditorView.theme({
+    '&.cm-editor': {
+      backgroundColor: 'transparent'
+    },
+    '.cm-content': {
+      backgroundColor: 'transparent'
+    },
+    '.cm-focused': {
+      backgroundColor: 'transparent'
+    }
+  }, { dark: true })
+
+  // Track vim status changes
+  useEffect(() => {
+    if (editorRef.current?.view && vimMode) {
+      const view = editorRef.current.view
+      trackVimStatus(view)
+      
+      // Set up a listener for vim state changes
+      const updateStatus = () => trackVimStatus(view)
+      view.dom.addEventListener('keyup', updateStatus)
+      view.dom.addEventListener('click', updateStatus)
+      
+      return () => {
+        view.dom.removeEventListener('keyup', updateStatus)
+        view.dom.removeEventListener('click', updateStatus)
+      }
+    }
+  }, [trackVimStatus, vimMode])
 
   return (
     <div className="relative">
@@ -162,8 +187,7 @@ export function VimNoteEditor({
         ref={editorRef}
         value={value}
         onChange={onChange}
-        extensions={extensions}
-        theme={theme === 'dark' ? oneDark : undefined}
+        extensions={[...extensions, ...(theme === 'dark' ? [oneDark, customDarkTheme] : [])]}
         placeholder={placeholder}
         basicSetup={{
           lineNumbers: false,
@@ -177,7 +201,6 @@ export function VimNoteEditor({
           tabSize: 2
         }}
       />
-      {vimMode && editorRef.current?.view && vimModeStatus(editorRef.current.view)}
     </div>
   )
 }
