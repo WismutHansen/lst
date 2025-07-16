@@ -122,13 +122,16 @@ pub fn list_notes(json: bool) -> Result<()> {
 
 /// Create a new note: initializes file and opens in editor
 pub async fn note_new(title: &str) -> Result<()> {
-    // Normalize title (omit .md)
-    let key = title.trim_end_matches(".md");
+    // Resolve note name (handle special cases like 'dn')
+    let key = resolve_note(title).unwrap_or_else(|_| title.trim_end_matches(".md").to_string());
     // Create the note file (with frontmatter)
-    let path = storage::notes::create_note(key).context("Failed to create note")?;
+    let path = storage::notes::create_note(&key).context("Failed to create note")?;
     
     // Notify desktop app that a note was updated
-    let _ = notify_note_updated(key).await;
+    #[cfg(feature = "gui")]
+    {
+        let _ = notify_note_updated(&key).await;
+    }
     
     // Open in editor
     open_editor(&path)
@@ -151,7 +154,10 @@ pub async fn note_add(title: &str, text: &str) -> Result<()> {
     let path = storage::notes::append_to_note(&note, text).context("Failed to append to note")?;
     
     // Notify desktop app that a note was updated
-    let _ = notify_note_updated(&note).await;
+    #[cfg(feature = "gui")]
+    {
+        let _ = notify_note_updated(&note).await;
+    }
     
     open_editor(&path)
 }
@@ -165,7 +171,10 @@ pub async fn note_delete(title: &str) -> Result<()> {
     let result = delete_note(&note);
     
     // Notify desktop app that a note was updated (deleted)
-    let _ = notify_note_updated(&note).await;
+    #[cfg(feature = "gui")]
+    {
+        let _ = notify_note_updated(&note).await;
+    }
     
     result
 }
@@ -185,6 +194,12 @@ fn open_editor(path: &Path) -> Result<()> {
 /// Normalize a list identifier: strip .md and fuzzy-match existing, or allow new
 fn normalize_list(input: &str) -> Result<String> {
     let key = input.trim_end_matches(".md");
+
+    // Handle special case: "dl" resolves to today's daily list
+    if key == "dl" {
+        let date = chrono::Local::now().format("%Y%m%d").to_string();
+        return Ok(format!("daily_lists/{}_daily_list", date));
+    }
 
     // If it contains path separators, use as-is (directory path)
     if key.contains('/') || key.contains('\\') {
@@ -222,6 +237,12 @@ fn normalize_list(input: &str) -> Result<String> {
 fn resolve_note(input: &str) -> Result<String> {
     let key = input.trim_end_matches(".md");
 
+    // Handle special case: "dn" resolves to today's daily note
+    if key == "dn" {
+        let date = chrono::Local::now().format("%Y%m%d").to_string();
+        return Ok(format!("daily_notes/{}_daily_note", date));
+    }
+
     // If it contains path separators, use as-is (directory path)
     if key.contains('/') || key.contains('\\') {
         return Ok(key.to_string());
@@ -257,6 +278,12 @@ fn resolve_note(input: &str) -> Result<String> {
 /// Resolve a note identifier: strip .md and fuzzy-match to exactly one or error
 fn resolve_list(input: &str) -> Result<String> {
     let key = input.trim_end_matches(".md");
+
+    // Handle special case: "dl" resolves to today's daily list
+    if key == "dl" {
+        let date = chrono::Local::now().format("%Y%m%d").to_string();
+        return Ok(format!("daily_lists/{}_daily_list", date));
+    }
 
     // If it contains path separators, use as-is (directory path)
     if key.contains('/') || key.contains('\\') {
@@ -360,7 +387,10 @@ pub async fn mark_done(list: &str, target: &str, json: bool) -> Result<()> {
     }
 
     // Notify desktop app that the list was updated
-    let _ = notify_list_updated(&list_name).await;
+    #[cfg(feature = "gui")]
+    {
+        let _ = notify_list_updated(&list_name).await;
+    }
 
     Ok(())
 }
@@ -389,7 +419,10 @@ pub async fn mark_undone(list: &str, target: &str, json: bool) -> Result<()> {
     }
 
     // Notify desktop app that the list was updated
-    let _ = notify_list_updated(&list_name).await;
+    #[cfg(feature = "gui")]
+    {
+        let _ = notify_list_updated(&list_name).await;
+    }
 
     Ok(())
 }
@@ -817,12 +850,7 @@ pub fn unshare_document(doc: &str) -> Result<()> {
 }
 
 pub async fn remote_switch_list(list_name: &str) -> Result<()> {
-    let resolved_name = if list_name.trim_end_matches(".md") == "dl" {
-        let date = chrono::Local::now().format("%Y%m%d").to_string();
-        format!("daily_lists/{}_daily_list", date)
-    } else {
-        resolve_list(list_name)?
-    };
+    let resolved_name = resolve_list(list_name)?;
     let client = reqwest::Client::new();
     let res = client
         .post(format!("http://localhost:33333/command/switch-list"))
@@ -857,6 +885,7 @@ pub async fn remote_show_message(message: &str) -> Result<()> {
 }
 
 /// Send notification to desktop app that a list was updated
+#[cfg(feature = "gui")]
 async fn notify_list_updated(list_name: &str) -> Result<()> {
     let client = reqwest::Client::new();
     let res = client
@@ -878,6 +907,7 @@ async fn notify_list_updated(list_name: &str) -> Result<()> {
 }
 
 /// Send notification to desktop app that a note was updated
+#[cfg(feature = "gui")]
 async fn notify_note_updated(note_name: &str) -> Result<()> {
     let client = reqwest::Client::new();
     let res = client
@@ -899,6 +929,7 @@ async fn notify_note_updated(note_name: &str) -> Result<()> {
 }
 
 /// Send notification to desktop app that a file was changed
+#[cfg(feature = "gui")]
 async fn notify_file_changed(file_path: &str) -> Result<()> {
     let client = reqwest::Client::new();
     let res = client

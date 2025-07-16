@@ -3,7 +3,10 @@ use chrono::{DateTime, Utc};
 use rand::distributions::{Alphanumeric, DistString};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "tauri")]
 use specta::Type;
+
 use std::path::PathBuf;
 use uuid::Uuid;
 
@@ -17,7 +20,8 @@ pub fn generate_anchor() -> String {
 }
 
 /// Represents the metadata for a list
-#[derive(Debug, Serialize, Deserialize, Type)]
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "tauri", derive(Type))]
 pub struct ListMetadata {
     /// Unique identifier for the list
     #[serde(default = "Uuid::new_v4")]
@@ -36,14 +40,16 @@ pub struct ListMetadata {
 }
 
 /// Represents the status of a list item (done or not)
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[cfg_attr(feature = "tauri", derive(Type))]
 pub enum ItemStatus {
     Todo,
     Done,
 }
 
 /// Represents a single item in a list
-#[derive(Debug, Serialize, Deserialize, Clone, Type)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "tauri", derive(Type))]
 pub struct ListItem {
     /// The text content of the item
     pub text: String,
@@ -56,7 +62,8 @@ pub struct ListItem {
 }
 
 /// Represents a complete list with metadata and items
-#[derive(Debug, Serialize, Deserialize, Type)]
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "tauri", derive(Type))]
 pub struct List {
     /// Metadata for the list
     #[serde(flatten)]

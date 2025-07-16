@@ -27,4 +27,4 @@ futures = { version = "0.3" }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-lst-cli = { path = "../lst-cli", version = "0.1.3" }
+lst-core = { path = "../lst-core", version = "0.1.3" }

@@ -3,7 +3,7 @@
 # All sections are optional and will use defaults if not specified
 
 # =============================================================================
-# UI Configuration
+# UI Configuration (Desktop/Mobile Apps)
 # =============================================================================
 [ui]
 # Order for resolving list/note names (first match wins)
@@ -15,15 +15,23 @@ resolution_order = [
   "index",       # Match by numeric index
   "interactive", # Interactive selection prompt
 ]
+
 # Enable Vim-style keyboard navigation in the desktop app
 vim_mode = false
-# Leader key for command sequences
+
+# Leader key for command sequences (defaults to space)
 leader_key = " "
 
 # Optional theme overrides. Keys correspond to CSS variables defined by the app.
 # When omitted, the built-in theme is used.
 [ui.theme.vars]
 # background = "#24273a"
+# foreground = "#cad3f5"
+# primary = "#8aadf4"
+# secondary = "#f4dbd6"
+# accent = "#c6a0f6"
+# muted = "#5b6078"
+# border = "#494d64"
 # radius = "0.625rem"
 
 # =============================================================================
@@ -32,11 +40,12 @@ leader_key = " "
 [fuzzy]
 # Threshold for fuzzy matching (0.0 = accept all, 1.0 = exact match only)
 threshold = 0.75
+
 # Maximum number of suggestions to show
 max_suggestions = 7
 
 # =============================================================================
-# Path Configuration
+# Path Configuration (Shared by all components)
 # =============================================================================
 [paths]
 # Root directory for all content (lists, notes, posts)
@@ -52,15 +61,23 @@ media_dir = "media"
 kinds = ["lists", "notes", "posts"]
 
 # =============================================================================
-# Server Connection (Client-side)
+# Server Connection (Client-side configuration)
 # =============================================================================
 [server]
 # URL of the lst server for syncing
 url = "https://lst.example.com/api"
+
 # Authentication token for server access
 auth_token = "your-server-auth-token-here"
+
+# JWT token (automatically managed - don't set manually)
+# jwt_token = "auto-generated-jwt-token"
+
+# JWT expiration (automatically managed - don't set manually)  
+# jwt_expires_at = "2024-12-31T23:59:59Z"
+
 # =============================================================================
-# Server Configuration (Server Process Only)
+# Server Process Configuration (lst-server only)
 # =============================================================================
 # Network interface to bind to
 host = "127.0.0.1" # localhost only
@@ -70,69 +87,29 @@ host = "127.0.0.1" # localhost only
 port = 5673
 
 # =============================================================================
-# Sync Daemon Configuration  
-# =============================================================================
-[syncd]
-# Server URL for sync daemon
-url = "https://lst.example.com/api"
-# Authentication token for sync daemon
-auth_token = "your-syncd-auth-token-here"
-# Unique device identifier (auto-generated if not specified)
-device_id = "my-laptop-12345"
-# Local database path for sync state
-database_path = "~/.lst/syncd.db"
-# Keychain reference for encryption key (macOS/Linux keyring)
-encryption_key_ref = "lst-master-key"
-
-# =============================================================================
-# Storage Configuration
-# =============================================================================
-[storage]
-# Directory for CRDT (Conflict-free Replicated Data Type) storage
-crdt_dir = "~/.lst/crdt"
-# Maximum number of snapshots to retain
-max_snapshots = 100
-
-# =============================================================================
-# Sync Behavior Settings
-# =============================================================================
-[sync]
-# How often to check for changes (in seconds)
-interval_seconds = 30
-# Maximum file size to sync (in bytes, 10MB default)
-max_file_size = 10485760
-# File patterns to exclude from syncing
-exclude_patterns = [
-  ".*",              # Hidden files
-  "*.tmp",           # Temporary files
-  "*.swp",           # Vim swap files
-  "*.bak",           # Backup files
-  "*~",              # Emacs backup files
-  "node_modules/**", # Node.js dependencies
-  ".git/**",         # Git repository data
-]
-
-# =============================================================================
-# Email Configuration (Server Process Only)
+# Email Configuration (lst-server only)
 # =============================================================================
 [email]
 # SMTP server hostname
 smtp_host = "smtp.gmail.com"
+
 # SMTP username
 smtp_user = "your-email@gmail.com"
+
 # SMTP password (can use environment variable)
 smtp_pass = "${SMTP_PASSWORD}" # reads from environment variable
-# Alternative: direct password (not recommended)
+# Alternative: direct password (not recommended for production)
 # smtp_pass = "your-app-password"
+
 # From address for sent emails
 sender = "lst-server@yourdomain.com"
 
 # =============================================================================
-# Database Configuration (Server Process Only)
+# Database Configuration (lst-server only)
 # =============================================================================
 [database]
 # Base directory for all server databases
-data_dir = "~/.lst"
+data_dir = "~/.config/lst/lst_server_data"
 # Alternative: absolute path
 # data_dir = "/var/lib/lst"
 
@@ -147,11 +124,64 @@ sync_db = "sync.db"       # CRDT sync data
 # sync_db = "/var/lib/lst/sync.db"
 
 # =============================================================================
+# Sync Daemon Configuration (lst-syncd only)
+# =============================================================================
+[syncd]
+# Server URL for sync daemon (if None, runs in local-only mode)
+url = "https://lst.example.com/api"
+
+# Authentication token for sync daemon
+auth_token = "your-syncd-auth-token-here"
+
+# Unique device identifier (auto-generated if not specified)
+device_id = "my-laptop-12345"
+
+# Local database path for sync state
+database_path = "~/.config/lst/syncd.db"
+
+# Keychain reference for encryption key (macOS/Linux keyring)
+encryption_key_ref = "lst-master-key"
+
+# =============================================================================
+# Storage Configuration (CRDT storage)
+# =============================================================================
+[storage]
+# Directory for CRDT (Conflict-free Replicated Data Type) storage
+crdt_dir = "~/.config/lst/crdt"
+
+# Maximum number of snapshots to retain
+max_snapshots = 100
+
+# =============================================================================
+# Sync Behavior Settings
+# =============================================================================
+[sync]
+# How often to check for changes (in seconds)
+interval_seconds = 30
+
+# Maximum file size to sync (in bytes, 10MB default)
+max_file_size = 10485760
+
+# File patterns to exclude from syncing
+exclude_patterns = [
+  ".*",              # Hidden files
+  "*.tmp",           # Temporary files
+  "*.swp",           # Vim swap files
+  "*.bak",           # Backup files
+  "*~",              # Emacs backup files
+  "node_modules/**", # Node.js dependencies
+  ".git/**",         # Git repository data
+  "*.log",           # Log files
+  "Thumbs.db",       # Windows thumbnail cache
+  ".DS_Store",       # macOS folder metadata
+]
+
+# =============================================================================
 # Example Production Server Configuration
 # =============================================================================
 # Uncomment and modify for production deployment:
 #
-# [lst_server]
+# # Production server binding
 # host = "0.0.0.0"
 # port = 8080
 #
@@ -166,3 +196,29 @@ sync_db = "sync.db"       # CRDT sync data
 # smtp_user = "apikey"
 # smtp_pass = "${SENDGRID_API_KEY}"
 # sender = "noreply@yourdomain.com"
+#
+# [paths]
+# content_dir = "/var/lib/lst/content"
+# media_dir = "media"
+# kinds = ["lists", "notes", "posts"]
+
+# =============================================================================
+# Example Development Configuration
+# =============================================================================
+# For local development and testing:
+#
+# [paths]
+# content_dir = "~/dev/lst-test-content"
+#
+# [server]
+# url = "http://localhost:5673/api"
+# auth_token = "dev-token-123"
+#
+# host = "127.0.0.1"
+# port = 5673
+#
+# [database]
+# data_dir = "~/.config/lst/dev_data"
+#
+# [sync]
+# interval_seconds = 5  # More frequent sync for development

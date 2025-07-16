@@ -8,17 +8,78 @@
 
 For a step-by-step guide see [docs/INSTALL.md](docs/INSTALL.md).
 
+### CLI Feature Flags
+
+The `lst-cli` supports optional features to reduce compilation time and dependencies:
+
+- **`gui`** (default): Enables desktop app integration and live updates
+- **`lists`** (default): Core list functionality  
+- **`notes`**: Note management features
+- **`posts`**: Blog post features
+- **`media`**: Image and media handling
+
+#### Installation Options
+
+```bash
+# Full installation (default - includes GUI integration)
+cargo install --path crates/lst-cli
+
+# Minimal installation (no GUI dependencies, ~3x faster compilation)
+cargo install --path crates/lst-cli --no-default-features --features lists
+
+# Custom feature selection
+cargo install --path crates/lst-cli --no-default-features --features "lists,notes"
+```
+
+**Compilation Time Comparison:**
+- With GUI features: ~19 seconds
+- Without GUI features: ~6 seconds (3x faster)
+
 ### From Source
 
 ```bash
 git clone https://github.com/yourusername/lst.git
 cd lst
-cargo install --path .
+
+# Install the CLI tool (with GUI integration)
+cargo install --path crates/lst-cli
+
+# Install the CLI tool WITHOUT GUI dependencies (faster compilation)
+cargo install --path crates/lst-cli --no-default-features --features lists
+
+# Install the MCP server (optional, lightweight)
+cargo install --path crates/lst-mcp
+
+# Install the sync daemon (optional)
+cargo install --path crates/lst-syncd
+
+# Install the server (optional)
+cargo install --path crates/lst-server
 ```
 
-### Server Setup
+### MCP Server Setup
 
-The `lst-server` provides a centralized API for content synchronization and multi-device access.
+The `lst-mcp` provides a Model Context Protocol server that allows AI assistants (like Claude) to manage your lists and notes.
+
+#### Installing the MCP Server
+
+```bash
+# Install the MCP server (lightweight, no Tauri dependencies)
+cargo install --path crates/lst-mcp
+
+# Run the MCP server
+lst-mcp
+```
+
+The MCP server provides tools for:
+- Listing all available lists
+- Adding items to lists
+- Marking items as done/undone
+- Managing list content through AI assistants
+
+### HTTP API Server Setup
+
+The `lst-server` provides a centralized HTTP API for content synchronization and multi-device access.
 
 #### Building the Server
 
@@ -177,6 +238,8 @@ lst server delete notes "example.md"
 - **Share documents**: Grant read or write access to specific devices
 - **Sync daemon control**: `lst sync` commands to configure and monitor background sync
 - **Tauri apps**: Optional desktop and mobile front‑ends built with Tauri
+- **MCP Integration**: Model Context Protocol server for AI assistant integration
+- **Live Updates**: Real-time GUI updates when using CLI commands
 
 ## Usage
 
@@ -461,37 +524,58 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Project Architecture
 
-The `lst` project follows a layered architecture with clear separation of concerns:
+The `lst` project follows a modular architecture with clear separation of concerns across multiple crates:
 
-### Core Architecture Layers
+### Crate Structure
 
-1. **Models Layer** (`models/`)
+1. **`lst-core`** - Core functionality
+   - Contains shared data structures (`List`, `ListItem`, etc.)
+   - Storage layer for markdown files and notes
+   - Configuration management
+   - Core command implementations
+   - No UI dependencies - lightweight and reusable
 
-   - Contains core data structures like `List`, `ListItem`, etc.
-   - Defines the domain objects without any I/O operations
-   - Provides basic operations on in-memory objects
+2. **`lst-cli`** - Command-line interface
+   - Depends on `lst-core` with optional Tauri integration
+   - Command-line parsing and user interaction
+   - Optional desktop app communication (live updates) via `gui` feature
+   - Can be installed without GUI dependencies for faster compilation
 
-2. **Storage Layer** (`storage/`)
+3. **`lst-mcp`** - MCP (Model Context Protocol) server
+   - Depends on `lst-core` (lightweight, no Tauri dependencies)
+   - Provides MCP tools for AI assistants (Claude, etc.)
+   - Enables AI agents to manage lists and notes
+   - Fast compilation without UI dependencies
 
-   - Handles persistence of model objects to disk (markdown files)
-   - Provides higher-level operations that combine model operations with file I/O
-   - Organized by storage format (markdown.rs, notes.rs)
+4. **`lst-server`** - HTTP API server
+   - REST API for multi-device synchronization
+   - SQLite databases for authentication and content
+   - Email-based authentication flow
+   - Separate from CLI for deployment flexibility
 
-3. **CLI Layer** (`cli/`)
+5. **`lst-syncd`** - Background sync daemon
+   - CRDT-based conflict-free synchronization
+   - File watching and automatic sync
+   - Encrypted client-server communication
+   - Multi-device support
 
-   - Handles command-line parsing and user interaction
-   - Connects user commands to storage operations
+6. **`lst-desktop`** - Tauri desktop application
+   - Cross-platform GUI built with React + TypeScript
+   - Real-time updates from CLI changes
+   - Rich text editing with CodeMirror
 
-4. **Configuration Layer** (`config/`)
+7. **`lst-mobile`** - Tauri mobile application
+   - Mobile-optimized interface
+   - SQLite storage for offline capability
+   - Touch-friendly UI components
 
-   - Manages application settings and paths
-   - Provides utility functions for finding content directories
+### Architecture Benefits
 
-5. **Server Layer** (`server/`)
-   - Implements a REST API for accessing the data.
-   - Uses SQLite databases (`tokens.db` for authentication tokens, `content.db` for user content) for persistence.
-   - These database files are typically stored in a subdirectory (e.g., `lst_server_data`) within the path derived from the server's configuration file location or the `paths.content_dir` setting in `lst.toml`.
-   - Separate executable from the CLI.
+- **Modular Design**: Each crate has a specific purpose and minimal dependencies
+- **Lightweight Core**: `lst-core` can be used without UI dependencies
+- **Fast MCP Server**: No Tauri compilation when installing MCP server
+- **Reusable Components**: Core functionality shared across all interfaces
+- **Flexible Deployment**: Install only the components you need
 
 ### Server API Overview
 
@@ -563,32 +647,53 @@ For complete API details, please refer to [SPEC.md](SPEC.md).
 A typical command flow:
 
 1. User enters a command like `lst done my-list item1`
-2. `main.rs` parses this using `clap` and dispatches to `cli::commands::mark_done`
-3. `cli::commands::mark_done` normalizes the list name and calls `storage::markdown::mark_done`
-4. `storage::markdown::mark_done` loads the list from disk, modifies it, and saves it back
+2. `lst-cli` parses this using `clap` and dispatches to `cli::commands::mark_done`
+3. `cli::commands::mark_done` calls `lst_core::commands::mark_done`
+4. `lst_core::commands::mark_done` uses `lst_core::storage::markdown::mark_done` to modify the file
+5. `lst-cli` sends a notification to the desktop app (if running) for live updates
 
 This architecture provides:
 
-- **Separation of Concerns**: Each module has a distinct responsibility
-- **Testability**: Core logic can be tested without I/O dependencies
-- **Flexibility**: Multiple interfaces (CLI, server) can use the same storage and model logic
+- **Separation of Concerns**: Each crate has a distinct responsibility
+- **Testability**: Core logic can be tested without I/O dependencies  
+- **Flexibility**: Multiple interfaces (CLI, MCP, server, GUI) can use the same core logic
+- **Performance**: MCP server compiles quickly without UI dependencies
+- **Live Updates**: GUI automatically refreshes when CLI makes changes
 
 ## Performance
 
-The `lst` CLI is implemented in Rust, and debug builds (e.g., those under `target/debug`) can exhibit noticeable startup latency.
-For the fastest experience, use the optimized release build:
+The `lst` tools are implemented in Rust, and debug builds can exhibit noticeable startup latency.
+For the fastest experience, use optimized release builds:
 
 ```bash
-# Install the release binary to your Cargo bin directory
-cargo install --path .
+# Install CLI with GUI integration (default)
+cargo install --path crates/lst-cli
+
+# Install CLI without GUI dependencies (faster compilation)
+cargo install --path crates/lst-cli --no-default-features --features lists
+
+# Install MCP server (compiles quickly - no Tauri dependencies)
+cargo install --path crates/lst-mcp
+
+# Install other components as needed
+cargo install --path crates/lst-server
+cargo install --path crates/lst-syncd
 ```
 
-This builds with release optimizations and should start up in just a few milliseconds.
+Release builds start up in just a few milliseconds. The MCP server is particularly fast to compile since it doesn't include any UI dependencies.
 
-If you prefer to build locally without installing, you can:
+If you prefer to build locally without installing:
 
 ```bash
-# Build and run the release binary
-cargo build --release
+# Build and run specific components
+cargo build --release -p lst-cli
 ./target/release/lst ls <list_name>
+
+# Build CLI without GUI dependencies (faster)
+cargo build --release -p lst-cli --no-default-features --features lists
+./target/release/lst ls <list_name>
+
+# Build MCP server (always lightweight)
+cargo build --release -p lst-mcp  
+./target/release/lst-mcp
 ```

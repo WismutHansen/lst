@@ -1,4 +1,4 @@
 pub mod cli;
-pub mod config;
-pub mod models;
-pub mod storage;
+
+// Re-export core functionality
+pub use lst_core::{config, models, storage};

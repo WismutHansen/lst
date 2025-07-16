@@ -1,6 +1,5 @@
 use anyhow::Result;
-use lst_cli::cli::commands;
-use lst_cli::storage;
+use lst_core::{commands, storage};
 use rust_mcp_sdk::schema::{schema_utils::CallToolError, CallToolResult};
 use rust_mcp_sdk::{
     macros::{mcp_tool, JsonSchema},
@@ -77,12 +76,6 @@ impl AddToListTool {
         
         match rt.block_on(commands::add_item(&self.list, &self.item, false)) {
             Ok(_) => {
-                // Try to switch to the list remotely on success
-                if let Err(e) = rt.block_on(commands::remote_switch_list(&self.list)) {
-                    // Don't fail the entire operation if remote switch fails
-                    eprintln!("Warning: Failed to switch remote list: {}", e);
-                }
-                
                 Ok(CallToolResult::text_content(
                     format!("Added '{}' to list '{}'", self.item, self.list),
                     None,
@@ -126,12 +119,6 @@ impl MarkDoneTool {
         
         match rt.block_on(commands::mark_done(&self.list, &self.target, false)) {
             Ok(_) => {
-                // Try to switch to the list remotely on success
-                if let Err(e) = rt.block_on(commands::remote_switch_list(&self.list)) {
-                    // Don't fail the entire operation if remote switch fails
-                    eprintln!("Warning: Failed to switch remote list: {}", e);
-                }
-                
                 Ok(CallToolResult::text_content(
                     format!("Marked '{}' as done in list '{}'", self.target, self.list),
                     None,
@@ -175,12 +162,6 @@ impl MarkUndoneTool {
         
         match rt.block_on(commands::mark_undone(&self.list, &self.target, false)) {
             Ok(_) => {
-                // Try to switch to the list remotely on success
-                if let Err(e) = rt.block_on(commands::remote_switch_list(&self.list)) {
-                    // Don't fail the entire operation if remote switch fails
-                    eprintln!("Warning: Failed to switch remote list: {}", e);
-                }
-                
                 Ok(CallToolResult::text_content(
                     format!("Marked '{}' as undone in list '{}'", self.target, self.list),
                     None,

@@ -1,7 +1,7 @@
 mod cli;
-mod config;
-mod models;
-mod storage;
+
+// Use re-exported modules from lst-core
+use lst_cli::{config, models, storage};
 
 use anyhow::Result;
 use clap::Parser;

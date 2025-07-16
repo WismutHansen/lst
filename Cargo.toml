@@ -1,6 +1,7 @@
 [workspace]
 version = "0.1.1"
 members = [
+  "crates/lst-core",
   "crates/lst-cli",
   "crates/lst-proto",
   "crates/lst-server",

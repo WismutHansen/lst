@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 /// Configuration for the lst application
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "tauri", derive(Type))]
 pub struct Config {
     #[serde(default)]
     pub ui: UiConfig,
@@ -24,15 +25,18 @@ pub struct Config {
     pub sync: Option<SyncSettings>,
 }
 
+#[cfg(feature = "tauri")]
 use specta::Type;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "tauri", derive(Type))]
 pub struct ThemeConfig {
     #[serde(default)]
     pub vars: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "tauri", derive(Type))]
 pub struct UiConfig {
     #[serde(default = "default_resolution_order")]
     pub resolution_order: Vec<String>,
@@ -50,6 +54,7 @@ pub struct UiConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "tauri", derive(Type))]
 pub struct FuzzyConfig {
     #[serde(default = "default_threshold")]
     pub threshold: f32,
@@ -58,6 +63,7 @@ pub struct FuzzyConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "tauri", derive(Type))]
 pub struct PathsConfig {
     pub content_dir: Option<PathBuf>,
     pub media_dir: Option<PathBuf>,
@@ -65,6 +71,7 @@ pub struct PathsConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "tauri", derive(Type))]
 pub struct ServerConfig {
     pub url: Option<String>,
     pub auth_token: Option<String>,
@@ -75,6 +82,7 @@ pub struct ServerConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "tauri", derive(Type))]
 pub struct SyncdConfig {
     /// Server URL (if None, runs in local-only mode)
     pub url: Option<String>,
@@ -93,6 +101,7 @@ pub struct SyncdConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "tauri", derive(Type))]
 pub struct StorageConfig {
     /// Directory for CRDT state storage
     pub crdt_dir: PathBuf,
@@ -103,6 +112,7 @@ pub struct StorageConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "tauri", derive(Type))]
 pub struct SyncSettings {
     /// Sync interval in seconds
     #[serde(default = "default_sync_interval")]
