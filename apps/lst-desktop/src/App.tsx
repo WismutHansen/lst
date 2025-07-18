@@ -165,6 +165,8 @@ export default function App() {
   const inputRef = useRef<HTMLInputElement>(null);
   const addItemRef = useRef<HTMLInputElement>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
+  const listsContainerRef = useRef<HTMLDivElement>(null);
+  const notesContainerRef = useRef<HTMLDivElement>(null);
 
   useTheme();
 
@@ -380,6 +382,26 @@ export default function App() {
       targetItem.scrollIntoView({
         behavior: "smooth",
         block: "nearest"
+      });
+    }
+  }
+
+  function scrollToSidebarItem(index: number) {
+    // Get the current active container based on the view
+    const activeContainer = currentView === "lists" ? listsContainerRef.current : notesContainerRef.current;
+    
+    if (!activeContainer) return;
+
+    // Find the sidebar item by index using data-sidebar-index attribute
+    const targetItem = activeContainer.querySelector(`[data-sidebar-index="${index}"]`) as HTMLElement;
+
+    if (targetItem) {
+      // Always scroll to ensure the highlighted item is visible
+      // Using scrollIntoView with block: "center" for better visibility
+      targetItem.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "nearest"
       });
     }
   }
@@ -609,12 +631,31 @@ export default function App() {
       // sidebar navigation (when open)
       if (!sidebarCollapsed) {
         const next = (delta: number) => {
-          setSidebarCursor((i) =>
-            (i + delta + flatSidebarItems.length) % flatSidebarItems.length
-          );
+          setSidebarCursor((i) => {
+            const newIndex = (i + delta + flatSidebarItems.length) % flatSidebarItems.length;
+            // Use setTimeout to ensure the DOM has updated before scrolling
+            setTimeout(() => scrollToSidebarItem(newIndex), 10);
+            return newIndex;
+          });
         };
 
-        // Vim or arrow keys
+        const selectCurrentItem = () => {
+          const item = flatSidebarItems[sidebarCursor];
+          if (item?.isList) {
+            if (currentView === "lists") {
+              loadList(item.path);
+            } else {
+              loadNote(item.path);
+            }
+          }
+        };
+
+        const toggleCurrentFolder = () => {
+          const item = flatSidebarItems[sidebarCursor];
+          if (item && !item.isList) toggleFolder(item.path);
+        };
+
+        // Vim keys
         if (vimMode && mode === "normal") {
           if (["j", "k"].includes(e.key)) {
             next(e.key === "j" ? 1 : -1);
@@ -622,47 +663,32 @@ export default function App() {
             return;
           }
           if (e.key === "l") {
-            const item = flatSidebarItems[sidebarCursor];
-            if (item?.isList) {
-              if (currentView === "lists") {
-                loadList(item.path);
-              } else {
-                loadNote(item.path);
-              }
-            }
+            selectCurrentItem();
             e.preventDefault();
             return;
           }
           if (e.key === " ") {
-            const item = flatSidebarItems[sidebarCursor];
-            if (item && !item.isList) toggleFolder(item.path);
+            toggleCurrentFolder();
             e.preventDefault();
             return;
           }
-        } else {
-          if (["ArrowDown", "ArrowUp"].includes(e.key)) {
-            next(e.key === "ArrowDown" ? 1 : -1);
-            e.preventDefault();
-            return;
-          }
-          if (e.key === "ArrowRight") {
-            const item = flatSidebarItems[sidebarCursor];
-            if (item?.isList) {
-              if (currentView === "lists") {
-                loadList(item.path);
-              } else {
-                loadNote(item.path);
-              }
-            }
-            e.preventDefault();
-            return;
-          }
-          if (e.key === " ") {
-            const item = flatSidebarItems[sidebarCursor];
-            if (item && !item.isList) toggleFolder(item.path);
-            e.preventDefault();
-            return;
-          }
+        }
+        
+        // Arrow keys (work in both vim and non-vim mode for sidebar)
+        if (["ArrowDown", "ArrowUp"].includes(e.key)) {
+          next(e.key === "ArrowDown" ? 1 : -1);
+          e.preventDefault();
+          return;
+        }
+        if (e.key === "ArrowRight") {
+          selectCurrentItem();
+          e.preventDefault();
+          return;
+        }
+        if (e.key === " ") {
+          toggleCurrentFolder();
+          e.preventDefault();
+          return;
         }
       }
 
@@ -1025,13 +1051,19 @@ export default function App() {
         return [
           <div
             key={node.path}
+            data-sidebar-index={flatIndex}
             className={`${common} ${isFolder ? folderClasses : listClasses}`}
             style={{ marginLeft: depth * 12 }}
-            onClick={() =>
-              node.isList
-                ? (currentView === "lists" ? loadList(node.path) : loadNote(node.path))
-                : toggleFolder(node.path)
-            }
+            onClick={() => {
+              // Update the sidebar cursor to match the clicked item
+              setSidebarCursor(flatIndex);
+              
+              if (node.isList) {
+                currentView === "lists" ? loadList(node.path) : loadNote(node.path);
+              } else {
+                toggleFolder(node.path);
+              }
+            }}
           >
             {isFolder ? (
               <FolderIcon size={16} className="mr-1 flex-none" />
@@ -1109,6 +1141,7 @@ export default function App() {
 
           <TabsContent 
             value="lists" 
+            ref={listsContainerRef}
             className="flex-1 overflow-y-auto pl-2 w-auto mt-2 min-h-0"
             onWheel={(e) => e.stopPropagation()}
             onScroll={(e) => e.stopPropagation()}
@@ -1118,6 +1151,7 @@ export default function App() {
 
           <TabsContent 
             value="notes" 
+            ref={notesContainerRef}
             className="flex-1 overflow-y-auto pl-2 w-auto mt-2 min-h-0"
             onWheel={(e) => e.stopPropagation()}
             onScroll={(e) => e.stopPropagation()}
