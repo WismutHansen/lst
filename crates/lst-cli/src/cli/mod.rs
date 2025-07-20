@@ -63,6 +63,13 @@ pub enum Commands {
         target: String,
     },
 
+    /// Mark all items in a list as undone (reset completion status)
+    #[clap(name = "reset")]
+    Reset {
+        /// Name of the list
+        list: String,
+    },
+
     /// Delete item from a list
     #[clap(name = "rm")]
     Rm {

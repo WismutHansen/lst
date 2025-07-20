@@ -278,6 +278,28 @@ pub fn mark_undone(list_name: &str, target: &str) -> Result<Vec<ListItem>> {
     )
 }
 
+/// Reset all items in a list to undone status
+pub fn reset_list(list_name: &str) -> Result<Vec<ListItem>> {
+    let mut list = load_list(list_name)?;
+    let mut reset_items = Vec::new();
+
+    // Mark all items as undone
+    for item in &mut list.items {
+        if item.status == ItemStatus::Done {
+            item.status = ItemStatus::Todo;
+            reset_items.push(item.clone());
+        }
+    }
+
+    if reset_items.is_empty() {
+        anyhow::bail!("No completed items found in list '{}'", list_name);
+    }
+
+    list.metadata.updated = chrono::Utc::now();
+    save_list_with_path(&list, list_name)?;
+    Ok(reset_items)
+}
+
 /// Helper function to mark a single item as done
 fn mark_item_done(list: &mut List, target: &str) -> Result<ListItem> {
     // Find item and set status

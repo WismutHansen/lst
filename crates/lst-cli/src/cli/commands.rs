@@ -426,6 +426,37 @@ pub async fn mark_undone(list: &str, target: &str, json: bool) -> Result<()> {
 
     Ok(())
 }
+
+/// Handle the 'reset' command to mark all items in a list as undone
+pub async fn reset_list(list: &str, json: bool) -> Result<()> {
+    let list_name = normalize_list(list)?;
+    let items = storage::markdown::reset_list(&list_name)?;
+
+    if json {
+        println!("{}", serde_json::to_string(&items)?);
+        return Ok(());
+    }
+
+    if items.is_empty() {
+        println!("No completed items found in {}", list_name.cyan());
+    } else if items.len() == 1 {
+        println!("Reset 1 item in {}: {}", list_name.cyan(), items[0].text);
+    } else {
+        println!("Reset {} items in {}:", items.len(), list_name.cyan());
+        for item in &items {
+            println!("  {}", item.text);
+        }
+    }
+
+    // Notify desktop app that the list was updated
+    #[cfg(feature = "gui")]
+    {
+        let _ = notify_list_updated(&list_name).await;
+    }
+
+    Ok(())
+}
+
 /// Handle the 'rm' command to remove an item from a list
 pub async fn remove_item(list: &str, target: &str, json: bool) -> Result<()> {
     let list_name = normalize_list(list)?;

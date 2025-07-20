@@ -38,6 +38,9 @@ async fn main() -> Result<()> {
         Commands::Undone { list, target } => {
             cli::commands::mark_undone(list, target, cli.json).await?;
         }
+        Commands::Reset { list } => {
+            cli::commands::reset_list(list, cli.json).await?;
+        }
         Commands::Rm { list, target } => {
             cli::commands::remove_item(list, target, cli.json).await?;
         }
