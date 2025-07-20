@@ -1,7 +1,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import Logo from "./assets/logo.png";
-import { commands, type List, type ListItem } from "./bindings";
+import { commands, type List, type ListItem, type Category } from "./bindings";
 import { CommandPalette, PaletteCommand } from "./components/CommandPalette";
 import { NotesPanel } from "./components/NotesPanel";
 import { Folder as FolderIcon, List as ListIcon, FileText, Clipboard, Plus } from "lucide-react";
@@ -223,6 +223,16 @@ export default function App() {
     });
   }
 
+  /* ---------- helpers ---------- */
+  // Get all items from both uncategorized and categorized sections
+  function getAllItems(list: List | null): ListItem[] {
+    if (!list) return [];
+    return [
+      ...(list.uncategorized_items ?? []),
+      ...(list.categories ?? []).flatMap(c => c.items)
+    ];
+  }
+
   /* ---------- backend calls ---------- */
   async function reloadCurrentList() {
     if (!currentName) return;
@@ -324,7 +334,7 @@ export default function App() {
   async function quickAddItem(e: React.FormEvent) {
     e.preventDefault();
     if (!currentName || !newItem.trim()) return;
-    const res = await commands.addItem(currentName, newItem.trim());
+    const res = await commands.addItem(currentName, newItem.trim(), null);
     if (res.status === "ok") {
       setNewItem("");
       setCurrentList(res.data);
@@ -360,9 +370,10 @@ export default function App() {
   function scrollToItem(index: number) {
     if (!listContainerRef.current || !currentList) return;
 
-    // If navigating to add item (index === currentList.items.length)
-    if (!currentList.items) return;
-    if (index === currentList.items.length) {
+    const allItems = getAllItems(currentList);
+    // If navigating to add item (index === allItems.length)
+    if (allItems.length === 0) return;
+    if (index === allItems.length) {
       // Scroll the container to the bottom to show the add item form
       const container = listContainerRef.current.parentElement; // The scrollable div
       if (container) {
@@ -708,8 +719,8 @@ export default function App() {
         // Normal mode keybindings
         if (mode === "normal") {
           // j/k navigation within list items (including add item input)
-          if (!currentList.items) { return; }
-          const maxIndex = currentList.items.length; // Add item is at currentList.items.length
+          const allItems = getAllItems(currentList);
+          const maxIndex = allItems.length; // Add item is at allItems.length
           if (e.key === "j") {
             const newIndex = Math.min(cursorIndex + 1, maxIndex);
             setCursorIndex(newIndex);
@@ -768,7 +779,8 @@ export default function App() {
 
           // 'i' to enter edit mode on current item
           if (e.key === "i") {
-            const currentItem = currentList.items[cursorIndex];
+            const allItems = getAllItems(currentList);
+            const currentItem = allItems[cursorIndex];
             if (currentItem) {
               startEdit(currentItem);
               setMode("edit");
@@ -787,7 +799,8 @@ export default function App() {
 
             // 'dd' to delete current item
             if (leaderSeq === "d" && e.key === "d") {
-              const currentItem = currentList.items[cursorIndex];
+              const allItems = getAllItems(currentList);
+              const currentItem = allItems[cursorIndex];
               if (currentItem) {
                 deleteItem(currentItem.anchor);
               }
@@ -799,7 +812,8 @@ export default function App() {
 
             // 'md' to mark as done
             if (leaderSeq === "m" && e.key === "d") {
-              const currentItem = currentList.items[cursorIndex];
+              const allItems = getAllItems(currentList);
+              const currentItem = allItems[cursorIndex];
               if (currentItem) {
                 toggleItemStatus(currentItem.anchor);
               }
@@ -887,7 +901,8 @@ export default function App() {
         {/* list items */}
         <div className="flex h-[80vh] w-full overflow-y-auto scroll-fade">
           <div ref={listContainerRef} className="w-full h-full">
-            {(currentList.items ?? []).map((it, idx) =>
+            {/* Render uncategorized items first */}
+            {(currentList.uncategorized_items ?? []).map((it, idx) =>
               editingAnchor === it.anchor ? (
                 <form
                   key={it.anchor}
@@ -921,12 +936,11 @@ export default function App() {
                   draggable
                   onDragStart={() => (dragIndex.current = idx)}
                   onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => {
-                    if (dragIndex.current === null || !currentName) return;
-                    if (!currentList.items) return;
-                    const fromAnchor =
-                      currentList.items[dragIndex.current].anchor;
-                    commands
+                      onDrop={() => {
+                        if (dragIndex.current === null || !currentName) return;
+                        const allItems = getAllItems(currentList);
+                        if (!allItems[dragIndex.current]) return;
+                        const fromAnchor = allItems[dragIndex.current].anchor;                    commands
                       .reorderItem(currentName, fromAnchor, idx)
                       .then((res) => {
                         res.status === "ok"
@@ -976,8 +990,98 @@ export default function App() {
               )
             )}
 
+            {/* Render categorized items */}
+            {(currentList.categories ?? []).map((category) => (
+              <div key={category.name} className="mt-4">
+                {/* Category header */}
+                <div className="flex items-center gap-2 mb-2 pb-1 border-b border-[#494D51]">
+                  <h3 className="text-sm font-semibold text-[#a6e3a1]">{category.name}</h3>
+                  <span className="text-xs text-muted-foreground">({category.items.length})</span>
+                </div>
+                
+                {/* Category items */}
+                {category.items.map((it, idx) => {
+                  const globalIdx = (currentList.uncategorized_items?.length ?? 0) + 
+                    (currentList.categories ?? [])
+                      .slice(0, (currentList.categories ?? []).findIndex(c => c.name === category.name))
+                      .reduce((acc, cat) => acc + cat.items.length, 0) + idx;
+                  
+                  return editingAnchor === it.anchor ? (
+                    <form
+                      key={it.anchor}
+                      className="flex items-center"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        saveEdit(it.anchor);
+                      }}
+                    >
+                      <Input
+                        className="flex-1"
+                        value={editText}
+                        onChange={(e) => setEditText(e.currentTarget.value)}
+                        onBlur={() => saveEdit(it.anchor)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape" && vimMode) {
+                            setMode("normal");
+                            setEditingAnchor(null);
+                            setEditText("");
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }
+                        }}
+                        autoFocus
+                      />
+                    </form>
+                  ) : (
+                    <label
+                      key={it.anchor}
+                      data-item-index={globalIdx}
+                      draggable
+                      onDragStart={() => (dragIndex.current = globalIdx)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => {
+                        if (dragIndex.current === null || !currentName) return;
+                        const allItems = [
+                          ...(currentList.uncategorized_items ?? []),
+                          ...(currentList.categories ?? []).flatMap(c => c.items)
+                        ];
+                        if (!allItems[dragIndex.current]) return;
+                        const fromAnchor = allItems[dragIndex.current].anchor;
+                        commands
+                          .reorderItem(currentName, fromAnchor, globalIdx)
+                          .then((res) => {
+                            res.status === "ok"
+                              ? setCurrentList(res.data)
+                              : setError(res.error);
+                          });
+                        dragIndex.current = null;
+                      }}
+                      className={`text-[10pt]/4 flex items-center border-b min-h-10 py-2 mb-0 px-1 ${vimMode && mode === "normal" && globalIdx === cursorIndex
+                        ? "border-b  border-[#a6e3a1]"
+                        : ""
+                        } ${selected.has(it.anchor) ? "bg-[#a6e3a1] text-black" : ""}`}
+                    >
+                      <Checkbox
+                        className="h-4 w-4 hidden"
+                        checked={it.status === "Done"}
+                        onCheckedChange={() => toggleItemStatus(it.anchor)}
+                      />
+
+                      <span
+                        className={`flex-1 select-none ${it.status === "Done" ? "line-through text-muted" : ""
+                          }`}
+                        onDoubleClick={() => startEdit(it)}
+                      >
+                        {it.text}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            ))}
+
             {/* quick-add form */}
-            <form className={`flex gap-2 border-b ${vimMode && mode === "normal" && cursorIndex === (currentList.items?.length ?? 0)
+            <form className={`flex gap-2 border-b ${vimMode && mode === "normal" && cursorIndex === getAllItems(currentList).length
               ? "border-b border-[#a6e3a1]"
               : ""
               }`} onSubmit={quickAddItem}>
@@ -1167,7 +1271,7 @@ export default function App() {
     return sidebarContent;
   }
 
-  const items = currentList?.items ?? [];
+  const items = getAllItems(currentList);
   /* ---------- root render ---------- */
   return (
     <div

@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use chrono::Utc;
-use lst_cli::models::{fuzzy_find, is_valid_anchor, ItemStatus, List};
+use lst_cli::models::{fuzzy_find, is_valid_anchor, ItemStatus, List, ListItem, Category};
 use r2d2::{Pool, PooledConnection};
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{params, OptionalExtension};
@@ -91,7 +91,21 @@ impl Database {
     pub fn add_item(&self, list: &str, text: &str) -> Result<List> {
         let mut l = self.load_list(list)?;
         for item in text.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
-            l.add_item(item.to_string());
+            // Check for ##category inline syntax
+            let (parsed_category, parsed_text) = parse_item_input(item);
+            l.add_item_to_category(parsed_text.to_string(), parsed_category);
+        }
+        self.save_list(&l)?;
+        Ok(l)
+    }
+
+    pub fn add_item_to_category(&self, list: &str, text: &str, category: Option<&str>) -> Result<List> {
+        let mut l = self.load_list(list)?;
+        for item in text.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+            // Check for ##category inline syntax
+            let (parsed_category, parsed_text) = parse_item_input(item);
+            let final_category = parsed_category.or(category);
+            l.add_item_to_category(parsed_text.to_string(), final_category);
         }
         self.save_list(&l)?;
         Ok(l)
@@ -99,8 +113,8 @@ impl Database {
 
     pub fn toggle_item(&self, list: &str, target: &str) -> Result<List> {
         let mut l = self.load_list(list)?;
-        if let Some(idx) = find_item_index(&l, target) {
-            l.items[idx].status = match l.items[idx].status {
+        if let Some(item) = l.find_item_mut_by_anchor(target) {
+            item.status = match item.status {
                 ItemStatus::Todo => ItemStatus::Done,
                 ItemStatus::Done => ItemStatus::Todo,
             };
@@ -117,8 +131,8 @@ impl Database {
             return Err(anyhow!("New text cannot be empty"));
         }
         let mut l = self.load_list(list)?;
-        if let Some(idx) = find_item_index(&l, target) {
-            l.items[idx].text = text.to_string();
+        if let Some(item) = l.find_item_mut_by_anchor(target) {
+            item.text = text.to_string();
             l.metadata.updated = Utc::now();
             self.save_list(&l)?;
             Ok(l)
@@ -129,8 +143,28 @@ impl Database {
 
     pub fn remove_item(&self, list: &str, target: &str) -> Result<List> {
         let mut l = self.load_list(list)?;
-        if let Some(idx) = find_item_index(&l, target) {
-            l.items.remove(idx);
+        
+        // Find and remove item from its location
+        let mut found = false;
+        
+        // Check uncategorized items
+        if let Some(pos) = l.uncategorized_items.iter().position(|item| 
+            item.anchor == target || item.text.to_lowercase() == target.to_lowercase()) {
+            l.uncategorized_items.remove(pos);
+            found = true;
+        } else {
+            // Check categorized items
+            for category in &mut l.categories {
+                if let Some(pos) = category.items.iter().position(|item| 
+                    item.anchor == target || item.text.to_lowercase() == target.to_lowercase()) {
+                    category.items.remove(pos);
+                    found = true;
+                    break;
+                }
+            }
+        }
+        
+        if found {
             l.metadata.updated = Utc::now();
             self.save_list(&l)?;
             Ok(l)
@@ -141,10 +175,29 @@ impl Database {
 
     pub fn reorder_item(&self, list: &str, target: &str, new_index: usize) -> Result<List> {
         let mut l = self.load_list(list)?;
-        if let Some(idx) = find_item_index(&l, target) {
-            let item = l.items.remove(idx);
-            let clamped = new_index.min(l.items.len());
-            l.items.insert(clamped, item);
+        
+        // Find and remove item from its current location
+        let mut item_to_move = None;
+        
+        // Check uncategorized items
+        if let Some(pos) = l.uncategorized_items.iter().position(|item| 
+            item.anchor == target || item.text.to_lowercase() == target.to_lowercase()) {
+            item_to_move = Some(l.uncategorized_items.remove(pos));
+        } else {
+            // Check categorized items
+            for category in &mut l.categories {
+                if let Some(pos) = category.items.iter().position(|item| 
+                    item.anchor == target || item.text.to_lowercase() == target.to_lowercase()) {
+                    item_to_move = Some(category.items.remove(pos));
+                    break;
+                }
+            }
+        }
+        
+        if let Some(item) = item_to_move {
+            // For now, reordering puts items in uncategorized section
+            let clamped = new_index.min(l.uncategorized_items.len());
+            l.uncategorized_items.insert(clamped, item);
             l.metadata.updated = Utc::now();
             self.save_list(&l)?;
             Ok(l)
@@ -222,6 +275,112 @@ impl Database {
         }
         Ok(())
     }
+
+    // Category management methods
+    pub fn create_category(&self, list_name: &str, category_name: &str) -> Result<List> {
+        let mut list = self.load_list(list_name)?;
+        
+        // Check if category already exists
+        if list.categories.iter().any(|c| c.name == category_name) {
+            return Err(anyhow!("Category '{}' already exists", category_name));
+        }
+        
+        // Add new empty category
+        list.categories.push(Category {
+            name: category_name.to_string(),
+            items: Vec::new(),
+        });
+        
+        list.metadata.updated = Utc::now();
+        self.save_list(&list)?;
+        Ok(list)
+    }
+
+    pub fn move_item_to_category(&self, list_name: &str, item_anchor: &str, category_name: Option<&str>) -> Result<List> {
+        let mut list = self.load_list(list_name)?;
+        
+        // Find and remove the item from its current location
+        let mut item_to_move = None;
+        
+        // Check uncategorized items
+        if let Some(pos) = list.uncategorized_items.iter().position(|item| item.anchor == item_anchor) {
+            item_to_move = Some(list.uncategorized_items.remove(pos));
+        } else {
+            // Check categorized items
+            for category in &mut list.categories {
+                if let Some(pos) = category.items.iter().position(|item| item.anchor == item_anchor) {
+                    item_to_move = Some(category.items.remove(pos));
+                    break;
+                }
+            }
+        }
+        
+        let item = item_to_move.ok_or_else(|| anyhow!("Item with anchor '{}' not found", item_anchor))?;
+        
+        // Add item to new location
+        match category_name {
+            Some(cat_name) => {
+                // Find or create category
+                if let Some(category) = list.categories.iter_mut().find(|c| c.name == cat_name) {
+                    category.items.push(item);
+                } else {
+                    // Create new category
+                    list.categories.push(Category {
+                        name: cat_name.to_string(),
+                        items: vec![item],
+                    });
+                }
+            }
+            None => {
+                // Move to uncategorized
+                list.uncategorized_items.push(item);
+            }
+        }
+        
+        list.metadata.updated = Utc::now();
+        self.save_list(&list)?;
+        Ok(list)
+    }
+
+    pub fn delete_category(&self, list_name: &str, category_name: &str) -> Result<List> {
+        let mut list = self.load_list(list_name)?;
+        
+        // Find category and move its items to uncategorized
+        if let Some(pos) = list.categories.iter().position(|c| c.name == category_name) {
+            let category = list.categories.remove(pos);
+            list.uncategorized_items.extend(category.items);
+            
+            list.metadata.updated = Utc::now();
+            self.save_list(&list)?;
+            Ok(list)
+        } else {
+            Err(anyhow!("Category '{}' not found", category_name))
+        }
+    }
+
+    pub fn get_categories(&self, list_name: &str) -> Result<Vec<String>> {
+        let list = self.load_list(list_name)?;
+        Ok(list.categories.iter().map(|c| c.name.clone()).collect())
+    }
+
+    pub fn rename_category(&self, list_name: &str, old_name: &str, new_name: &str) -> Result<List> {
+        let mut list = self.load_list(list_name)?;
+        
+        // Check if new name already exists
+        if list.categories.iter().any(|c| c.name == new_name) {
+            return Err(anyhow!("Category '{}' already exists", new_name));
+        }
+        
+        // Find and rename category
+        if let Some(category) = list.categories.iter_mut().find(|c| c.name == old_name) {
+            category.name = new_name.to_string();
+            list.metadata.updated = Utc::now();
+            self.save_list(&list)?;
+            Ok(list)
+        } else {
+            Err(anyhow!("Category '{}' not found", old_name))
+        }
+    }
 }
 
 fn find_item_index(list: &List, target: &str) -> Option<usize> {
@@ -242,9 +401,23 @@ fn find_item_index(list: &List, target: &str) -> Option<usize> {
             }
         }
     }
-    let matches = fuzzy_find(&list.items, target, 0.75);
+    let all_items: Vec<ListItem> = list.all_items().cloned().collect();
+    let matches = fuzzy_find(&all_items, target, 0.75);
     match matches.len() {
         1 => Some(matches[0]),
         _ => None,
     }
+}
+
+fn parse_item_input(input: &str) -> (Option<&str>, &str) {
+    if input.starts_with("##") {
+        if let Some(space_index) = input.find(' ') {
+            if space_index > 2 {
+                let category = &input[2..space_index];
+                let text = &input[space_index + 1..];
+                return (Some(category), text);
+            }
+        }
+    }
+    (None, input)
 }

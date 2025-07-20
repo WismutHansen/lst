@@ -75,8 +75,11 @@ fn create_list(title: String, db: tauri::State<'_, Database>) -> Result<List, St
 
 #[tauri::command]
 #[specta::specta]
-fn add_item(list: String, text: String, db: tauri::State<'_, Database>) -> Result<List, String> {
-    db.add_item(&list, &text).map_err(|e| e.to_string())
+fn add_item(list: String, text: String, category: Option<String>, db: tauri::State<'_, Database>) -> Result<List, String> {
+    match category {
+        Some(cat) => db.add_item_to_category(&list, &text, Some(&cat)).map_err(|e| e.to_string()),
+        None => db.add_item(&list, &text).map_err(|e| e.to_string()),
+    }
 }
 
 #[tauri::command]
@@ -135,6 +138,36 @@ fn save_list(list: List, db: tauri::State<'_, Database>) -> Result<(), String> {
     db.save_list(&list).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+#[specta::specta]
+fn create_category(list_name: String, category_name: String, db: tauri::State<'_, Database>) -> Result<List, String> {
+    db.create_category(&list_name, &category_name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn move_item_to_category(list_name: String, item_anchor: String, category_name: Option<String>, db: tauri::State<'_, Database>) -> Result<List, String> {
+    db.move_item_to_category(&list_name, &item_anchor, category_name.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn delete_category(list_name: String, category_name: String, db: tauri::State<'_, Database>) -> Result<List, String> {
+    db.delete_category(&list_name, &category_name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn get_categories(list_name: String, db: tauri::State<'_, Database>) -> Result<Vec<String>, String> {
+    db.get_categories(&list_name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn rename_category(list_name: String, old_name: String, new_name: String, db: tauri::State<'_, Database>) -> Result<List, String> {
+    db.rename_category(&list_name, &old_name, &new_name).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = Builder::<tauri::Wry>::new()
@@ -154,7 +187,12 @@ pub fn run() {
             remove_item,
             reorder_item,
             save_list,
-            get_ui_config
+            get_ui_config,
+            create_category,
+            move_item_to_category,
+            delete_category,
+            get_categories,
+            rename_category
         ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
@@ -216,7 +254,12 @@ pub fn run() {
             remove_item,
             reorder_item,
             save_list,
-            get_ui_config
+            get_ui_config,
+            create_category,
+            move_item_to_category,
+            delete_category,
+            get_categories,
+            rename_category
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

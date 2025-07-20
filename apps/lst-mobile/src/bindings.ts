@@ -37,9 +37,9 @@ async createList(title: string) : Promise<Result<List, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async addItem(list: string, text: string) : Promise<Result<List, string>> {
+async addItem(list: string, text: string, category: string | null) : Promise<Result<List, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("add_item", { list, text }) };
+    return { status: "ok", data: await TAURI_INVOKE("add_item", { list, text, category }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -124,6 +124,46 @@ async getUiConfig() : Promise<Result<UiConfig, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async createCategory(listName: string, categoryName: string) : Promise<Result<List, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_category", { listName, categoryName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async moveItemToCategory(listName: string, itemAnchor: string, categoryName: string | null) : Promise<Result<List, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("move_item_to_category", { listName, itemAnchor, categoryName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteCategory(listName: string, categoryName: string) : Promise<Result<List, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_category", { listName, categoryName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getCategories(listName: string) : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_categories", { listName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async renameCategory(listName: string, oldName: string, newName: string) : Promise<Result<List, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("rename_category", { listName, oldName, newName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -137,6 +177,18 @@ async getUiConfig() : Promise<Result<UiConfig, string>> {
 
 /** user-defined types **/
 
+/**
+ * Represents a category containing list items
+ */
+export type Category = { 
+/**
+ * The name of the category
+ */
+name: string; 
+/**
+ * Items in this category
+ */
+items: ListItem[] }
 /**
  * Represents the status of a list item (done or not)
  */
@@ -166,9 +218,13 @@ sharing?: string[];
  */
 updated?: string }) & { 
 /**
- * List items; stored in markdown body, not in frontmatter
+ * Items without category (before first headline)
  */
-items?: ListItem[] }
+uncategorized_items?: ListItem[]; 
+/**
+ * Categorized items
+ */
+categories?: Category[] }
 /**
  * Represents a single item in a list
  */
@@ -185,6 +241,7 @@ status: ItemStatus;
  * Unique anchor identifier for the item
  */
 anchor: string }
+export type Note = { title: string; content: string; created: string | null; file_path: string }
 export type ThemeConfig = { vars?: Partial<{ [key in string]: string }> }
 export type UiConfig = { resolution_order?: string[]; 
 /**
@@ -195,26 +252,6 @@ vim_mode?: boolean;
  * Leader key used for command sequences (defaults to space)
  */
 leader_key?: string; theme?: ThemeConfig }
-/**
- * Represents a note with content and metadata
- */
-export type Note = { 
-/**
- * The title of the note
- */
-title: string; 
-/**
- * The content of the note (markdown)
- */
-content: string; 
-/**
- * When the note was created (ISO 8601 format)
- */
-created?: string; 
-/**
- * The file path of the note
- */
-file_path: string }
 
 /** tauri-specta globals **/
 
