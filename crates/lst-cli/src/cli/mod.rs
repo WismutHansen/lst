@@ -37,6 +37,9 @@ pub enum Commands {
         list: String,
         /// Text of the item(s) to add (comma-separated for multiple items)
         text: String,
+        /// Category to add items to
+        #[clap(short = 'c', long = "category")]
+        category: Option<String>,
     },
 
     /// Open a list in the editor
@@ -146,6 +149,10 @@ pub enum Commands {
     /// Tidy all lists: ensure proper YAML frontmatter and formatting
     #[clap(name = "tidy")]
     Tidy,
+
+    /// Category management commands
+    #[clap(subcommand, name = "cat")]
+    Category(CategoryCommands),
 
     /// Authentication commands for server access
     #[clap(subcommand, name = "auth")]
@@ -334,6 +341,46 @@ pub enum SyncCommands {
         /// Number of lines to show
         #[clap(short, long, default_value = "50")]
         lines: usize,
+    },
+}
+
+/// Category management subcommands
+#[derive(Subcommand)]
+pub enum CategoryCommands {
+    /// Create a new category in a list
+    #[clap(name = "add")]
+    Add {
+        /// Name of the list
+        list: String,
+        /// Name of the category to create
+        name: String,
+    },
+
+    /// Move an item to a different category
+    #[clap(name = "mv")]
+    Move {
+        /// Name of the list
+        list: String,
+        /// Target item to move (anchor, text, or index)
+        item: String,
+        /// Target category name
+        category: String,
+    },
+
+    /// List all categories in a list
+    #[clap(name = "ls")]
+    List {
+        /// Name of the list
+        list: String,
+    },
+
+    /// Remove a category (moves items to uncategorized)
+    #[clap(name = "rm")]
+    Remove {
+        /// Name of the list
+        list: String,
+        /// Name of the category to remove
+        name: String,
     },
 }
 

@@ -5,7 +5,7 @@ use lst_cli::{config, models, storage};
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{AuthCommands, Cli, Commands, GuiCommands, ImageCommands, NoteCommands, ServerCommands};
+use cli::{AuthCommands, CategoryCommands, Cli, Commands, GuiCommands, ImageCommands, NoteCommands, ServerCommands};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -26,8 +26,8 @@ async fn main() -> Result<()> {
         Commands::New { list } => {
             cli::commands::new_list(list)?;
         }
-        Commands::Add { list, text } => {
-            cli::commands::add_item(list, text, cli.json).await?;
+        Commands::Add { list, text, category } => {
+            cli::commands::add_item(list, text, category.as_deref(), cli.json).await?;
         }
         Commands::Open { list } => {
             cli::commands::open_list(list)?;
@@ -132,6 +132,20 @@ async fn main() -> Result<()> {
         Commands::Tidy => {
             cli::commands::tidy_lists(cli.json)?;
         }
+        Commands::Category(cat_cmd) => match cat_cmd {
+            CategoryCommands::Add { list, name } => {
+                cli::commands::category_add(list, name, cli.json).await?;
+            }
+            CategoryCommands::Move { list, item, category } => {
+                cli::commands::category_move(list, item, category, cli.json).await?;
+            }
+            CategoryCommands::List { list } => {
+                cli::commands::category_list(list, cli.json).await?;
+            }
+            CategoryCommands::Remove { list, name } => {
+                cli::commands::category_remove(list, name, cli.json).await?;
+            }
+        },
         Commands::Auth(auth_cmd) => match auth_cmd {
             AuthCommands::Request { email, host } => {
                 cli::commands::auth_request(email, host.as_deref(), cli.json).await?;

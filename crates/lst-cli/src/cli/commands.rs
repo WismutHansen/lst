@@ -8,6 +8,7 @@ use crate::cli::{DlCmd, SyncCommands};
 use crate::config::{get_config, Config};
 use crate::storage;
 use crate::{models::ItemStatus, storage::notes::delete_note};
+use lst_core::models::Category;
 use chrono::{Local, Utc};
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -47,7 +48,7 @@ pub async fn daily_list(cmd: Option<&DlCmd>, json: bool) -> Result<()> {
     // No subcommand: ensure exists then display
     match cmd {
         Some(DlCmd::Add { item }) => {
-            add_item(&list_name, item, json).await?;
+            add_item(&list_name, item, None, json).await?;
         }
         Some(DlCmd::Done { item }) => {
             mark_done(&list_name, item, json).await?;
@@ -325,8 +326,26 @@ pub fn open_list(list: &str) -> Result<()> {
     let path = list.file_path();
     open_editor(&path)
 }
+/// Parse item text with category prefix (##category item)
+fn parse_item_with_category(input: &str) -> (Option<String>, String) {
+    if let Some(stripped) = input.strip_prefix("##") {
+        // Format: "##category item text"
+        if let Some(space_pos) = stripped.find(' ') {
+            let category = stripped[..space_pos].to_string();
+            let item_text = stripped[space_pos + 1..].to_string();
+            (Some(category), item_text)
+        } else {
+            // Just "##category" - treat as uncategorized with ## prefix
+            (None, input.to_string())
+        }
+    } else {
+        // No category prefix
+        (None, input.to_string())
+    }
+}
+
 /// Handle the 'add' command to add an item to a list
-pub async fn add_item(list: &str, text: &str, json: bool) -> Result<()> {
+pub async fn add_item(list: &str, text: &str, category: Option<&str>, json: bool) -> Result<()> {
     // Try to load the list, create it if it doesn't exist
     // Resolve list name (omit .md, fuzzy match)
     let list_name = normalize_list(list)?;
@@ -341,7 +360,10 @@ pub async fn add_item(list: &str, text: &str, json: bool) -> Result<()> {
 
     for item_text in items {
         if !item_text.is_empty() {
-            let item = storage::markdown::add_item(&list_name, item_text)?;
+            let (inline_category, text) = parse_item_with_category(item_text);
+            // Inline category (##category) takes precedence over flag category
+            let final_category = inline_category.as_deref().or(category);
+            let item = storage::markdown::add_item_to_category(&list_name, &text, final_category)?;
             added_items.push(item);
         }
     }
@@ -352,7 +374,12 @@ pub async fn add_item(list: &str, text: &str, json: bool) -> Result<()> {
     }
 
     if added_items.len() == 1 {
-        println!("Added to {}: {}", list_name.cyan(), added_items[0].text);
+        let category_info = if let Some(cat) = parse_item_with_category(text).0 {
+            format!(" ({})", cat.cyan())
+        } else {
+            String::new()
+        };
+        println!("Added to {}{}: {}", list_name.cyan(), category_info, added_items[0].text);
     } else {
         println!("Added {} items to {}:", added_items.len(), list.cyan());
         for item in added_items {
@@ -550,12 +577,17 @@ pub fn display_list(list: &str, json: bool) -> Result<()> {
 
     println!("{}:", list.metadata.title.cyan().bold());
 
-    if list.items.is_empty() {
+    // Check if list has any items at all
+    let total_items = list.uncategorized_items.len() + list.categories.iter().map(|c| c.items.len()).sum::<usize>();
+    if total_items == 0 {
         println!("  No items in list");
         return Ok(());
     }
 
-    for (idx, item) in list.items.iter().enumerate() {
+    let mut item_counter = 1;
+
+    // Display uncategorized items first
+    for item in &list.uncategorized_items {
         let checkbox: ColoredString = match item.status {
             ItemStatus::Todo => "[ ]".into(),
             ItemStatus::Done => "[x]".green(),
@@ -568,11 +600,40 @@ pub fn display_list(list: &str, json: bool) -> Result<()> {
 
         println!(
             "#{} {} {} {}",
-            idx + 1,
+            item_counter,
             checkbox,
             text,
             item.anchor.dimmed()
         );
+        item_counter += 1;
+    }
+
+    // Display categorized items
+    for category in &list.categories {
+        if !category.items.is_empty() {
+            println!("\n{}:", category.name.cyan().bold());
+            
+            for item in &category.items {
+                let checkbox: ColoredString = match item.status {
+                    ItemStatus::Todo => "[ ]".into(),
+                    ItemStatus::Done => "[x]".green(),
+                };
+
+                let text = match item.status {
+                    ItemStatus::Todo => item.text.normal(),
+                    ItemStatus::Done => item.text.strikethrough(),
+                };
+
+                println!(
+                    "#{} {} {} {}",
+                    item_counter,
+                    checkbox,
+                    text,
+                    item.anchor.dimmed()
+                );
+                item_counter += 1;
+            }
+        }
     }
 
     Ok(())
@@ -1513,5 +1574,124 @@ pub async fn server_delete(kind: &str, path: &str, json: bool) -> Result<()> {
         bail!("Failed to delete content: {}", error_text);
     }
 
+    Ok(())
+}
+
+// Category management commands
+
+/// Create a new category in a list
+pub async fn category_add(list: &str, name: &str, json: bool) -> Result<()> {
+    let list_name = normalize_list(list)?;
+    let mut list_obj = storage::markdown::load_list(&list_name)?;
+    
+    // Check if category already exists
+    if list_obj.categories.iter().any(|c| c.name == name) {
+        bail!("Category '{}' already exists in list '{}'", name, list_name);
+    }
+    
+    // Add empty category
+    list_obj.categories.push(Category {
+        name: name.to_string(),
+        items: Vec::new(),
+    });
+    
+    list_obj.metadata.updated = chrono::Utc::now();
+    storage::markdown::save_list_with_path(&list_obj, &list_name)?;
+    
+    if json {
+        println!("{}", serde_json::json!({"status": "success", "message": format!("Created category '{}'", name)}));
+    } else {
+        println!("Created category '{}' in {}", name.cyan(), list_name.cyan());
+    }
+    
+    Ok(())
+}
+
+/// Move an item to a different category
+pub async fn category_move(list: &str, item: &str, category: &str, json: bool) -> Result<()> {
+    let list_name = normalize_list(list)?;
+    let mut list_obj = storage::markdown::load_list(&list_name)?;
+    
+    // Find and remove the item from its current location
+    let location = storage::markdown::find_item_for_removal(&list_obj, item)?;
+    let moved_item = storage::markdown::remove_item_at_location(&mut list_obj, location);
+    
+    // Add to target category (create if doesn't exist)
+    if let Some(cat) = list_obj.categories.iter_mut().find(|c| c.name == category) {
+        cat.items.push(moved_item.clone());
+    } else {
+        // Create new category
+        list_obj.categories.push(Category {
+            name: category.to_string(),
+            items: vec![moved_item.clone()],
+        });
+    }
+    
+    list_obj.metadata.updated = chrono::Utc::now();
+    storage::markdown::save_list_with_path(&list_obj, &list_name)?;
+    
+    if json {
+        println!("{}", serde_json::json!({"status": "success", "item": moved_item, "category": category}));
+    } else {
+        println!("Moved '{}' to category '{}' in {}", moved_item.text, category.cyan(), list_name.cyan());
+    }
+    
+    Ok(())
+}
+
+/// List all categories in a list
+pub async fn category_list(list: &str, json: bool) -> Result<()> {
+    let list_name = normalize_list(list)?;
+    let list_obj = storage::markdown::load_list(&list_name)?;
+    
+    if json {
+        let categories: Vec<_> = list_obj.categories.iter().map(|c| &c.name).collect();
+        println!("{}", serde_json::to_string(&categories)?);
+        return Ok(());
+    }
+    
+    if list_obj.categories.is_empty() {
+        println!("No categories in {}", list_name.cyan());
+        return Ok(());
+    }
+    
+    println!("Categories in {}:", list_name.cyan());
+    for category in &list_obj.categories {
+        println!("  {} ({} items)", category.name, category.items.len());
+    }
+    
+    if !list_obj.uncategorized_items.is_empty() {
+        println!("  {} ({} items)", "(uncategorized)".dimmed(), list_obj.uncategorized_items.len());
+    }
+    
+    Ok(())
+}
+
+/// Remove a category (moves items to uncategorized)
+pub async fn category_remove(list: &str, name: &str, json: bool) -> Result<()> {
+    let list_name = normalize_list(list)?;
+    let mut list_obj = storage::markdown::load_list(&list_name)?;
+    
+    // Find and remove the category
+    if let Some(pos) = list_obj.categories.iter().position(|c| c.name == name) {
+        let removed_category = list_obj.categories.remove(pos);
+        let item_count = removed_category.items.len();
+        
+        // Move items to uncategorized
+        list_obj.uncategorized_items.extend(removed_category.items);
+        
+        list_obj.metadata.updated = chrono::Utc::now();
+        storage::markdown::save_list_with_path(&list_obj, &list_name)?;
+        
+        if json {
+            println!("{}", serde_json::json!({"status": "success", "moved_items": item_count}));
+        } else {
+            println!("Removed category '{}' from {} ({} items moved to uncategorized)", 
+                     name.cyan(), list_name.cyan(), item_count);
+        }
+    } else {
+        bail!("Category '{}' not found in list '{}'", name, list_name);
+    }
+    
     Ok(())
 }

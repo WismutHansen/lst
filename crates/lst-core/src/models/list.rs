@@ -61,6 +61,17 @@ pub struct ListItem {
     pub anchor: String,
 }
 
+/// Represents a category containing list items
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "tauri", derive(Type))]
+pub struct Category {
+    /// The name of the category
+    pub name: String,
+
+    /// Items in this category
+    pub items: Vec<ListItem>,
+}
+
 /// Represents a complete list with metadata and items
 #[derive(Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "tauri", derive(Type))]
@@ -69,8 +80,16 @@ pub struct List {
     #[serde(flatten)]
     pub metadata: ListMetadata,
 
-    /// List items; stored in markdown body, not in frontmatter
+    /// Items without category (before first headline)
     #[serde(default)]
+    pub uncategorized_items: Vec<ListItem>,
+
+    /// Categorized items
+    #[serde(default)]
+    pub categories: Vec<Category>,
+
+    /// Legacy field for backward compatibility - will be migrated to uncategorized_items
+    #[serde(default, skip_serializing)]
     pub items: Vec<ListItem>,
 }
 
@@ -84,11 +103,13 @@ impl List {
                 sharing: vec![],
                 updated: Utc::now(),
             },
+            uncategorized_items: vec![],
+            categories: vec![],
             items: vec![],
         }
     }
 
-    /// Add a new item to the list
+    /// Add a new item to the list (uncategorized)
     pub fn add_item(&mut self, text: String) -> &ListItem {
         let anchor = generate_anchor();
         let item = ListItem {
@@ -96,26 +117,87 @@ impl List {
             status: ItemStatus::Todo,
             anchor,
         };
-        self.items.push(item);
+        self.uncategorized_items.push(item);
         self.metadata.updated = Utc::now();
-        self.items.last().unwrap()
+        self.uncategorized_items.last().unwrap()
     }
 
-    /// Find an item by its anchor
+    /// Add a new item to a specific category
+    pub fn add_item_to_category(&mut self, text: String, category: Option<&str>) -> ListItem {
+        let anchor = generate_anchor();
+        let item = ListItem {
+            text,
+            status: ItemStatus::Todo,
+            anchor,
+        };
+
+        self.metadata.updated = Utc::now();
+
+        match category {
+            Some(cat_name) => {
+                if let Some(cat) = self.categories.iter_mut().find(|c| c.name == cat_name) {
+                    cat.items.push(item.clone());
+                    item
+                } else {
+                    // Create new category
+                    let new_cat = Category {
+                        name: cat_name.to_string(),
+                        items: vec![item.clone()],
+                    };
+                    self.categories.push(new_cat);
+                    item
+                }
+            }
+            None => {
+                self.uncategorized_items.push(item.clone());
+                item
+            }
+        }
+    }
+
+    /// Get all items across all categories
+    pub fn all_items(&self) -> impl Iterator<Item = &ListItem> {
+        self.uncategorized_items.iter()
+            .chain(self.categories.iter().flat_map(|c| c.items.iter()))
+    }
+
+    /// Get all items across all categories (mutable)
+    pub fn all_items_mut(&mut self) -> impl Iterator<Item = &mut ListItem> {
+        self.uncategorized_items.iter_mut()
+            .chain(self.categories.iter_mut().flat_map(|c| c.items.iter_mut()))
+    }
+
+    /// Find an item by its anchor (returns global index across all items)
     pub fn find_by_anchor(&self, anchor: &str) -> Option<usize> {
-        self.items.iter().position(|item| item.anchor == anchor)
+        self.all_items().position(|item| item.anchor == anchor)
     }
 
-    /// Find an item by exact text match
+    /// Find an item by exact text match (returns global index across all items)
     pub fn find_by_text(&self, text: &str) -> Option<usize> {
-        self.items
-            .iter()
+        self.all_items()
             .position(|item| item.text.to_lowercase() == text.to_lowercase())
     }
 
-    /// Find an item by index (0-based)
+    /// Find an item by index (0-based, across all items)
     pub fn get_by_index(&self, index: usize) -> Option<&ListItem> {
-        self.items.get(index)
+        self.all_items().nth(index)
+    }
+
+    /// Find an item by anchor and return mutable reference with location info
+    pub fn find_item_mut_by_anchor(&mut self, anchor: &str) -> Option<&mut ListItem> {
+        // Check uncategorized items first
+        if let Some(item) = self.uncategorized_items.iter_mut().find(|item| item.anchor == anchor) {
+            return Some(item);
+        }
+        
+        // Check categorized items
+        for category in &mut self.categories {
+            if let Some(item) = category.items.iter_mut().find(|item| item.anchor == anchor) {
+                return Some(item);
+            }
+        }
+        
+        None
     }
 
     /// Get the file name for this list

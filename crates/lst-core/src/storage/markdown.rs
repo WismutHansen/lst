@@ -1,4 +1,4 @@
-use crate::models::{generate_anchor, is_valid_anchor, ItemStatus, List, ListItem};
+use crate::models::{generate_anchor, is_valid_anchor, ItemStatus, List, ListItem, Category};
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::fs;
@@ -93,11 +93,16 @@ fn parse_list_from_string(content: &str, path: &Path) -> Result<List> {
 
     // Parse frontmatter
     let frontmatter = parts[1].trim();
-    let list: List = serde_yaml::from_str(frontmatter)
+    let mut list: List = serde_yaml::from_str(frontmatter)
         .with_context(|| format!("Failed to parse list frontmatter in {}", path.display()))?;
 
+    // Handle backward compatibility: migrate old 'items' field to 'uncategorized_items'
+    if !list.items.is_empty() {
+        list.uncategorized_items = list.items.clone();
+        list.items.clear();
+    }
+
     // Parse items from the body
-    let mut list = list;
     parse_items(&mut list, parts[2]);
 
     Ok(list)
@@ -105,17 +110,40 @@ fn parse_list_from_string(content: &str, path: &Path) -> Result<List> {
 
 /// Parse list items from markdown content
 fn parse_items(list: &mut List, content: &str) {
-    // Clear existing items
-    list.items.clear();
+    // Clear existing items and categories
+    list.uncategorized_items.clear();
+    list.categories.clear();
 
     lazy_static::lazy_static! {
         // Match markdown todo items with optional anchors
         static ref ITEM_RE: Regex = Regex::new(
             r"^- \[([ xX])\] (.*?)(?:  \^([A-Za-z0-9-]{4,}))?$"
         ).unwrap();
+        // Match category headlines
+        static ref HEADLINE_RE: Regex = Regex::new(r"^## (.+)$").unwrap();
     }
 
+    let mut current_category: Option<String> = None;
+
     for line in content.lines() {
+        let line = line.trim();
+        
+        // Check for category headline
+        if let Some(captures) = HEADLINE_RE.captures(line) {
+            let category_name = captures[1].trim().to_string();
+            current_category = Some(category_name.clone());
+            
+            // Create category if it doesn't exist
+            if !list.categories.iter().any(|c| c.name == category_name) {
+                list.categories.push(Category {
+                    name: category_name,
+                    items: Vec::new(),
+                });
+            }
+            continue;
+        }
+
+        // Check for list item
         if let Some(captures) = ITEM_RE.captures(line) {
             let status = if captures[1].trim().is_empty() {
                 ItemStatus::Todo
@@ -129,11 +157,23 @@ fn parse_items(list: &mut List, content: &str) {
                 .map(|m| format!("^{}", m.as_str()))
                 .unwrap_or_else(generate_anchor);
 
-            list.items.push(ListItem {
+            let item = ListItem {
                 text,
                 status,
                 anchor,
-            });
+            };
+
+            // Add to current category or uncategorized
+            match &current_category {
+                Some(cat_name) => {
+                    if let Some(category) = list.categories.iter_mut().find(|c| c.name == *cat_name) {
+                        category.items.push(item);
+                    }
+                }
+                None => {
+                    list.uncategorized_items.push(item);
+                }
+            }
         }
     }
 }
@@ -146,14 +186,31 @@ fn format_list_as_markdown(list: &List) -> String {
 
     let mut content = format!("---\n{}---\n\n", frontmatter);
 
-    // Format items
-    for item in &list.items {
+    // Format uncategorized items first (no headline)
+    for item in &list.uncategorized_items {
         let status = match item.status {
             ItemStatus::Todo => " ",
             ItemStatus::Done => "x",
         };
-
         content.push_str(&format!("- [{}] {}  {}\n", status, item.text, item.anchor));
+    }
+
+    // Add blank line between uncategorized and categorized if both exist
+    if !list.uncategorized_items.is_empty() && !list.categories.is_empty() {
+        content.push('\n');
+    }
+
+    // Format categorized items with headlines
+    for category in &list.categories {
+        content.push_str(&format!("## {}\n", category.name));
+        for item in &category.items {
+            let status = match item.status {
+                ItemStatus::Todo => " ",
+                ItemStatus::Done => "x",
+            };
+            content.push_str(&format!("- [{}] {}  {}\n", status, item.text, item.anchor));
+        }
+        content.push('\n');
     }
 
     content
@@ -204,6 +261,16 @@ pub fn add_item(list_name: &str, text: &str) -> Result<ListItem> {
     save_list_with_path(&list, list_name)?;
 
     Ok(item_clone)
+}
+
+/// Add an item to a specific category in a list
+pub fn add_item_to_category(list_name: &str, text: &str, category: Option<&str>) -> Result<ListItem> {
+    let mut list = load_list(list_name)?;
+    let item = list.add_item_to_category(text.to_string(), category);
+
+    save_list_with_path(&list, list_name)?;
+
+    Ok(item)
 }
 
 /// Mark an item as done
@@ -284,7 +351,7 @@ pub fn reset_list(list_name: &str) -> Result<Vec<ListItem>> {
     let mut reset_items = Vec::new();
 
     // Mark all items as undone
-    for item in &mut list.items {
+    for item in list.all_items_mut() {
         if item.status == ItemStatus::Done {
             item.status = ItemStatus::Todo;
             reset_items.push(item.clone());
@@ -316,41 +383,41 @@ fn mark_item_undone(list: &mut List, target: &str) -> Result<ListItem> {
 fn find_and_set_item_status(list: &mut List, target: &str, status: ItemStatus) -> Result<ListItem> {
     // Try to find the item by anchor first
     if is_valid_anchor(target) {
-        if let Some(idx) = list.find_by_anchor(target) {
-            list.items[idx].status = status;
-            return Ok(list.items[idx].clone());
+        if let Some(item) = list.find_item_mut_by_anchor(target) {
+            item.status = status;
+            return Ok(item.clone());
         }
     }
 
     // Try to find by exact text match
-    if let Some(idx) = list.find_by_text(target) {
-        list.items[idx].status = status;
-        return Ok(list.items[idx].clone());
+    if let Some(item) = list.all_items_mut().find(|item| item.text.to_lowercase() == target.to_lowercase()) {
+        item.status = status;
+        return Ok(item.clone());
     }
 
     // Check if it's an index reference (#N)
     if let Some(number_str) = target.strip_prefix('#') {
         if let Ok(idx) = number_str.parse::<usize>() {
-            if let Some(item) = list.get_by_index(idx - 1) {
-                // Convert to 0-based
-                let item = item.clone();
-                let idx = list
-                    .find_by_anchor(&item.anchor)
-                    .context("Internal error: anchor not found")?;
-                list.items[idx].status = status;
-                return Ok(item);
+            if let Some(item) = list.all_items_mut().nth(idx - 1) {
+                item.status = status;
+                return Ok(item.clone());
             }
         }
     }
 
     // Fallback to fuzzy matching (simple contains for now)
-    let matches = crate::models::fuzzy_find(&list.items, target, 0.75);
+    let all_items: Vec<ListItem> = list.all_items().cloned().collect();
+    let matches = crate::models::fuzzy_find(&all_items, target, 0.75);
     match matches.len() {
         0 => anyhow::bail!("No item matching '{}' found", target),
         1 => {
-            let idx = matches[0];
-            list.items[idx].status = status;
-            Ok(list.items[idx].clone())
+            let target_anchor = &all_items[matches[0]].anchor;
+            if let Some(item) = list.find_item_mut_by_anchor(target_anchor) {
+                item.status = status;
+                Ok(item.clone())
+            } else {
+                anyhow::bail!("Internal error: anchor not found")
+            }
         }
         _ => anyhow::bail!(
             "Multiple items match '{}', please use a more specific query",
@@ -368,39 +435,26 @@ pub fn delete_item(list_name: &str, target: &str) -> Result<Vec<ListItem>> {
         let targets: Vec<&str> = target.split(',').map(|s| s.trim()).collect();
         let mut removed_items = Vec::new();
 
-        // Handle each target - we need to process them from highest index to lowest
-        // to avoid changing indices during removal
-        let mut to_remove = Vec::new();
-
+        // Handle each target - we need to process them carefully to avoid index issues
         for target in targets {
-            if let Ok((idx, item)) = find_item_for_removal(&list, target) {
-                to_remove.push((idx, item.clone()));
+            if let Ok(location) = find_item_for_removal(&list, target) {
+                let removed = remove_item_at_location(&mut list, location);
+                removed_items.push(removed);
             }
-        }
-
-        // Sort in reverse order by index
-        to_remove.sort_by(|a, b| b.0.cmp(&a.0));
-
-        // Remove items in reverse index order
-        for (idx, _) in &to_remove {
-            let removed = list.items.remove(*idx);
-            removed_items.push(removed);
         }
 
         if removed_items.is_empty() {
             anyhow::bail!("No matching items found in list '{}'", list_name);
         }
 
-        // Reverse back to original order for consistent output
-        removed_items.reverse();
         list.metadata.updated = chrono::Utc::now();
         save_list_with_path(&list, list_name)?;
         return Ok(removed_items);
     }
 
     // Handle single target
-    if let Ok((idx, _)) = find_item_for_removal(&list, target) {
-        let removed = list.items.remove(idx);
+    if let Ok(location) = find_item_for_removal(&list, target) {
+        let removed = remove_item_at_location(&mut list, location);
         list.metadata.updated = chrono::Utc::now();
         save_list_with_path(&list, list_name)?;
         return Ok(vec![removed]);
@@ -413,6 +467,16 @@ pub fn delete_item(list_name: &str, target: &str) -> Result<Vec<ListItem>> {
     )
 }
 
+/// Remove an item at the specified location
+pub fn remove_item_at_location(list: &mut List, location: ItemLocation) -> ListItem {
+    match location {
+        ItemLocation::Uncategorized(idx) => list.uncategorized_items.remove(idx),
+        ItemLocation::Categorized { category_index, item_index } => {
+            list.categories[category_index].items.remove(item_index)
+        }
+    }
+}
+
 /// Edit the text of an item in a list
 pub fn edit_item_text(list_name: &str, target: &str, new_text: &str) -> Result<()> {
     if new_text.trim().is_empty() {
@@ -421,11 +485,31 @@ pub fn edit_item_text(list_name: &str, target: &str, new_text: &str) -> Result<(
 
     let mut list = load_list(list_name)?;
 
-    if let Ok((idx, _)) = find_item_for_removal(&list, target) {
-        list.items[idx].text = new_text.to_string();
-        list.metadata.updated = chrono::Utc::now();
-        save_list_with_path(&list, list_name)?;
-        Ok(())
+    // Find the item by anchor (most reliable method)
+    if is_valid_anchor(target) {
+        if let Some(item) = list.find_item_mut_by_anchor(target) {
+            item.text = new_text.to_string();
+            list.metadata.updated = chrono::Utc::now();
+            save_list_with_path(&list, list_name)?;
+            return Ok(());
+        }
+    }
+
+    // Try other methods - need to find first, then modify
+    let target_lower = target.to_lowercase();
+    let found_anchor = list.all_items()
+        .find(|item| item.text.to_lowercase() == target_lower)
+        .map(|item| item.anchor.clone());
+    
+    if let Some(anchor) = found_anchor {
+        if let Some(item) = list.find_item_mut_by_anchor(&anchor) {
+            item.text = new_text.to_string();
+            list.metadata.updated = chrono::Utc::now();
+            save_list_with_path(&list, list_name)?;
+            Ok(())
+        } else {
+            anyhow::bail!("Internal error: anchor not found")
+        }
     } else {
         anyhow::bail!(
             "No item matching '{}' found in list '{}'",
@@ -439,10 +523,14 @@ pub fn edit_item_text(list_name: &str, target: &str, new_text: &str) -> Result<(
 pub fn reorder_item(list_name: &str, target: &str, new_index: usize) -> Result<()> {
     let mut list = load_list(list_name)?;
 
-    if let Ok((idx, _)) = find_item_for_removal(&list, target) {
-        let item = list.items.remove(idx);
-        let clamped = new_index.min(list.items.len());
-        list.items.insert(clamped, item);
+    if let Ok(location) = find_item_for_removal(&list, target) {
+        let item = remove_item_at_location(&mut list, location);
+        
+        // For now, reordering puts items in uncategorized section
+        // TODO: Could be enhanced to support reordering within categories
+        let clamped = new_index.min(list.uncategorized_items.len());
+        list.uncategorized_items.insert(clamped, item);
+        
         list.metadata.updated = chrono::Utc::now();
         save_list_with_path(&list, list_name)?;
         Ok(())
@@ -464,40 +552,41 @@ pub fn save_list(list: &List) -> Result<()> {
     write_list_to_file(list, &path)
 }
 
-/// Helper function to find an item for removal, returning (index, item)
-pub fn find_item_for_removal<'a>(list: &'a List, target: &str) -> Result<(usize, &'a ListItem)> {
+/// Helper function to find an item for removal, returning location info
+pub fn find_item_for_removal(list: &List, target: &str) -> Result<ItemLocation> {
     // Try to find the item by anchor first
     if is_valid_anchor(target) {
-        if let Some(idx) = list.find_by_anchor(target) {
-            return Ok((idx, &list.items[idx]));
+        if let Some(location) = find_item_location_by_anchor(list, target) {
+            return Ok(location);
         }
     }
 
     // Try to find by exact text match
-    if let Some(idx) = list.find_by_text(target) {
-        return Ok((idx, &list.items[idx]));
+    if let Some(location) = find_item_location_by_text(list, target) {
+        return Ok(location);
     }
 
     // Check if it's an index reference (#N)
     if let Some(number_str) = target.strip_prefix('#') {
         if let Ok(idx) = number_str.parse::<usize>() {
-            if let Some(item) = list.get_by_index(idx - 1) {
-                // Convert to 0-based
-                let idx = list
-                    .find_by_anchor(&item.anchor)
-                    .context("Internal error: anchor not found")?;
-                return Ok((idx, &list.items[idx]));
+            if let Some(location) = find_item_location_by_global_index(list, idx - 1) {
+                return Ok(location);
             }
         }
     }
 
     // Fallback to fuzzy matching (simple contains for now)
-    let matches = crate::models::fuzzy_find(&list.items, target, 0.75);
+    let all_items: Vec<ListItem> = list.all_items().cloned().collect();
+    let matches = crate::models::fuzzy_find(&all_items, target, 0.75);
     match matches.len() {
         0 => anyhow::bail!("No item matching '{}' found", target),
         1 => {
-            let idx = matches[0];
-            Ok((idx, &list.items[idx]))
+            let target_anchor = &all_items[matches[0]].anchor;
+            if let Some(location) = find_item_location_by_anchor(list, target_anchor) {
+                Ok(location)
+            } else {
+                anyhow::bail!("Internal error: anchor not found")
+            }
         }
         _ => anyhow::bail!(
             "Multiple items match '{}', please use a more specific query",
@@ -506,14 +595,89 @@ pub fn find_item_for_removal<'a>(list: &'a List, target: &str) -> Result<(usize,
     }
 }
 
+/// Represents the location of an item within the list structure
+#[derive(Debug)]
+pub enum ItemLocation {
+    Uncategorized(usize),
+    Categorized { category_index: usize, item_index: usize },
+}
+
+/// Find item location by anchor
+fn find_item_location_by_anchor(list: &List, anchor: &str) -> Option<ItemLocation> {
+    // Check uncategorized items
+    if let Some(idx) = list.uncategorized_items.iter().position(|item| item.anchor == anchor) {
+        return Some(ItemLocation::Uncategorized(idx));
+    }
+    
+    // Check categorized items
+    for (cat_idx, category) in list.categories.iter().enumerate() {
+        if let Some(item_idx) = category.items.iter().position(|item| item.anchor == anchor) {
+            return Some(ItemLocation::Categorized {
+                category_index: cat_idx,
+                item_index: item_idx,
+            });
+        }
+    }
+    
+    None
+}
+
+/// Find item location by text
+fn find_item_location_by_text(list: &List, text: &str) -> Option<ItemLocation> {
+    let text_lower = text.to_lowercase();
+    
+    // Check uncategorized items
+    if let Some(idx) = list.uncategorized_items.iter().position(|item| item.text.to_lowercase() == text_lower) {
+        return Some(ItemLocation::Uncategorized(idx));
+    }
+    
+    // Check categorized items
+    for (cat_idx, category) in list.categories.iter().enumerate() {
+        if let Some(item_idx) = category.items.iter().position(|item| item.text.to_lowercase() == text_lower) {
+            return Some(ItemLocation::Categorized {
+                category_index: cat_idx,
+                item_index: item_idx,
+            });
+        }
+    }
+    
+    None
+}
+
+/// Find item location by global index
+fn find_item_location_by_global_index(list: &List, global_index: usize) -> Option<ItemLocation> {
+    let mut current_index = 0;
+    
+    // Check uncategorized items
+    if global_index < list.uncategorized_items.len() {
+        return Some(ItemLocation::Uncategorized(global_index));
+    }
+    current_index += list.uncategorized_items.len();
+    
+    // Check categorized items
+    for (cat_idx, category) in list.categories.iter().enumerate() {
+        if global_index < current_index + category.items.len() {
+            let item_idx = global_index - current_index;
+            return Some(ItemLocation::Categorized {
+                category_index: cat_idx,
+                item_index: item_idx,
+            });
+        }
+        current_index += category.items.len();
+    }
+    
+    None
+}
+
 /// Remove all items from a list, returning the number of removed entries
 pub fn wipe_list(list_name: &str) -> Result<usize> {
     let mut list = load_list(list_name)?;
-    let removed = list.items.len();
+    let removed = list.uncategorized_items.len() + list.categories.iter().map(|c| c.items.len()).sum::<usize>();
     if removed == 0 {
         return Ok(0);
     }
-    list.items.clear();
+    list.uncategorized_items.clear();
+    list.categories.clear();
     list.metadata.updated = chrono::Utc::now();
     save_list_with_path(&list, list_name)?;
     Ok(removed)

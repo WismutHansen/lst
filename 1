@@ -1,0 +1,80 @@
+  Installing lst-cli v0.1.3 (/home/wismut/CODE/lst/crates/lst-cli)
+  Installing lst-cli v0.1.3 (/home/wismut/CODE/lst/crates/lst-cli)
+    Updating crates.io index
+    Updating crates.io index
+     Locking 535 packages to latest compatible versions
+     Locking 535 packages to latest compatible versions
+      Adding colored v2.2.0 (available: v3.0.0)
+      Adding colored v2.2.0 (available: v3.0.0)
+      Adding console v0.15.11 (available: v0.16.0)
+      Adding console v0.15.11 (available: v0.16.0)
+      Adding dirs v5.0.1 (available: v6.0.0)
+      Adding dirs v5.0.1 (available: v6.0.0)
+      Adding proc-macro-crate v2.0.0 (available: v2.0.2)
+      Adding proc-macro-crate v2.0.0 (available: v2.0.2)
+      Adding rand v0.8.5 (available: v0.9.2)
+      Adding rand v0.8.5 (available: v0.9.2)
+      Adding reqwest v0.11.27 (available: v0.12.22)
+      Adding reqwest v0.11.27 (available: v0.12.22)
+      Adding rusqlite v0.32.1 (available: v0.37.0)
+      Adding rusqlite v0.32.1 (available: v0.37.0)
+      Adding serialize-to-javascript v0.1.1 (available: v0.1.2)
+      Adding serialize-to-javascript-impl v0.1.1 (available: v0.1.2)
+      Adding serialize-to-javascript v0.1.1 (available: v0.1.2)
+      Adding serialize-to-javascript-impl v0.1.1 (available: v0.1.2)
+      Adding thiserror v1.0.69 (available: v2.0.12)
+      Adding thiserror v1.0.69 (available: v2.0.12)
+      Adding toml v0.8.23 (available: v0.9.2)
+      Adding toml v0.8.23 (available: v0.9.2)
+warning: function `normalize_note` is never used
+  --> crates/lst-core/src/commands.rs:62:4
+   |
+62 | fn normalize_note(note: &str) -> Result<String> {
+   |    ^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: function `normalize_note` is never used
+  --> crates/lst-core/src/commands.rs:62:4
+   |
+62 | fn normalize_note(note: &str) -> Result<String> {
+   |    ^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: `lst-core` (lib) generated 1 warning
+warning: `lst-core` (lib) generated 1 warning
+   Compiling lst-cli v0.1.3 (/home/wismut/CODE/lst/crates/lst-cli)
+   Compiling lst-cli v0.1.3 (/home/wismut/CODE/lst/crates/lst-cli)
+error[E0603]: function `remove_item_at_location` is private
+    --> crates/lst-cli/src/cli/commands.rs:1583:41
+     |
+1583 |     let moved_item = storage::markdown::remove_item_at_location(&mut list_obj, location);
+     |                                         ^^^^^^^^^^^^^^^^^^^^^^^ private function
+     |
+note: the function `remove_item_at_location` is defined here
+    --> /home/wismut/CODE/lst/crates/lst-core/src/storage/markdown.rs:471:1
+     |
+471  | fn remove_item_at_location(list: &mut List, location: ItemLocation) -> ListItem {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0603]: function `remove_item_at_location` is private
+    --> crates/lst-cli/src/cli/commands.rs:1583:41
+     |
+1583 |     let moved_item = storage::markdown::remove_item_at_location(&mut list_obj, location);
+     |                                         ^^^^^^^^^^^^^^^^^^^^^^^ private function
+     |
+note: the function `remove_item_at_location` is defined here
+    --> /home/wismut/CODE/lst/crates/lst-core/src/storage/markdown.rs:471:1
+     |
+471  | fn remove_item_at_location(list: &mut List, location: ItemLocation) -> ListItem {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0603`.
+For more information about this error, try `rustc --explain E0603`.
+error: could not compile `lst-cli` (lib) due to 1 previous error
+error: could not compile `lst-cli` (lib) due to 1 previous error
+error: failed to compile `lst-cli v0.1.3 (/home/wismut/CODE/lst/crates/lst-cli)`, intermediate artifacts can be found at `/home/wismut/CODE/lst/target`.
+To reuse those artifacts with a future compilation, set the environment variable `CARGO_TARGET_DIR` to that path.
+error: failed to compile `lst-cli v0.1.3 (/home/wismut/CODE/lst/crates/lst-cli)`, intermediate artifacts can be found at `/home/wismut/CODE/lst/target`.
+To reuse those artifacts with a future compilation, set the environment variable `CARGO_TARGET_DIR` to that path.
