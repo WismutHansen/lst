@@ -208,33 +208,38 @@ pub fn run() {
             app.manage(db);
             let _window = app.get_webview_window("main").unwrap();
 
-            command_server::start_command_server(app.handle().clone());
-            theme::broadcast_theme(&app.handle()).ok();
+            // Only start command server and sync on desktop platforms
+            #[cfg(not(mobile))]
+            {
+                command_server::start_command_server(app.handle().clone());
+                theme::broadcast_theme(&app.handle()).ok();
 
-            // spawn background sync task
-            let config = get_config().clone();
-            tauri::async_runtime::spawn(async move {
-                if let Ok(mut mgr) = sync::SyncManager::new(config).await {
-                    loop {
-                        if let Err(e) = mgr.periodic_sync().await {
-                            eprintln!("sync error: {e}");
+                // spawn background sync task
+                let config = get_config().clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Ok(mut mgr) = sync::SyncManager::new(config).await {
+                        loop {
+                            if let Err(e) = mgr.periodic_sync().await {
+                                eprintln!("sync error: {e}");
+                            }
+                            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
                         }
-                        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
                     }
-                }
-            });
+                });
+            }
 
-            // #[cfg(target_os = "macos")]
-            // window_vibrancy::apply_vibrancy(
-            //     &window,
-            //     window_vibrancy::NSVisualEffectMaterial::HudWindow,
-            //     None,
-            //     Some(5.0),
-            // )
-            // .expect("Unsupported platform! 'apply_vibrancy' is only supported on macOS");
+            // Apply vibrancy effects only on desktop platforms
+            #[cfg(all(target_os = "macos", not(mobile)))]
+            window_vibrancy::apply_vibrancy(
+                &_window,
+                window_vibrancy::NSVisualEffectMaterial::HudWindow,
+                None,
+                Some(5.0),
+            )
+            .expect("Unsupported platform! 'apply_vibrancy' is only supported on macOS");
 
-            #[cfg(target_os = "windows")]
-            window_vibrancy::apply_blur(&window, Some((18, 18, 18, 125)))
+            #[cfg(all(target_os = "windows", not(mobile)))]
+            window_vibrancy::apply_blur(&_window, Some((18, 18, 18, 125)))
                 .expect("Unsupported platform! 'apply_blur' is only supported on Windows");
 
             Ok(())

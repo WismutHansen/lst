@@ -730,9 +730,9 @@ export default function App() {
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={() => {
                     if (dragIndex.current === null || !currentName) return;
-                    if (!currentList.items) return;
-                    const fromAnchor =
-                      currentList.items[dragIndex.current].anchor;
+                    const allItems = getAllItems(currentList);
+                    if (!allItems.length) return;
+                    const fromAnchor = allItems[dragIndex.current].anchor;
                     commands
                       .reorderItem(currentName, fromAnchor, idx)
                       .then((res) => {
