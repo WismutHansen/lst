@@ -12,7 +12,7 @@ settingGroups:
     base:
       PRODUCT_NAME: lst-mobile
       PRODUCT_BUNDLE_IDENTIFIER: com.lst-mobile.app
-      DEVELOPMENT_TEAM: L2BG764C4L
+      DEVELOPMENT_TEAM: K8RV7BFSRS
 targetTemplates:
   app:
     type: application
