@@ -164,8 +164,63 @@ async renameCategory(listName: string, oldName: string, newName: string) : Promi
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async getSyncConfig() : Promise<Result<SyncConfig, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_sync_config") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
 }
+},
+async saveSyncConfig(config: SyncConfig) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_sync_config", { config }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
 }
+},
+async getSyncStatus() : Promise<Result<SyncStatus, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_sync_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async requestAuthToken(email: string, serverUrl: string, password?: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("request_auth_token", { email, serverUrl, password }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async verifyAuthToken(email: string, token: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("verify_auth_token", { email, token }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async toggleSync(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("toggle_sync", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async testSyncConnection() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("test_sync_connection") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+};}
 
 /** user-defined events **/
 
@@ -242,6 +297,8 @@ status: ItemStatus;
  */
 anchor: string }
 export type Note = { title: string; content: string; created: string | null; file_path: string }
+export type SyncConfig = { server_url: string; email: string; device_id: string; sync_enabled: boolean; sync_interval: number; encryption_enabled: boolean }
+export type SyncStatus = { connected: boolean; last_sync: string | null; pending_changes: number; error: string | null }
 export type ThemeConfig = { vars?: Partial<{ [key in string]: string }> }
 export type UiConfig = { resolution_order?: string[]; 
 /**

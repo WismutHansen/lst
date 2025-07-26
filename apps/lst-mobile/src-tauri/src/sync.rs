@@ -1,5 +1,6 @@
 use crate::crypto;
 use crate::sync_db::LocalDb;
+use crate::sync_status;
 use anyhow::{Context, Result};
 use automerge::{
     transaction::Transactable as _, Automerge, Change, ObjType, ReadDoc, ScalarValue, Value,
@@ -327,17 +328,18 @@ impl SyncManager {
     async fn sync_with_server(&mut self, encrypted: HashMap<String, Vec<Vec<u8>>>) -> Result<()> {
         let syncd = match &self.config.syncd {
             Some(s) => s,
-            None => return Ok(()),
+            None => return Err(anyhow::anyhow!("Sync not configured"));
         };
 
         let url = match &syncd.url {
             Some(u) => u,
-            None => return Ok(()),
+            None => return Err(anyhow::anyhow!("Server URL not configured"));
         };
+        
         let token = self
             .config
             .get_jwt()
-            .context("No valid JWT token. Run 'lst auth request <email>' to authenticate")?
+            .context("No valid JWT token. Please authenticate first")?
             .to_string();
 
         let device_id = syncd
@@ -345,27 +347,42 @@ impl SyncManager {
             .clone()
             .unwrap_or_else(|| "unknown".to_string());
 
-        let (ws, _) = connect_async(url).await?;
+        // Add connection timeout and retry logic
+        let connection_result = timeout(Duration::from_secs(10), connect_async(url)).await;
+        let (ws, _) = match connection_result {
+            Ok(Ok(ws)) => ws,
+            Ok(Err(e)) => return Err(anyhow::anyhow!("Failed to connect to server: {}", e)),
+            Err(_) => return Err(anyhow::anyhow!("Connection timeout")),
+        };
+
         let (mut write, mut read) = ws.split();
 
+        // Authenticate with server
         let auth_msg = lst_proto::ClientMessage::Authenticate { jwt: token.clone() };
-        write
-            .send(Message::Text(serde_json::to_string(&auth_msg)?))
-            .await?;
+        if let Err(e) = write.send(Message::Text(serde_json::to_string(&auth_msg)?)).await {
+            return Err(anyhow::anyhow!("Failed to send authentication: {}", e));
+        }
 
-        // wait for Authenticated (ignore failure)
-        if let Ok(Some(msg)) = timeout(Duration::from_secs(5), read.next()).await {
-            if let Message::Text(txt) = msg? {
+        // Wait for authentication response
+        match timeout(Duration::from_secs(10), read.next()).await {
+            Ok(Some(Ok(Message::Text(txt)))) => {
                 if let Ok(lst_proto::ServerMessage::Authenticated { success }) =
                     serde_json::from_str(&txt)
                 {
                     if !success {
-                        return Err(anyhow::anyhow!("Authentication failed"));
+                        return Err(anyhow::anyhow!("Server authentication failed"));
                     }
+                } else {
+                    return Err(anyhow::anyhow!("Invalid authentication response"));
                 }
             }
+            Ok(Some(Ok(_))) => return Err(anyhow::anyhow!("Unexpected message type")),
+            Ok(Some(Err(e))) => return Err(anyhow::anyhow!("WebSocket error: {}", e)),
+            Ok(None) => return Err(anyhow::anyhow!("Connection closed during authentication")),
+            Err(_) => return Err(anyhow::anyhow!("Authentication timeout")),
         }
 
+        // Send changes to server
         for (doc_id, changes) in encrypted {
             if changes.is_empty() {
                 continue;
@@ -376,36 +393,51 @@ impl SyncManager {
                 device_id: device_id.clone(),
                 changes,
             };
-            write
-                .send(Message::Text(serde_json::to_string(&msg)?))
-                .await?;
-        }
-
-        // read any new changes until timeout
-        loop {
-            match timeout(Duration::from_secs(1), read.next()).await {
-                Ok(Some(msg)) => {
-                    let msg = msg?;
-                    if let Message::Text(txt) = msg {
-                        if let Ok(server_msg) =
-                            serde_json::from_str::<lst_proto::ServerMessage>(&txt)
-                        {
-                            if let lst_proto::ServerMessage::NewChanges {
-                                doc_id, changes, ..
-                            } = server_msg
-                            {
-                                self.apply_remote_changes(&doc_id.to_string(), changes)
-                                    .await?;
-                            }
-                        }
-                    }
-                }
-                Ok(None) | Err(_) => break,
+            
+            if let Err(e) = write.send(Message::Text(serde_json::to_string(&msg)?)).await {
+                return Err(anyhow::anyhow!("Failed to send changes: {}", e));
             }
         }
 
-        // ignore errors closing
+        // Read any new changes from server
+        let mut changes_received = 0;
+        loop {
+            match timeout(Duration::from_secs(2), read.next()).await {
+                Ok(Some(Ok(Message::Text(txt)))) => {
+                    if let Ok(server_msg) = serde_json::from_str::<lst_proto::ServerMessage>(&txt) {
+                        match server_msg {
+                            lst_proto::ServerMessage::NewChanges { doc_id, changes, .. } => {
+                                self.apply_remote_changes(&doc_id.to_string(), changes).await?;
+                                changes_received += 1;
+                            }
+                            _ => {} // Ignore other message types
+                        }
+                    }
+                }
+                Ok(Some(Ok(Message::Close(_)))) => {
+                    println!("Server closed connection");
+                    break;
+                }
+                Ok(Some(Ok(_))) => {} // Ignore other message types
+                Ok(Some(Err(e))) => {
+                    println!("WebSocket error: {}", e);
+                    break;
+                }
+                Ok(None) => {
+                    println!("Connection closed");
+                    break;
+                }
+                Err(_) => break, // Timeout - normal exit
+            }
+        }
+
+        // Close connection gracefully
         let _ = write.close().await;
+        
+        if changes_received > 0 {
+            println!("Received {} changes from server", changes_received);
+        }
+        
         Ok(())
     }
 
@@ -421,30 +453,48 @@ impl SyncManager {
             return Ok(());
         }
 
-        if self.client.is_some() {
-            if !self.pending_changes.is_empty() {
-                let mut encrypted_total = 0;
-                let mut encrypted: HashMap<String, Vec<Vec<u8>>> = HashMap::new();
-                for (doc, changes) in self.pending_changes.drain() {
-                    let mut enc = Vec::new();
-                    for c in changes {
-                        let e = crypto::encrypt(&c, &self.encryption_key)?;
-                        encrypted_total += 1;
-                        enc.push(e);
-                    }
-                    encrypted.insert(doc, enc);
-                }
+        // Update pending changes count in status
+        let pending_count = self.pending_changes.values().map(|v| v.len()).sum::<usize>() as u32;
+        sync_status::update_pending_changes(pending_count)?;
 
-                println!("Syncing {encrypted_total} encrypted changes");
-                self.sync_with_server(encrypted).await?;
-            } else {
-                // still poll server for new changes
-                self.sync_with_server(HashMap::new()).await?;
+        if self.client.is_some() {
+            match self.perform_sync().await {
+                Ok(()) => {
+                    sync_status::mark_sync_connected()?;
+                }
+                Err(e) => {
+                    sync_status::mark_sync_disconnected(e.to_string())?;
+                    return Err(e);
+                }
             }
+        } else {
+            sync_status::mark_sync_disconnected("Sync not configured".to_string())?;
         }
 
         self.last_sync = Instant::now();
+        Ok(())
+    }
 
+    async fn perform_sync(&mut self) -> Result<()> {
+        if !self.pending_changes.is_empty() {
+            let mut encrypted_total = 0;
+            let mut encrypted: HashMap<String, Vec<Vec<u8>>> = HashMap::new();
+            for (doc, changes) in self.pending_changes.drain() {
+                let mut enc = Vec::new();
+                for c in changes {
+                    let e = crypto::encrypt(&c, &self.encryption_key)?;
+                    encrypted_total += 1;
+                    enc.push(e);
+                }
+                encrypted.insert(doc, enc);
+            }
+
+            println!("Syncing {encrypted_total} encrypted changes");
+            self.sync_with_server(encrypted).await?;
+        } else {
+            // still poll server for new changes
+            self.sync_with_server(HashMap::new()).await?;
+        }
         Ok(())
     }
 }

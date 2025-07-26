@@ -46,6 +46,9 @@ anyhow = { workspace = true }
 axum = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tower-http = { version = "0.5.2", features = ["cors"] }
+argon2 = { workspace = true }
+keyring = "3.0"
+lazy_static = "1.4"
 
 # Internal dependencies
 lst-proto = { path = "../../../crates/lst-proto", version = "0.1.3" }

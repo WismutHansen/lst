@@ -4,7 +4,9 @@ import Logo from "./assets/logo.png";
 import { commands, type List, type ListItem, type Category } from "./bindings";
 import { CommandPalette, PaletteCommand } from "./components/CommandPalette";
 import { MobileNotesPanel } from "./components/MobileNotesPanel";
-import { Folder as FolderIcon, List as ListIcon, FileText, Clipboard } from "lucide-react";
+import { SettingsPanel } from "./components/SettingsPanel";
+import { SyncStatusIndicator } from "./components/SyncStatusIndicator";
+import { Folder as FolderIcon, List as ListIcon, FileText, Clipboard, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -142,7 +144,7 @@ export default function App() {
   const [selected] = useState<Set<string>>(new Set());
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<"name" | "date-asc" | "date-desc">("name");
-  const [currentView, setCurrentView] = useState<"lists" | "notes">("lists");
+  const [currentView, setCurrentView] = useState<"lists" | "notes" | "settings">("lists");
 
   /* ---------- sidebar & responsive ---------- */
   // sidebar is collapsed by default
@@ -993,6 +995,15 @@ export default function App() {
                 <FileText className="h-3 w-3 mr-1" />
                 Notes
               </Button>
+              <Button
+                variant={currentView === "settings" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setCurrentView("settings")}
+                className="h-7 px-2 text-xs"
+              >
+                <Settings className="h-3 w-3 mr-1" />
+                Settings
+              </Button>
             </div>
           </div>
           <Button
@@ -1113,8 +1124,10 @@ export default function App() {
 
         {currentView === "lists" ? (
           renderCurrentList()
-        ) : (
+        ) : currentView === "notes" ? (
           <MobileNotesPanel vimMode={vimMode} theme="dark" />
+        ) : (
+          <SettingsPanel />
         )}
 
 
@@ -1136,9 +1149,12 @@ export default function App() {
         <span className="text-muted-foreground">
           {error && <p className="ml-2 text-red-600">{error}</p>}
         </span>
-        <span className="ml-auto text-nowrap">
-          {currentList ? `${items.length} items` : "No list selected"}
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <SyncStatusIndicator />
+          <span className="text-nowrap">
+            {currentList ? `${items.length} items` : "No list selected"}
+          </span>
+        </div>
       </div>
     </div>
   );
