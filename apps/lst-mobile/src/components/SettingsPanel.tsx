@@ -138,7 +138,7 @@ export function SettingsPanel() {
       const result = await commands.requestAuthToken(
         config.email, 
         config.serverUrl, 
-        auth.password || undefined
+        auth.password || null
       );
       if (result.status === "ok") {
         setAuth(prev => ({ ...prev, step: "verifying" }));

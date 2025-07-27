@@ -189,7 +189,7 @@ async getSyncStatus() : Promise<Result<SyncStatus, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async requestAuthToken(email: string, serverUrl: string, password?: string) : Promise<Result<string, string>> {
+async requestAuthToken(email: string, serverUrl: string, password: string | null) : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("request_auth_token", { email, serverUrl, password }) };
 } catch (e) {
@@ -220,7 +220,8 @@ async testSyncConnection() : Promise<Result<string, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
-};}
+}
+}
 
 /** user-defined events **/
 

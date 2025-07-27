@@ -37,13 +37,13 @@ pub fn hash_password(password: &str) -> Result<String> {
     let argon2 = Argon2::default();
     let password_hash = argon2
         .hash_password(password.as_bytes(), &salt)
-        .context("Failed to hash password")?;
+        .map_err(|e| anyhow::anyhow!("Failed to hash password: {}", e))?;
     Ok(password_hash.to_string())
 }
 
 /// Verify a password against a hash
 pub fn verify_password(password: &str, hash: &str) -> Result<bool> {
-    let parsed_hash = PasswordHash::new(hash).context("Invalid password hash")?;
+    let parsed_hash = PasswordHash::new(hash).map_err(|e| anyhow::anyhow!("Invalid password hash: {}", e))?;
     let argon2 = Argon2::default();
     Ok(argon2.verify_password(password.as_bytes(), &parsed_hash).is_ok())
 }
@@ -68,7 +68,7 @@ pub fn get_jwt_token(email: &str) -> Result<Option<String>> {
 /// Clear JWT token from system keychain
 pub fn clear_jwt_token(email: &str) -> Result<()> {
     let entry = Entry::new("lst-mobile", email).context("Failed to create keyring entry")?;
-    match entry.delete_password() {
+    match entry.delete_credential() {
         Ok(()) => Ok(()),
         Err(keyring::Error::NoEntry) => Ok(()), // Already cleared
         Err(e) => Err(anyhow::anyhow!("Failed to clear JWT token: {}", e)),
@@ -189,9 +189,9 @@ fn update_config_with_jwt(jwt_token: String, expires_at: chrono::DateTime<chrono
 /// Update sync configuration
 pub fn update_sync_config(
     server_url: String,
-    email: String,
+    _email: String,
     device_id: String,
-    sync_enabled: bool,
+    _sync_enabled: bool,
     sync_interval: u32,
 ) -> Result<()> {
     let mut config = CONFIG_MUTEX.lock().unwrap();

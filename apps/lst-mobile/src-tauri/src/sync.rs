@@ -294,7 +294,6 @@ impl SyncManager {
                                 String::new()
                             }
                         }
-                        _ => String::new(),
                     }
                 } else {
                     String::new()
@@ -328,12 +327,12 @@ impl SyncManager {
     async fn sync_with_server(&mut self, encrypted: HashMap<String, Vec<Vec<u8>>>) -> Result<()> {
         let syncd = match &self.config.syncd {
             Some(s) => s,
-            None => return Err(anyhow::anyhow!("Sync not configured"));
+            None => return Err(anyhow::anyhow!("Sync not configured")),
         };
 
         let url = match &syncd.url {
             Some(u) => u,
-            None => return Err(anyhow::anyhow!("Server URL not configured"));
+            None => return Err(anyhow::anyhow!("Server URL not configured")),
         };
         
         let token = self
