@@ -1059,7 +1059,7 @@ export default function App() {
 
       <main className="relative flex flex-1 flex-col p-6 min-w-0 overflow-hidden">
         {/* top bar */}
-        <div className="mb-4 flex items-center gap-4">
+        <div className="mt-2 mb-2 flex items-center gap-4">
           <form
             className="flex w-full"
             onSubmit={(e) => e.preventDefault()}
@@ -1067,7 +1067,7 @@ export default function App() {
             <div>            <Button
               variant="outline"
               size="icon"
-              onClick={() => setSidebarCollapsed(true)}
+              onClick={() => setSidebarCollapsed(false)}
               className="sm:hidden mr-2"
             >
               <Menu></Menu>
@@ -1123,11 +1123,12 @@ export default function App() {
             {renderSuggestions()}
 
             <div
-              className="ml-2 flex items-center h-7 w-7 opacity-75"
+              className="border ml-2 flex items-center h-9 w-12"
             >
               <img
                 src={Logo}
                 alt="lst icon"
+                className="opacity-75"
               />
             </div>
           </form>
