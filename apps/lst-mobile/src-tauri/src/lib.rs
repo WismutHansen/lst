@@ -356,9 +356,19 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let handle = app.handle();
-            let db = Database::new(&handle)?;
+            
+            // Initialize database with error handling
+            let db = match Database::new(&handle) {
+                Ok(db) => db,
+                Err(e) => {
+                    eprintln!("Failed to initialize database: {}", e);
+                    return Err(e.into());
+                }
+            };
             app.manage(db);
-            let _window = app.get_webview_window("main").unwrap();
+            
+            // Get window with fallback for mobile
+            let _window = app.get_webview_window("main");
 
             // Start command server and sync on desktop platforms
             #[cfg(not(mobile))]
@@ -370,29 +380,37 @@ pub fn run() {
             // Start sync service on all platforms (including mobile)
             let config = get_config().clone();
             tauri::async_runtime::spawn(async move {
-                if let Ok(mut mgr) = sync::SyncManager::new(config).await {
-                    loop {
-                        if let Err(e) = mgr.periodic_sync().await {
-                            eprintln!("sync error: {e}");
+                match sync::SyncManager::new(config).await {
+                    Ok(mut mgr) => {
+                        loop {
+                            if let Err(e) = mgr.periodic_sync().await {
+                                eprintln!("sync error: {e}");
+                            }
+                            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
                         }
-                        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to initialize sync manager: {}", e);
+                        // Continue without sync rather than crashing
                     }
                 }
             });
 
             // Apply vibrancy effects only on desktop platforms
             #[cfg(all(target_os = "macos", not(mobile)))]
-            window_vibrancy::apply_vibrancy(
-                &_window,
-                window_vibrancy::NSVisualEffectMaterial::HudWindow,
-                None,
-                Some(5.0),
-            )
-            .expect("Unsupported platform! 'apply_vibrancy' is only supported on macOS");
+            if let Some(window) = _window {
+                window_vibrancy::apply_vibrancy(
+                    &window,
+                    window_vibrancy::NSVisualEffectMaterial::HudWindow,
+                    None,
+                    Some(5.0),
+                ).ok(); // Don't panic on mobile
+            }
 
             #[cfg(all(target_os = "windows", not(mobile)))]
-            window_vibrancy::apply_blur(&_window, Some((18, 18, 18, 125)))
-                .expect("Unsupported platform! 'apply_blur' is only supported on Windows");
+            if let Some(window) = _window {
+                window_vibrancy::apply_blur(&window, Some((18, 18, 18, 125))).ok();
+            }
 
             Ok(())
         })

@@ -14,9 +14,21 @@ pub struct Database {
 impl Database {
     pub fn new(app: &tauri::AppHandle) -> Result<Self> {
         let resolver = app.path();
-        let mut path = resolver.app_data_dir()?;
-        std::fs::create_dir_all(&path)?;
+        let mut path = resolver.app_data_dir().or_else(|_| {
+            // Fallback for iOS - use app local data directory
+            resolver.app_local_data_dir()
+        })?;
+        
+        // Ensure directory exists with proper error handling for iOS
+        if let Err(e) = std::fs::create_dir_all(&path) {
+            eprintln!("Failed to create app data directory: {}", e);
+            // Try alternative path for iOS
+            path = resolver.app_local_data_dir()?;
+            std::fs::create_dir_all(&path)?;
+        }
+        
         path.push("lst_mobile.db");
+        println!("Database path: {:?}", path);
 
         let manager = SqliteConnectionManager::file(&path);
         let pool = Pool::new(manager)?;
