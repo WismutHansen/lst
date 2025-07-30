@@ -6,7 +6,7 @@ import { CommandPalette, PaletteCommand } from "./components/CommandPalette";
 import { MobileNotesPanel } from "./components/MobileNotesPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { SyncStatusIndicator } from "./components/SyncStatusIndicator";
-import { Folder as FolderIcon, List as ListIcon, FileText, Clipboard, Settings } from "lucide-react";
+import { Folder as FolderIcon, List as ListIcon, FileText, Clipboard, Settings, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -793,14 +793,14 @@ export default function App() {
                   <h3 className="text-sm font-semibold text-[#a6e3a1]">{category.name}</h3>
                   <span className="text-xs text-muted-foreground">({category.items.length})</span>
                 </div>
-                
+
                 {/* Category items */}
                 {category.items.map((it, idx) => {
-                  const globalIdx = (currentList.uncategorized_items?.length ?? 0) + 
+                  const globalIdx = (currentList.uncategorized_items?.length ?? 0) +
                     (currentList.categories ?? [])
                       .slice(0, (currentList.categories ?? []).findIndex(c => c.name === category.name))
                       .reduce((acc, cat) => acc + cat.items.length, 0) + idx;
-                  
+
                   return editingAnchor === it.anchor ? (
                     <form
                       key={it.anchor}
@@ -911,8 +911,7 @@ export default function App() {
                 size="icon"
                 onClick={() => setSidebarCollapsed(false)}
                 className="h-6 w-6 p-0 pt-8"
-              >
-                󰞘
+              >󰞘
               </Button>
               <div className="h-8"></div>
             </div>
@@ -972,7 +971,7 @@ export default function App() {
               variant="ghost"
               size="icon"
               onClick={() => setSidebarCollapsed(true)}
-              className="h-6 w-6 p-0"
+              className="h-7 w-7"
             >
               󰞗
             </Button>
@@ -983,8 +982,7 @@ export default function App() {
                 onClick={() => setCurrentView("lists")}
                 className="h-7 px-2 text-xs"
               >
-                <Clipboard className="h-3 w-3 mr-1" />
-                Lists
+                <Clipboard className="h-3 w-3" />
               </Button>
               <Button
                 variant={currentView === "notes" ? "default" : "ghost"}
@@ -992,26 +990,25 @@ export default function App() {
                 onClick={() => setCurrentView("notes")}
                 className="h-7 px-2 text-xs"
               >
-                <FileText className="h-3 w-3 mr-1" />
-                Notes
+                <FileText className="h-3 w-3" />
               </Button>
               <Button
-                variant={currentView === "settings" ? "default" : "ghost"}
+                variant="outline"
                 size="sm"
-                onClick={() => setCurrentView("settings")}
-                className="h-7 px-2 text-xs"
+                onClick={() => setCreating((c) => !c)}
+                className="h-7 w-7 px-2 text-xs"
               >
-                <Settings className="h-3 w-3 mr-1" />
-                Settings
+                
               </Button>
             </div>
           </div>
           <Button
-            variant="outline"
+            variant={currentView === "settings" ? "default" : "ghost"}
             size="sm"
-            onClick={() => setCreating((c) => !c)}
+            onClick={() => setCurrentView("settings")}
+            className="h-7 px-2 text-xs"
           >
-             New
+            <Settings className="h-3 w-3 mr-1" />
           </Button>
         </div>
 
@@ -1056,7 +1053,7 @@ export default function App() {
   return (
     <div
       className="flex min-h-screen border border-border bg-background text-foreground min-w-0 w-full"
-      style={{ borderRadius: "10px", backgroundColor: "#24273a" }}
+      style={{ borderRadius: "0px", backgroundColor: "#24273a" }}
     >
       {renderSidebar()}
 
@@ -1064,9 +1061,19 @@ export default function App() {
         {/* top bar */}
         <div className="mb-4 flex items-center gap-4">
           <form
-            className="relative w-full"
+            className="flex w-full"
             onSubmit={(e) => e.preventDefault()}
           >
+            <div>            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setSidebarCollapsed(true)}
+              className="sm:hidden mr-2"
+            >
+              <Menu></Menu>
+            </Button>
+            </div>
+
             <Input
               ref={inputRef}
               id="query"
@@ -1114,11 +1121,15 @@ export default function App() {
               }}
             />
             {renderSuggestions()}
-            <img
-              src={Logo}
-              alt="lst icon"
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 opacity-75"
-            />
+
+            <div
+              className="ml-2 flex items-center h-7 w-7 opacity-75"
+            >
+              <img
+                src={Logo}
+                alt="lst icon"
+              />
+            </div>
           </form>
         </div>
 
