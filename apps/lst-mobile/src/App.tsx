@@ -449,8 +449,8 @@ export default function App() {
         return;
       }
 
-      // sidebar navigation (when open)
-      if (!sidebarCollapsed) {
+      // sidebar navigation (when open) - only if no input is focused
+      if (!sidebarCollapsed && !isInputFocused) {
         const next = (delta: number) => {
           setSidebarCursor((i) =>
             (i + delta + flatSidebarItems.length) % flatSidebarItems.length
