@@ -1,183 +1,183 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { commands, Note } from '../bindings'
-import { VimNoteEditor } from './VimNoteEditor'
-import { Button } from './ui/button'
-import { Input } from './ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
-import { ScrollArea } from './ui/scroll-area'
-import { Separator } from './ui/separator'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet'
-import { FileText, Plus, Search, Edit, Trash2, Save } from 'lucide-react'
+import React, { useState, useEffect, useCallback } from "react";
+import { commands, Note } from "../bindings";
+import { VimNoteEditor } from "./VimNoteEditor";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { ScrollArea } from "./ui/scroll-area";
+import { Separator } from "./ui/separator";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "./ui/sheet";
+import { FileText, Plus, Search, Edit, Trash2, Save } from "lucide-react";
 
 interface NotesPanelProps {
   vimMode?: boolean
-  theme?: 'light' | 'dark'
+  theme?: "light" | "dark"
   selectedNoteName?: string | null
   onVimStatusChange?: (status: { mode: string; status?: string } | null) => void
 }
 
-export function NotesPanel({ vimMode = false, theme = 'light', selectedNoteName = null, onVimStatusChange }: NotesPanelProps) {
-  const [notes, setNotes] = useState<string[]>([])
-  const [selectedNote, setSelectedNote] = useState<Note | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [isEditing, setIsEditing] = useState(false)
-  const [isCreating, setIsCreating] = useState(false)
-  const [newNoteTitle, setNewNoteTitle] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+export function NotesPanel({ vimMode = false, theme = "light", selectedNoteName = null, onVimStatusChange }: NotesPanelProps) {
+  const [notes, setNotes] = useState<string[]>([]);
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [newNoteTitle, setNewNoteTitle] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const loadNotes = useCallback(async () => {
     try {
-      const result = await commands.getNotes()
-      if (result.status === 'ok') {
-        setNotes(result.data)
+      const result = await commands.getNotes();
+      if (result.status === "ok") {
+        setNotes(result.data);
       } else {
-        setError(result.error)
+        setError(result.error);
       }
     } catch (err) {
-      setError(String(err))
+      setError(String(err));
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    loadNotes()
-  }, [loadNotes])
+    loadNotes();
+  }, [loadNotes]);
 
   useEffect(() => {
     if (selectedNoteName) {
-      handleSelectNote(selectedNoteName)
+      handleSelectNote(selectedNoteName);
     }
-  }, [selectedNoteName])
+  }, [selectedNoteName]);
 
   const filteredNotes = notes.filter(note =>
     note.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  );
 
   const handleSelectNote = async (noteName: string) => {
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
     try {
-      const result = await commands.getNote(noteName)
-      if (result.status === 'ok') {
-        setSelectedNote(result.data)
-        setIsEditing(false)
-        onVimStatusChange?.(null) // Clear vim status when switching notes
+      const result = await commands.getNote(noteName);
+      if (result.status === "ok") {
+        setSelectedNote(result.data);
+        setIsEditing(false);
+        onVimStatusChange?.(null); // Clear vim status when switching notes
       } else {
-        setError(result.error)
+        setError(result.error);
       }
     } catch (err) {
-      setError(String(err))
+      setError(String(err));
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleCreateNote = async () => {
-    if (!newNoteTitle.trim()) return
+    if (!newNoteTitle.trim()) return;
 
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
     try {
-      const result = await commands.createNoteCmd(newNoteTitle.trim())
-      if (result.status === 'ok') {
-        setSelectedNote(result.data)
-        setIsEditing(true)
-        setIsCreating(false)
-        setNewNoteTitle('')
-        await loadNotes()
+      const result = await commands.createNoteCmd(newNoteTitle.trim());
+      if (result.status === "ok") {
+        setSelectedNote(result.data);
+        setIsEditing(true);
+        setIsCreating(false);
+        setNewNoteTitle("");
+        await loadNotes();
       } else {
-        setError(result.error)
+        setError(result.error);
       }
     } catch (err) {
-      setError(String(err))
+      setError(String(err));
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleSaveNote = async () => {
-    if (!selectedNote) return
+    if (!selectedNote) return;
 
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
     try {
-      const result = await commands.saveNote(selectedNote)
-      if (result.status === 'ok') {
-        setIsEditing(false)
-        onVimStatusChange?.(null) // Clear vim status when exiting edit mode
+      const result = await commands.saveNote(selectedNote);
+      if (result.status === "ok") {
+        setIsEditing(false);
+        onVimStatusChange?.(null); // Clear vim status when exiting edit mode
       } else {
-        setError(result.error)
+        setError(result.error);
       }
     } catch (err) {
-      setError(String(err))
+      setError(String(err));
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleDeleteNote = async (noteName: string) => {
-    if (!confirm(`Are you sure you want to delete "${noteName}"?`)) return
+    if (!confirm(`Are you sure you want to delete "${noteName}"?`)) return;
 
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
     try {
-      const result = await commands.deleteNoteCmd(noteName)
-      if (result.status === 'ok') {
+      const result = await commands.deleteNoteCmd(noteName);
+      if (result.status === "ok") {
         if (selectedNote && selectedNote.title === noteName) {
-          setSelectedNote(null)
-          setIsEditing(false)
+          setSelectedNote(null);
+          setIsEditing(false);
         }
-        await loadNotes()
+        await loadNotes();
       } else {
-        setError(result.error)
+        setError(result.error);
       }
     } catch (err) {
-      setError(String(err))
+      setError(String(err));
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleNoteContentChange = (content: string) => {
     if (selectedNote) {
-      setSelectedNote({ ...selectedNote, content })
+      setSelectedNote({ ...selectedNote, content });
     }
-  }
+  };
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    if (!vimMode) return
+    if (!vimMode) return;
 
-    if (event.key === 'Escape') {
+    if (event.key === "Escape") {
       if (isEditing) {
-        setIsEditing(false)
-        onVimStatusChange?.(null) // Clear vim status when exiting edit mode
+        setIsEditing(false);
+        onVimStatusChange?.(null); // Clear vim status when exiting edit mode
       } else if (selectedNote) {
-        setSelectedNote(null)
-        onVimStatusChange?.(null) // Clear vim status when closing note
+        setSelectedNote(null);
+        onVimStatusChange?.(null); // Clear vim status when closing note
       }
-      return
+      return;
     }
 
-    if (event.key === 'i' && !isEditing && selectedNote) {
-      event.preventDefault()
-      setIsEditing(true)
-      return
+    if (event.key === "i" && !isEditing && selectedNote) {
+      event.preventDefault();
+      setIsEditing(true);
+      return;
     }
 
-    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
-      event.preventDefault()
+    if ((event.ctrlKey || event.metaKey) && event.key === "s") {
+      event.preventDefault();
       if (isEditing && selectedNote) {
-        handleSaveNote()
+        handleSaveNote();
       }
     }
-  }, [vimMode, isEditing, selectedNote])
+  }, [vimMode, isEditing, selectedNote]);
 
   useEffect(() => {
     if (vimMode) {
-      document.addEventListener('keydown', handleKeyDown)
-      return () => document.removeEventListener('keydown', handleKeyDown)
+      document.addEventListener("keydown", handleKeyDown);
+      return () => document.removeEventListener("keydown", handleKeyDown);
     }
-  }, [handleKeyDown, vimMode])
+  }, [handleKeyDown, vimMode]);
 
   return (
     <div className="flex h-full w-full">
@@ -232,13 +232,13 @@ export function NotesPanel({ vimMode = false, theme = 'light', selectedNoteName 
                   className="cursor-text min-h-[300px]"
                   onClick={() => setIsEditing(true)}
                   style={{
-                    fontSize: '14px',
-                    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace',
-                    lineHeight: '1.6'
+                    fontSize: "14px",
+                    fontFamily: "ui-monospace, SFMono-Regular, \"SF Mono\", Monaco, \"Cascadia Code\", \"Roboto Mono\", Consolas, \"Courier New\", monospace",
+                    lineHeight: "1.6"
                   }}
                 >
                   <pre className="whitespace-pre-wrap m-0 p-0 bg-transparent border-none">
-                    {selectedNote.content || 'This note is empty. Click here or press i to add content.'}
+                    {selectedNote.content || "This note is empty. Click here or press i to add content."}
                   </pre>
                 </div>
               )}
@@ -272,8 +272,8 @@ export function NotesPanel({ vimMode = false, theme = 'light', selectedNoteName 
                 onChange={(e) => setNewNoteTitle(e.target.value)}
                 placeholder="Enter note title..."
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleCreateNote()
+                  if (e.key === "Enter") {
+                    handleCreateNote();
                   }
                 }}
                 autoFocus
@@ -291,5 +291,5 @@ export function NotesPanel({ vimMode = false, theme = 'light', selectedNoteName 
         </SheetContent>
       </Sheet>
     </div>
-  )
+  );
 }

@@ -9,6 +9,7 @@ use crate::config::{get_config, Config};
 use crate::storage;
 use crate::{models::ItemStatus, storage::notes::delete_note};
 use lst_core::models::Category;
+use lst_core::theme::{ThemeLoader, ThemeInfo};
 use chrono::{Local, Utc};
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -1691,6 +1692,253 @@ pub async fn category_remove(list: &str, name: &str, json: bool) -> Result<()> {
         }
     } else {
         bail!("Category '{}' not found in list '{}'", name, list_name);
+    }
+    
+    Ok(())
+}
+
+// ============================================================================
+// Theme Management Commands
+// ============================================================================
+
+/// List all available themes
+pub fn theme_list(verbose: bool, json: bool) -> Result<()> {
+    let loader = ThemeLoader::new();
+    let themes = loader.list_themes();
+    
+    if json {
+        if verbose {
+            let mut theme_infos = Vec::new();
+            for theme_name in themes {
+                if let Ok(info) = loader.get_theme_info(&theme_name) {
+                    theme_infos.push(info);
+                }
+            }
+            println!("{}", serde_json::to_string_pretty(&theme_infos)?);
+        } else {
+            println!("{}", serde_json::to_string(&themes)?);
+        }
+        return Ok(());
+    }
+    
+    if themes.is_empty() {
+        println!("No themes found.");
+        return Ok(());
+    }
+    
+    println!("Available themes:");
+    
+    if verbose {
+        for theme_name in themes {
+            if let Ok(info) = loader.get_theme_info(&theme_name) {
+                println!("  {} - {}", 
+                    info.name.cyan(), 
+                    info.description.unwrap_or_else(|| "No description".to_string()).dimmed()
+                );
+                if let Some(author) = info.author {
+                    println!("    Author: {}", author.dimmed());
+                }
+                println!("    System: {:?}, Variant: {:?}", 
+                    info.system, 
+                    info.variant.unwrap_or_else(|| lst_core::theme::ThemeVariant::Dark)
+                );
+                println!();
+            }
+        }
+    } else {
+        for theme_name in themes {
+            println!("  {}", theme_name);
+        }
+    }
+    
+    Ok(())
+}
+
+/// Show information about the current theme
+pub fn theme_current(json: bool) -> Result<()> {
+    let config = get_config();
+    let current_theme = config.get_theme()?;
+    
+    if json {
+        println!("{}", serde_json::to_string_pretty(&current_theme)?);
+        return Ok(());
+    }
+    
+    println!("Current theme: {}", current_theme.scheme.cyan());
+    if let Some(name) = &current_theme.name {
+        println!("Name: {}", name);
+    }
+    if let Some(author) = &current_theme.author {
+        println!("Author: {}", author.dimmed());
+    }
+    if let Some(description) = &current_theme.description {
+        println!("Description: {}", description);
+    }
+    println!("System: {:?}", current_theme.system);
+    if let Some(variant) = &current_theme.variant {
+        println!("Variant: {:?}", variant);
+    }
+    
+    // Show some key colors
+    println!("\nKey colors:");
+    if let Some(bg) = &current_theme.palette.base00 {
+        println!("  Background: {}", bg.dimmed());
+    }
+    if let Some(fg) = &current_theme.palette.base05 {
+        println!("  Foreground: {}", fg.dimmed());
+    }
+    if let Some(primary) = &current_theme.palette.base0d {
+        println!("  Primary: {}", primary.dimmed());
+    }
+    
+    Ok(())
+}
+
+/// Apply a theme
+pub fn theme_apply(theme_name: &str, json: bool) -> Result<()> {
+    let mut config = Config::load()?;
+    let theme = config.load_theme_by_name(theme_name)
+        .with_context(|| format!("Failed to load theme '{}'", theme_name))?;
+    
+    config.set_theme(theme.clone());
+    config.save()?;
+    
+    if json {
+        println!("{}", serde_json::json!({
+            "status": "success",
+            "theme": theme_name,
+            "message": format!("Applied theme '{}'", theme_name)
+        }));
+    } else {
+        println!("Applied theme: {}", theme_name.cyan());
+        if let Some(name) = &theme.name {
+            println!("  {}", name.dimmed());
+        }
+    }
+    
+    Ok(())
+}
+
+/// Show detailed information about a theme
+pub fn theme_info(theme_name: &str, json: bool) -> Result<()> {
+    let loader = ThemeLoader::new();
+    let theme = loader.load_theme(theme_name)
+        .with_context(|| format!("Failed to load theme '{}'", theme_name))?;
+    
+    if json {
+        println!("{}", serde_json::to_string_pretty(&theme)?);
+        return Ok(());
+    }
+    
+    println!("Theme: {}", theme.scheme.cyan());
+    if let Some(name) = &theme.name {
+        println!("Name: {}", name);
+    }
+    if let Some(author) = &theme.author {
+        println!("Author: {}", author.dimmed());
+    }
+    if let Some(description) = &theme.description {
+        println!("Description: {}", description);
+    }
+    println!("System: {:?}", theme.system);
+    if let Some(variant) = &theme.variant {
+        println!("Variant: {:?}", variant);
+    }
+    
+    if let Some(inherits) = &theme.inherits {
+        println!("Inherits from: {}", inherits.dimmed());
+    }
+    
+    println!("\nColor palette:");
+    let palette_colors = [
+        ("base00", &theme.palette.base00, "Default Background"),
+        ("base01", &theme.palette.base01, "Lighter Background"),
+        ("base02", &theme.palette.base02, "Selection Background"),
+        ("base03", &theme.palette.base03, "Comments"),
+        ("base04", &theme.palette.base04, "Dark Foreground"),
+        ("base05", &theme.palette.base05, "Default Foreground"),
+        ("base06", &theme.palette.base06, "Light Foreground"),
+        ("base07", &theme.palette.base07, "Light Background"),
+        ("base08", &theme.palette.base08, "Red"),
+        ("base09", &theme.palette.base09, "Orange"),
+        ("base0A", &theme.palette.base0a, "Yellow"),
+        ("base0B", &theme.palette.base0b, "Green"),
+        ("base0C", &theme.palette.base0c, "Cyan"),
+        ("base0D", &theme.palette.base0d, "Blue"),
+        ("base0E", &theme.palette.base0e, "Purple"),
+        ("base0F", &theme.palette.base0f, "Brown"),
+    ];
+    
+    for (name, color, description) in palette_colors {
+        if let Some(color_value) = color {
+            println!("  {}: {} ({})", name.cyan(), color_value, description.dimmed());
+        }
+    }
+    
+    println!("\nSemantic mappings:");
+    println!("  background: {}", theme.semantic.background.cyan());
+    println!("  foreground: {}", theme.semantic.foreground.cyan());
+    println!("  primary: {}", theme.semantic.primary.cyan());
+    println!("  accent: {}", theme.semantic.accent.cyan());
+    println!("  success: {}", theme.semantic.success.cyan());
+    println!("  warning: {}", theme.semantic.warning.cyan());
+    println!("  error: {}", theme.semantic.error.cyan());
+    
+    Ok(())
+}
+
+/// Validate a theme file
+pub fn theme_validate(file_path: &str, json: bool) -> Result<()> {
+    let loader = ThemeLoader::new();
+    let path = Path::new(file_path);
+    
+    if !path.exists() {
+        bail!("Theme file not found: {}", file_path);
+    }
+    
+    match loader.load_theme_from_file(path) {
+        Ok(theme) => {
+            if json {
+                println!("{}", serde_json::json!({
+                    "status": "valid",
+                    "theme": theme.scheme,
+                    "message": "Theme file is valid"
+                }));
+            } else {
+                println!("✓ Theme file is valid: {}", theme.scheme.cyan());
+                if let Some(name) = &theme.name {
+                    println!("  Name: {}", name);
+                }
+                println!("  System: {:?}", theme.system);
+            }
+        }
+        Err(e) => {
+            if json {
+                println!("{}", serde_json::json!({
+                    "status": "invalid",
+                    "error": e.to_string()
+                }));
+            } else {
+                println!("✗ Theme file is invalid: {}", e.to_string().red());
+            }
+            return Err(e);
+        }
+    }
+    
+    Ok(())
+}
+
+/// Generate CSS from current theme (debug command)
+pub fn theme_generate_css(json: bool) -> Result<()> {
+    let config = get_config();
+    let theme = config.get_theme()?;
+    
+    if json {
+        println!("{}", serde_json::json!({
+            "css": theme.generate_css_theme()
+        }));
+    } else {
+        println!("{}", theme.generate_css_theme());
     }
     
     Ok(())

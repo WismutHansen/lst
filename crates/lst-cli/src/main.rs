@@ -5,7 +5,7 @@ use lst_cli::{config, models, storage};
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{AuthCommands, CategoryCommands, Cli, Commands, GuiCommands, ImageCommands, NoteCommands, ServerCommands};
+use cli::{AuthCommands, CategoryCommands, Cli, Commands, GuiCommands, ImageCommands, NoteCommands, ServerCommands, ThemeCommands};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -180,6 +180,23 @@ async fn main() -> Result<()> {
             }
             ServerCommands::Delete { kind, path } => {
                 cli::commands::server_delete(kind, path, cli.json).await?;
+            }
+        },
+        Commands::Themes(theme_cmd) => match theme_cmd {
+            ThemeCommands::List { verbose } => {
+                cli::commands::theme_list(*verbose, cli.json)?;
+            }
+            ThemeCommands::Current => {
+                cli::commands::theme_current(cli.json)?;
+            }
+            ThemeCommands::Apply { theme } => {
+                cli::commands::theme_apply(theme, cli.json)?;
+            }
+            ThemeCommands::Info { theme } => {
+                cli::commands::theme_info(theme, cli.json)?;
+            }
+            ThemeCommands::Validate { file } => {
+                cli::commands::theme_validate(file, cli.json)?;
             }
         },
     }

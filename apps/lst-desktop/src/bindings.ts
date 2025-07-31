@@ -164,8 +164,32 @@ async renameCategory(listName: string, oldName: string, newName: string) : Promi
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async getCurrentTheme() : Promise<Result<ThemeData, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_current_theme") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async applyTheme(themeName: string) : Promise<Result<ThemeData, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("apply_theme", { themeName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async listThemes() : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_themes") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
 }
 }
+};
 
 /** user-defined events **/
 
@@ -243,6 +267,7 @@ status: ItemStatus;
 anchor: string }
 export type Note = { title: string; content: string; created: string | null; file_path: string }
 export type ThemeConfig = { vars?: Partial<{ [key in string]: string }> }
+export type ThemeData = { css_variables: string; scheme: string; name: string | null; variant: string | null }
 export type UiConfig = { resolution_order?: string[]; 
 /**
  * Enable Vim-like keybindings in the frontend

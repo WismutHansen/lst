@@ -1,5 +1,60 @@
 # TODO List for lst Project
 
+## 🎨 Tinted Theming Implementation (NEW)
+
+### Phase 1: Core Infrastructure
+- [x] Extend `lst-core` config parsing to handle `[theme]` section
+- [x] Create theme data structures (Theme, Palette, SemanticMapping)
+- [x] Implement theme validation and error handling
+- [x] Add theme inheritance system (base themes + overrides)
+- [x] Create built-in theme templates (base16-default-dark, base16-default-light, etc.)
+- [x] Implement theme file discovery (built-in + user themes)
+- [x] Create theme loader with inheritance support
+- [ ] Add theme caching for performance
+- [ ] Implement theme file watching for hot reloading
+- [ ] Add theme validation and error reporting
+
+### Phase 2: CLI Commands
+- [x] Add `lst themes list` command
+- [x] Add `lst themes current` command  
+- [x] Add `lst themes apply <theme-name>` command
+- [x] Add `lst themes validate <theme-file>` command
+- [x] Add `lst themes info <theme-name>` command
+
+### Phase 3: Frontend Integration
+- [ ] Create CSS custom properties generator from theme data
+- [ ] Implement semantic color mapping (background, foreground, primary, etc.)
+- [ ] Add CSS variable injection system for desktop app
+- [ ] Update index.css to use CSS custom properties (desktop)
+- [ ] Update index.css to use CSS custom properties (mobile)
+- [ ] Replace hardcoded hex colors with CSS variables (desktop App.tsx)
+- [ ] Replace hardcoded hex colors with CSS variables (mobile App.tsx)
+- [ ] Implement theme provider in React context
+- [ ] Add theme switching UI components
+- [ ] Update Tailwind config to use theme colors
+
+### Phase 4: Mobile-Specific Features
+- [ ] Create SQLite theme storage schema
+- [ ] Implement theme CRUD operations in mobile database
+- [ ] Add theme sync capability with server
+- [ ] Create React Native theme context provider
+- [ ] Add system theme detection (light/dark mode)
+
+### Phase 5: Advanced Features
+- [ ] Create Tinty template repository for lst
+- [ ] Add Tinty hook support in configuration
+- [ ] Implement theme file generation for Tinty
+- [ ] Add environment variable support for theme data
+- [ ] Test Tinty integration workflow
+- [ ] Add theme import/export functionality
+- [ ] Create custom theme creation wizard
+- [ ] Add system theme detection (macOS/Linux)
+- [ ] Implement automatic light/dark mode switching
+
+**Progress**: 12/29 tasks complete (41%)
+
+---
+
 ## Core Infrastructure
 
 - [x] Set up Rust project structure with Cargo

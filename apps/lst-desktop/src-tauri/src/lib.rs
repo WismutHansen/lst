@@ -397,7 +397,10 @@ pub fn run() {
             move_item_to_category,
             delete_category,
             get_categories,
-            rename_category
+            rename_category,
+            theme::get_current_theme,
+            theme::apply_theme,
+            theme::list_themes
         ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
@@ -449,7 +452,10 @@ pub fn run() {
             move_item_to_category,
             delete_category,
             get_categories,
-            rename_category
+            rename_category,
+            theme::get_current_theme,
+            theme::apply_theme,
+            theme::list_themes
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -161,6 +161,10 @@ pub enum Commands {
     /// Server content management commands
     #[clap(subcommand, name = "server")]
     Server(ServerCommands),
+
+    /// Theme management commands
+    #[clap(subcommand, name = "themes")]
+    Themes(ThemeCommands),
 }
 
 #[derive(Subcommand)]
@@ -456,5 +460,42 @@ pub enum ServerCommands {
         kind: String,
         /// Path of the content (e.g., "example.md")
         path: String,
+    },
+}
+
+/// Theme management subcommands
+#[derive(Subcommand)]
+pub enum ThemeCommands {
+    /// List all available themes
+    #[clap(name = "list")]
+    List {
+        /// Show detailed information about each theme
+        #[clap(short, long)]
+        verbose: bool,
+    },
+
+    /// Show information about the current theme
+    #[clap(name = "current")]
+    Current,
+
+    /// Apply a theme
+    #[clap(name = "apply")]
+    Apply {
+        /// Name of the theme to apply
+        theme: String,
+    },
+
+    /// Show detailed information about a theme
+    #[clap(name = "info")]
+    Info {
+        /// Name of the theme to show info for
+        theme: String,
+    },
+
+    /// Validate a theme file
+    #[clap(name = "validate")]
+    Validate {
+        /// Path to the theme file to validate
+        file: String,
     },
 }

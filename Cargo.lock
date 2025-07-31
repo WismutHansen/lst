@@ -3368,6 +3368,7 @@ dependencies = [
  "axum",
  "chrono",
  "lst-cli",
+ "lst-core",
  "lst-proto",
  "serde",
  "serde_json",

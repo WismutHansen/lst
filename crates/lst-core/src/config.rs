@@ -4,6 +4,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::theme::{Theme, ThemeLoader};
+
 /// Configuration for the lst application
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "tauri", derive(Type))]
@@ -16,6 +18,9 @@ pub struct Config {
     pub paths: PathsConfig,
     #[serde(default)]
     pub server: ServerConfig,
+    // New tinted theming system
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme: Option<Theme>,
     // Syncd-specific configuration (optional)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub syncd: Option<SyncdConfig>,
@@ -28,9 +33,10 @@ pub struct Config {
 #[cfg(feature = "tauri")]
 use specta::Type;
 
+// Legacy theme config for backwards compatibility
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "tauri", derive(Type))]
-pub struct ThemeConfig {
+pub struct LegacyThemeConfig {
     #[serde(default)]
     pub vars: BTreeMap<String, String>,
 }
@@ -49,8 +55,9 @@ pub struct UiConfig {
     #[serde(default = "default_leader_key")]
     pub leader_key: String,
 
+    // Legacy theme config for backwards compatibility
     #[serde(default)]
-    pub theme: ThemeConfig,
+    pub theme: LegacyThemeConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -146,7 +153,7 @@ impl Default for Config {
                 resolution_order: default_resolution_order(),
                 vim_mode: false,
                 leader_key: default_leader_key(),
-                theme: ThemeConfig::default(),
+                theme: LegacyThemeConfig::default(),
             },
             fuzzy: FuzzyConfig {
                 threshold: default_threshold(),
@@ -158,6 +165,7 @@ impl Default for Config {
                 kinds: None,
             },
             server: ServerConfig::default(),
+            theme: None,
             syncd: None,
             storage: None,
             sync: None,
@@ -171,7 +179,7 @@ impl Default for UiConfig {
             resolution_order: default_resolution_order(),
             vim_mode: false,
             leader_key: default_leader_key(),
-            theme: ThemeConfig::default(),
+            theme: LegacyThemeConfig::default(),
         }
     }
 }
@@ -350,6 +358,33 @@ impl Config {
         } else {
             None
         }
+    }
+
+    /// Get the current theme, loading default if none specified
+    pub fn get_theme(&self) -> Result<Theme> {
+        if let Some(ref theme) = self.theme {
+            Ok(theme.clone())
+        } else {
+            // Load default theme
+            let loader = ThemeLoader::new();
+            loader.load_theme("base16-default-dark")
+        }
+    }
+
+    /// Set the current theme
+    pub fn set_theme(&mut self, theme: Theme) {
+        self.theme = Some(theme);
+    }
+
+    /// Load theme by name
+    pub fn load_theme_by_name(&self, name: &str) -> Result<Theme> {
+        let loader = ThemeLoader::new();
+        loader.load_theme(name)
+    }
+
+    /// Get theme loader
+    pub fn get_theme_loader(&self) -> ThemeLoader {
+        ThemeLoader::new()
     }
 }
 

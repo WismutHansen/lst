@@ -35,6 +35,7 @@ chrono = { workspace = true }
 # Internal dependencies
 lst-proto = { path = "../../../crates/lst-proto", version = "0.1.3" }
 lst-cli = { path = "../../../crates/lst-cli/", version = "0.1.3" }
+lst-core = { path = "../../../crates/lst-core", version = "0.1.3" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # Wayland support
