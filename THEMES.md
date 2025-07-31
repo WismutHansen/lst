@@ -12,6 +12,22 @@ The theming system is built around the [Base16](https://github.com/tinted-themin
 - **Optional Tinty integration** for centralized theme management
 - **Semantic color mapping** for maintainable theme definitions
 
+## Current Implementation Status
+
+✅ **Fully Implemented:**
+- Core theme system in `lst-core` with base16/base24 support
+- CLI theme commands (`lst theme list`, `lst theme apply`, etc.)
+- Desktop app theme integration with live switching
+- Mobile app theme integration with Settings panel
+- CSS custom properties system for dynamic theming
+- Built-in themes (Catppuccin, Gruvbox, Nord, Solarized, etc.)
+
+🚧 **Planned Features:**
+- Tinty integration for centralized theme management
+- User theme directory support
+- Theme file discovery and validation
+- Advanced theme inheritance and overrides
+
 ## Configuration Structure
 
 ### Basic Theme Configuration
@@ -135,11 +151,43 @@ foreground = "base05"
 
 The application ships with several built-in themes:
 
-- `base16-default-dark` - Default dark theme
-- `base16-default-light` - Default light theme  
-- `base16-terminal` - Uses terminal colors (for terminal compatibility)
-- `catppuccin-mocha` - Popular dark theme
-- `catppuccin-latte` - Popular light theme
+- `catppuccin-mocha` - Popular dark theme with warm, muted colors
+- `catppuccin-latte` - Popular light theme with soft, pastel colors
+- `gruvbox-dark` - Earthy dark theme with high contrast
+- `gruvbox-light` - Light variant of the gruvbox theme
+- `nord` - Cool, arctic-inspired color palette
+- `solarized-dark` - Classic dark theme with balanced contrast
+- `solarized-light` - Light variant of the solarized theme
+
+### Theme Usage
+
+**CLI Commands:**
+```bash
+# List all available themes
+lst theme list
+
+# Apply a theme
+lst theme apply catppuccin-mocha
+
+# Show current theme information
+lst theme current
+
+# Get detailed theme information
+lst theme info gruvbox-dark
+
+# Validate a theme file
+lst theme validate path/to/theme.toml
+```
+
+**Desktop App:**
+- Theme selector in the sidebar for instant switching
+- Live preview of theme changes
+- No restart required
+
+**Mobile App:**
+- Theme selector in Settings panel
+- Bottom sheet interface for mobile-friendly selection
+- Immediate theme application
 
 ## Tinty Integration
 
@@ -362,16 +410,19 @@ When using Tinty hooks, the following environment variables are available:
 
 ```bash
 # List available themes
-lst themes list
+lst theme list
 
 # Show current theme
-lst themes current
+lst theme current
+
+# Get detailed theme information
+lst theme info theme-name
 
 # Validate theme file
-lst themes validate path/to/theme.toml
+lst theme validate path/to/theme.toml
 
-# Test theme application
-lst themes apply theme-name --dry-run
+# Apply a theme
+lst theme apply theme-name
 ```
 
 ## Resources

@@ -24,6 +24,7 @@ This file provides guidance to humans and AI Agents when working with code in th
 - **Sync**: CRDT-based encrypted sync to server for multi-device support
 - **Structure**: Workspace with CLI, server, desktop/mobile Tauri apps, protocol crates
 - **Frontend**: React + TypeScript + Tailwind + Radix UI + CodeMirror for editing
+- **Theming**: Comprehensive base16/base24 theme system across all applications
 
 ### Testing
 
@@ -70,4 +71,35 @@ This project uses Tauri Specta for automatic TypeScript generation from Rust typ
    - Custom types must derive `Type`
 
 5. **Code Generation**: TypeScript bindings are automatically generated to `src/bindings.ts` during development builds, providing full type safety for frontend API calls.
+
+### Theme System
+
+The project includes a comprehensive theming system with the following components:
+
+#### Core Theme System (`lst-core/src/theme.rs`)
+- **Base16/Base24 support**: Standard color specifications for consistent theming
+- **Built-in themes**: Catppuccin, Gruvbox, Nord, Solarized, and more
+- **Theme inheritance**: Support for theme variants and overrides
+- **CSS generation**: Automatic CSS custom properties generation
+
+#### CLI Theme Commands
+```bash
+lst theme list          # List available themes
+lst theme apply <name>  # Apply a theme
+lst theme current       # Show current theme
+lst theme info <name>   # Get theme details
+lst theme validate <file> # Validate theme file
+```
+
+#### Frontend Integration
+- **Desktop**: Theme selector in sidebar with live switching
+- **Mobile**: Theme selector in Settings panel with bottom sheet UI
+- **CSS Custom Properties**: Dynamic color injection without restart
+- **React Hooks**: `useTheme` hook for theme state management
+
+#### Implementation Notes
+- Theme commands must be registered in both `collect_commands!` and `invoke_handler!` macros
+- Theme data types must derive `specta::Type` for TypeScript generation
+- CSS variables are injected at runtime via `applyThemeToDOM` function
+- Hardcoded colors should be replaced with CSS custom properties
 

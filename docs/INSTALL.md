@@ -30,6 +30,19 @@ This guide explains how to install **lst**, the personal lists & notes applicati
    lst --help
    ```
 
+4. Explore the theme system:
+
+   ```bash
+   # List available themes
+   lst theme list
+   
+   # Apply a theme
+   lst theme apply catppuccin-mocha
+   
+   # View current theme
+   lst theme current
+   ```
+
 ## Running the Server
 
 The repository also contains a small API server. To build and run it:
@@ -47,11 +60,34 @@ mkdir -p ~/.config/lst
 cp examples/lst.toml ~/.config/lst/lst.toml
 ```
 
-Edit `~/.config/lst/lst.toml` to customize content directories or server settings.
+Edit `~/.config/lst/lst.toml` to customize content directories, server settings, and themes:
 
-For more details on configuration options see the [README](README.md).
+```toml
+[theme]
+# Set your preferred theme
+name = "catppuccin-mocha"
 
-## Building the Mobile App
+# Override specific colors if desired
+[theme.vars]
+primary = "#a6e3a1"
+```
+
+For more details on configuration options see the [README](../README.md) and [THEMES.md](../THEMES.md).
+
+## Building the Desktop and Mobile Apps
+
+Both desktop and mobile Tauri applications include full theme support with live switching capabilities.
+
+### Desktop App
+
+```bash
+cd apps/lst-desktop
+bun install
+bun tauri dev  # Development mode
+bun tauri build  # Production build
+```
+
+### Mobile App
 
 The mobile Tauri project requires several GTK development libraries when building on Linux so that `cargo check` can succeed. On Ubuntu-based systems install them with:
 
@@ -63,6 +99,18 @@ sudo apt-get install -y libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev
 With the dependencies in place you can run the standard commands:
 
 ```bash
-cargo fmt --manifest-path apps/lst-mobile/src-tauri/Cargo.toml
+cd apps/lst-mobile
+bun install
+cargo fmt --manifest-path src-tauri/Cargo.toml
 cargo check -p lst-mobile --message-format=short
+
+# For mobile development
+cargo tauri android dev  # Android
+cargo tauri ios dev      # iOS
 ```
+
+Both applications feature:
+- **Complete theme integration** with the same themes as the CLI
+- **Live theme switching** without restart
+- **Mobile-optimized theme selector** (mobile app)
+- **Sidebar theme selector** (desktop app)

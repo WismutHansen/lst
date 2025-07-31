@@ -344,7 +344,10 @@ pub fn run() {
             request_auth_token,
             verify_auth_token,
             toggle_sync,
-            test_sync_connection
+            test_sync_connection,
+            theme::get_current_theme,
+            theme::apply_theme,
+            theme::list_themes
         ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
@@ -441,7 +444,10 @@ pub fn run() {
             request_auth_token,
             verify_auth_token,
             toggle_sync,
-            test_sync_connection
+            test_sync_connection,
+            theme::get_current_theme,
+            theme::apply_theme,
+            theme::list_themes
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

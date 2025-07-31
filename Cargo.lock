@@ -3418,6 +3418,7 @@ dependencies = [
  "keyring",
  "lazy_static",
  "lst-cli",
+ "lst-core",
  "lst-proto",
  "notify",
  "r2d2",

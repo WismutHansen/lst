@@ -6,6 +6,7 @@ import { CommandPalette, PaletteCommand } from "./components/CommandPalette";
 import { MobileNotesPanel } from "./components/MobileNotesPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { SyncStatusIndicator } from "./components/SyncStatusIndicator";
+import { MobileThemeSelector } from "./components/MobileThemeSelector";
 import { Folder as FolderIcon, List as ListIcon, FileText, Clipboard, Settings, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -662,12 +663,12 @@ export default function App() {
     return (
       <div
         className="absolute left-0 top-[40px] z-20 w-full rounded-lg border overflow-y-auto"
-        style={{ backgroundColor: "#45475a", border: "1px solid #494D51" }}
+        style={{ backgroundColor: "var(--muted)", border: "1px solid var(--border)" }}
       >
         {filtered.map((item, idx) => (
           <div
             key={item}
-            className={`cursor-pointer px-3 py-2 text-xs ${idx === selectedIndex ? "bg-[#6c7086]" : ""
+            className={`cursor-pointer px-3 py-2 text-xs ${idx === selectedIndex ? "bg-muted-foreground/20" : ""
               }`}
             onMouseDown={() => loadList(item)}
           >
@@ -685,7 +686,7 @@ export default function App() {
     return (
       <div
         className="mb-6 w-full h-full rounded-lg border p-4"
-        style={{ backgroundColor: "#1e1e2e", border: "1px solid #494D51" }}
+        style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
       >
         {/* header row */}
         {/* <div className="flex items-center gap-4"> */}
@@ -745,9 +746,9 @@ export default function App() {
                     dragIndex.current = null;
                   }}
                   className={`text-[10pt]/4 flex items-center border-b min-h-10 py-2 mb-0 px-1 ${vimMode && mode === "normal" && idx === cursorIndex
-                    ? "border-b  border-[#a6e3a1]"
+                    ? "border-b border-primary"
                     : ""
-                    } ${selected.has(it.anchor) ? "bg-[#a6e3a1] text-black" : ""}`}
+                    } ${selected.has(it.anchor) ? "bg-primary text-primary-foreground" : ""}`}
                 >
                   <Checkbox
                     className="h-4 w-4 hidden"
@@ -789,8 +790,8 @@ export default function App() {
             {(currentList.categories ?? []).map((category) => (
               <div key={category.name} className="mt-4">
                 {/* Category header */}
-                <div className="flex items-center gap-2 mb-2 pb-1 border-b border-[#494D51]">
-                  <h3 className="text-sm font-semibold text-[#a6e3a1]">{category.name}</h3>
+                <div className="flex items-center gap-2 mb-2 pb-1 border-b border-border">
+                  <h3 className="text-sm font-semibold text-primary">{category.name}</h3>
                   <span className="text-xs text-muted-foreground">({category.items.length})</span>
                 </div>
 
@@ -849,9 +850,9 @@ export default function App() {
                         dragIndex.current = null;
                       }}
                       className={`text-[10pt]/4 flex items-center border-b min-h-10 py-2 mb-0 px-1 ${vimMode && mode === "normal" && globalIdx === cursorIndex
-                        ? "border-b  border-[#a6e3a1]"
+                        ? "border-b border-primary"
                         : ""
-                        } ${selected.has(it.anchor) ? "bg-[#a6e3a1] text-black" : ""}`}
+                        } ${selected.has(it.anchor) ? "bg-primary text-primary-foreground" : ""}`}
                     >
                       <Checkbox
                         className="h-4 w-4 hidden"
@@ -874,7 +875,7 @@ export default function App() {
 
             {/* quick-add form */}
             <form className={`flex gap-2 border-b ${vimMode && mode === "normal" && cursorIndex === getAllItems(currentList).length
-              ? "border-b border-[#a6e3a1]"
+              ? "border-b border-primary"
               : ""
               }`} onSubmit={quickAddItem}>
               <Input
@@ -903,7 +904,7 @@ export default function App() {
   function renderSidebar() {
     if (sidebarCollapsed) {
       return (
-        <aside className="hidden sm:flex w-12 flex-col gap-4 rounded-l-lg border-r border-[#494D51] bg-background p-4 min-w-0 shrink-0">
+        <aside className="hidden sm:flex w-12 flex-col gap-4 rounded-l-lg border-r border-border bg-background p-4 min-w-0 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Button
@@ -937,11 +938,11 @@ export default function App() {
           node.isList && node.path === currentName
             ? "bg-muted font-medium"
             : highlighted
-              ? "bg-[#6c7086]"
+              ? "bg-muted-foreground/20"
               : "hover:bg-muted";
 
         const folderClasses =
-          highlighted ? "bg-[#4e5464]" : "hover:bg-blue-100";
+          highlighted ? "bg-muted-foreground/10" : "hover:bg-muted/50";
 
         return [
           <div
@@ -964,7 +965,7 @@ export default function App() {
       });
 
     const sidebarContent = (
-      <aside className="flex w-64 pl-2 flex-col gap-4 rounded-l-lg border-r border-[#494D51] bg-background p-4 min-w-0">
+      <aside className="flex w-64 pl-2 flex-col gap-4 rounded-l-lg border-r border-border bg-background p-4 min-w-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Button
@@ -1053,7 +1054,7 @@ export default function App() {
   return (
     <div
       className="flex min-h-screen border border-border bg-background text-foreground min-w-0 w-full"
-      style={{ borderRadius: "0px", backgroundColor: "#24273a" }}
+      style={{ borderRadius: "0px", backgroundColor: "var(--background)" }}
     >
       {renderSidebar()}
 
@@ -1153,7 +1154,7 @@ export default function App() {
       </main>
       {/* Status bar */}
       <div
-        className="fixed bottom-0 left-0 right-0 h-5 border border-border bg-[#181921] text-xs flex items-center px-2 rounded-b-lg"
+        className="fixed bottom-0 left-0 right-0 h-5 border border-border bg-card text-xs flex items-center px-2 rounded-b-lg"
       >
         <span className="text-muted-foreground truncate pr-4">
           lst {currentList ? `- ${currentList.title}.md` : ""}

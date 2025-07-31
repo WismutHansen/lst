@@ -18,9 +18,11 @@ import {
   Shield,
   Smartphone,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  Palette
 } from "lucide-react";
 import { commands } from "../bindings";
+import { MobileThemeSelector } from "./MobileThemeSelector";
 
 interface SyncConfig {
   serverUrl: string;
@@ -419,6 +421,25 @@ export function SettingsPanel() {
               </Button>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Theme Configuration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Palette className="w-4 h-4" />
+            Theme
+          </CardTitle>
+          <CardDescription>
+            Choose your preferred color theme
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label>Current Theme</Label>
+            <MobileThemeSelector />
+          </div>
         </CardContent>
       </Card>
 

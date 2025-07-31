@@ -2,6 +2,17 @@
 
 This document explains how to run, test, and build the Tauri mobile app for both iOS and Android.
 
+## Features
+
+The mobile app includes all core lst functionality optimized for mobile devices:
+
+- **Lists and Notes**: Full CRUD operations with touch-optimized interface
+- **Offline-first**: SQLite storage for complete offline functionality
+- **Sync Integration**: Real-time synchronization with lst-server
+- **Theme System**: Comprehensive theming with mobile-friendly theme selector
+- **Settings Panel**: Complete configuration including sync setup and theme selection
+- **Touch Gestures**: Mobile-optimized interactions and navigation
+
 ## Prerequisites
 
 - Rust toolchain with `cargo`
@@ -75,4 +86,32 @@ cargo tauri ios dev
    ```
 
 3. In Xcode choose your physical device and press **Run**. Signing requires a valid developer account.
+
+## Mobile-Specific Features
+
+### Theme System
+
+The mobile app includes a comprehensive theme system:
+
+- **Mobile-optimized selector**: Bottom sheet interface for easy theme selection
+- **Settings integration**: Access themes through the Settings panel
+- **Real-time switching**: Themes apply immediately without app restart
+- **Touch-friendly**: Large buttons and intuitive mobile interface
+- **Consistent experience**: Same themes as desktop with mobile-optimized UI
+
+### Sync Configuration
+
+The mobile app provides a complete sync setup flow:
+
+- **Email authentication**: Token-based authentication with email verification
+- **Server configuration**: Easy setup of sync server connection
+- **Status monitoring**: Real-time sync status and error reporting
+- **Offline capability**: Full functionality when disconnected
+
+### Storage Architecture
+
+- **SQLite database**: Local storage for all data (lists, notes, sync state)
+- **CRDT synchronization**: Conflict-free replication for multi-device editing
+- **Encrypted sync**: End-to-end encryption for server communication
+- **Efficient queries**: Optimized database schema for mobile performance
 

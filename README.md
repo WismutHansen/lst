@@ -240,6 +240,7 @@ lst server delete notes "example.md"
 - **Tauri apps**: Optional desktop and mobile front‑ends built with Tauri
 - **MCP Integration**: Model Context Protocol server for AI assistant integration
 - **Live Updates**: Real-time GUI updates when using CLI commands
+- **Theming System**: Comprehensive theme support with base16/base24 color schemes across all applications
 
 ## Usage
 
@@ -357,6 +358,61 @@ lst sync stop
 lst sync logs --follow
 ```
 
+### Themes
+
+`lst` includes a comprehensive theming system that supports base16 and base24 color schemes across all applications (CLI, desktop, and mobile).
+
+```bash
+# List available themes
+lst theme list
+
+# Apply a theme
+lst theme apply <theme_name>
+
+# Show current theme information
+lst theme current
+
+# Get detailed theme information
+lst theme info <theme_name>
+
+# Validate a theme file
+lst theme validate <theme_file>
+```
+
+#### Built-in Themes
+
+The system includes several built-in themes:
+- **catppuccin-mocha**: Dark theme with warm, muted colors
+- **catppuccin-latte**: Light theme with soft, pastel colors
+- **gruvbox-dark**: Popular dark theme with earthy tones
+- **gruvbox-light**: Light variant of the gruvbox theme
+- **nord**: Cool, arctic-inspired color palette
+- **solarized-dark**: Classic dark theme with balanced contrast
+- **solarized-light**: Light variant of the solarized theme
+
+#### Theme Configuration
+
+Themes can be configured in your `lst.toml` file:
+
+```toml
+[theme]
+# Set the active theme
+name = "catppuccin-mocha"
+
+# Override specific colors
+[theme.vars]
+primary = "#a6e3a1"
+background = "#1e1e2e"
+```
+
+#### Desktop and Mobile Apps
+
+Both desktop and mobile applications support real-time theme switching:
+- **Desktop**: Theme selector in the sidebar
+- **Mobile**: Theme selector in the Settings panel
+- **Live Updates**: Theme changes apply immediately without restart
+- **Consistent Experience**: Same themes work across all platforms
+
 ## Configuration
 
 `lst` uses a unified TOML configuration file located at `~/.config/lst/lst.toml` that is shared across all components (CLI, server, sync daemon). You can override the config file location by setting the `LST_CONFIG` environment variable.
@@ -393,6 +449,26 @@ auth_token = "your-auth-token"
 # Order in which to try different methods when resolving item targets
 # Valid values: "anchor", "exact", "fuzzy", "index", "interactive"
 resolution_order = ["anchor", "exact", "fuzzy", "index", "interactive"]
+
+# Enable Vim-like keybindings in the frontend applications
+vim_mode = false
+
+# Leader key used for command sequences (defaults to space)
+leader_key = " "
+```
+
+#### Theme Configuration
+
+```toml
+[theme]
+# Active theme name (use 'lst theme list' to see available themes)
+name = "catppuccin-mocha"
+
+# Override specific theme colors
+[theme.vars]
+primary = "#a6e3a1"
+background = "#1e1e2e"
+foreground = "#cdd6f4"
 ```
 
 #### Fuzzy Matching Configuration
@@ -533,6 +609,7 @@ The `lst` project follows a modular architecture with clear separation of concer
    - Storage layer for markdown files and notes
    - Configuration management
    - Core command implementations
+   - Theme system with base16/base24 support
    - No UI dependencies - lightweight and reusable
 
 2. **`lst-cli`** - Command-line interface
@@ -563,11 +640,13 @@ The `lst` project follows a modular architecture with clear separation of concer
    - Cross-platform GUI built with React + TypeScript
    - Real-time updates from CLI changes
    - Rich text editing with CodeMirror
+   - Integrated theme system with live switching
 
 7. **`lst-mobile`** - Tauri mobile application
    - Mobile-optimized interface
    - SQLite storage for offline capability
    - Touch-friendly UI components
+   - Mobile-friendly theme selector in Settings
 
 ### Architecture Benefits
 

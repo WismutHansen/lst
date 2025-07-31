@@ -220,6 +220,30 @@ async testSyncConnection() : Promise<Result<string, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async getCurrentTheme() : Promise<Result<ThemeData, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_current_theme") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async applyTheme(themeName: string) : Promise<Result<ThemeData, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("apply_theme", { themeName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async listThemes() : Promise<Result<string[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_themes") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -301,6 +325,7 @@ export type Note = { title: string; content: string; created: string | null; fil
 export type SyncConfig = { server_url: string; email: string; device_id: string; sync_enabled: boolean; sync_interval: number; encryption_enabled: boolean }
 export type SyncStatus = { connected: boolean; last_sync: string | null; pending_changes: number; error: string | null }
 export type ThemeConfig = { vars?: Partial<{ [key in string]: string }> }
+export type ThemeData = { css_variables: string; scheme: string; name: string | null; variant: string | null }
 export type UiConfig = { resolution_order?: string[]; 
 /**
  * Enable Vim-like keybindings in the frontend
