@@ -48,7 +48,8 @@ pub fn apply_theme(theme_name: String) -> Result<ThemeData, String> {
 #[tauri::command]
 #[specta::specta]
 pub fn list_themes() -> Result<Vec<String>, String> {
-    let loader = lst_core::theme::ThemeLoader::new();
+    let config = get_config();
+    let loader = config.get_theme_loader();
     Ok(loader.list_themes())
 }
 

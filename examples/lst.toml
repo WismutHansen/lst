@@ -60,6 +60,10 @@ media_dir = "media"
 # Document types to recognize
 kinds = ["lists", "notes", "posts"]
 
+# Directory containing theme files (defaults to ~/.config/themes)
+# Supports tinty-compatible base16/base24 theme structure
+# themes_dir = "~/my-custom-themes"
+
 # =============================================================================
 # Server Connection (Client-side configuration)
 # =============================================================================

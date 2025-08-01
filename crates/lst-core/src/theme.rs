@@ -139,6 +139,7 @@ pub struct ThemeOverrides {
 pub struct Theme {
     #[serde(default)]
     pub system: ThemeSystem,
+    #[serde(default)]
     pub scheme: String,
     #[serde(default)]
     pub palette: ThemePalette,
@@ -317,14 +318,27 @@ pub struct ThemeLoader {
 
 impl ThemeLoader {
     pub fn new() -> Self {
+        Self::with_config(None)
+    }
+    
+    pub fn with_config(themes_dir: Option<PathBuf>) -> Self {
         let mut loader = Self {
             theme_dirs: Vec::new(),
             built_in_themes: BTreeMap::new(),
         };
         
-        // Add default theme directories
-        if let Some(config_dir) = dirs::config_dir() {
-            loader.theme_dirs.push(config_dir.join("lst").join("themes"));
+        // Add configured themes directory or default
+        if let Some(themes_dir) = themes_dir {
+            loader.theme_dirs.push(themes_dir);
+        } else {
+            // Default to ~/.config/themes (tinty compatible)
+            if let Some(home_dir) = dirs::home_dir() {
+                loader.theme_dirs.push(home_dir.join(".config").join("themes"));
+            }
+            // Also check system config directory for backwards compatibility
+            if let Some(config_dir) = dirs::config_dir() {
+                loader.theme_dirs.push(config_dir.join("lst").join("themes"));
+            }
         }
         
         // Load built-in themes
@@ -347,13 +361,38 @@ impl ThemeLoader {
         
         // Search theme directories
         for theme_dir in &self.theme_dirs {
-            let theme_path = theme_dir.join(format!("{}.toml", name));
-            if theme_path.exists() {
-                return self.load_theme_from_file(&theme_path);
+            // Try legacy .toml format first
+            let toml_path = theme_dir.join(format!("{}.toml", name));
+            if toml_path.exists() {
+                return self.load_theme_from_file(&toml_path);
+            }
+            
+            // Try tinty-compatible format: base16-theme-name or base24-theme-name
+            if let Some((system, theme_name)) = self.parse_theme_name(name) {
+                let yaml_path = theme_dir.join(&system).join(format!("{}.yaml", theme_name));
+                if yaml_path.exists() {
+                    return self.load_theme_from_yaml_file(&yaml_path, name);
+                }
+                
+                let yml_path = theme_dir.join(&system).join(format!("{}.yml", theme_name));
+                if yml_path.exists() {
+                    return self.load_theme_from_yaml_file(&yml_path, name);
+                }
             }
         }
         
         anyhow::bail!("Theme '{}' not found", name);
+    }
+    
+    /// Parse theme name to extract system (base16/base24) and theme name
+    fn parse_theme_name(&self, name: &str) -> Option<(String, String)> {
+        if let Some(rest) = name.strip_prefix("base16-") {
+            Some(("base16".to_string(), rest.to_string()))
+        } else if let Some(rest) = name.strip_prefix("base24-") {
+            Some(("base24".to_string(), rest.to_string()))
+        } else {
+            None
+        }
     }
     
     /// Load theme from a specific file
@@ -382,6 +421,35 @@ impl ThemeLoader {
         Ok(theme)
     }
     
+    /// Load theme from a YAML file (tinty format)
+    pub fn load_theme_from_yaml_file<P: AsRef<Path>>(&self, path: P, theme_name: &str) -> Result<Theme> {
+        let content = std::fs::read_to_string(&path)
+            .with_context(|| format!("Failed to read theme file: {}", path.as_ref().display()))?;
+        
+        let mut theme: Theme = serde_yaml::from_str(&content)
+            .with_context(|| format!("Failed to parse YAML theme file: {}", path.as_ref().display()))?;
+        
+        // Set the scheme name to match the requested theme name
+        theme.scheme = theme_name.to_string();
+        
+        // Apply inheritance if specified
+        if let Some(ref parent_name) = theme.inherits.clone() {
+            let parent_theme = self.load_theme(parent_name)
+                .with_context(|| format!("Failed to load parent theme: {}", parent_name))?;
+            theme = self.merge_themes(parent_theme, theme)?;
+        }
+        
+        // Apply overrides
+        if let Some(ref overrides) = theme.overrides.clone() {
+            theme = self.apply_overrides(theme, overrides)?;
+        }
+        
+        // Validate theme
+        self.validate_theme(&theme)?;
+        
+        Ok(theme)
+    }
+    
     /// List all available themes
     pub fn list_themes(&self) -> Vec<String> {
         let mut themes = Vec::new();
@@ -391,6 +459,7 @@ impl ThemeLoader {
         
         // Add themes from directories
         for theme_dir in &self.theme_dirs {
+            // Check for direct theme files (legacy .toml format)
             if let Ok(entries) = std::fs::read_dir(theme_dir) {
                 for entry in entries.flatten() {
                     if let Some(name) = entry.file_name().to_str() {
@@ -398,6 +467,24 @@ impl ThemeLoader {
                             let theme_name = name.trim_end_matches(".toml");
                             if !themes.contains(&theme_name.to_string()) {
                                 themes.push(theme_name.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Check for base16 and base24 subdirectories (tinty format)
+            for system in &["base16", "base24"] {
+                let system_dir = theme_dir.join(system);
+                if let Ok(entries) = std::fs::read_dir(&system_dir) {
+                    for entry in entries.flatten() {
+                        if let Some(name) = entry.file_name().to_str() {
+                            if name.ends_with(".yaml") || name.ends_with(".yml") {
+                                let base_name = name.trim_end_matches(".yaml").trim_end_matches(".yml");
+                                let theme_name = format!("{}-{}", system, base_name);
+                                if !themes.contains(&theme_name) {
+                                    themes.push(theme_name);
+                                }
                             }
                         }
                     }
@@ -620,9 +707,9 @@ impl ThemeLoader {
         });
         
         // Catppuccin Mocha (popular dark theme)
-        self.built_in_themes.insert("catppuccin-mocha".to_string(), Theme {
+        self.built_in_themes.insert("base16-catppuccin-mocha".to_string(), Theme {
             system: ThemeSystem::Base16,
-            scheme: "catppuccin-mocha".to_string(),
+            scheme: "base16-catppuccin-mocha".to_string(),
             palette: ThemePalette {
                 base00: Some("#1e1e2e".to_string()), // base
                 base01: Some("#181825".to_string()), // mantle
@@ -651,6 +738,110 @@ impl ThemeLoader {
             description: Some("Soothing pastel theme for the high-spirited!".to_string()),
             variant: Some(ThemeVariant::Dark),
         });
+        
+        // Nord (arctic, north-bluish color palette)
+        self.built_in_themes.insert("base16-nord".to_string(), Theme {
+            system: ThemeSystem::Base16,
+            scheme: "base16-nord".to_string(),
+            palette: ThemePalette {
+                base00: Some("#2E3440".to_string()),
+                base01: Some("#3B4252".to_string()),
+                base02: Some("#434C5E".to_string()),
+                base03: Some("#4C566A".to_string()),
+                base04: Some("#D8DEE9".to_string()),
+                base05: Some("#E5E9F0".to_string()),
+                base06: Some("#ECEFF4".to_string()),
+                base07: Some("#8FBCBB".to_string()),
+                base08: Some("#BF616A".to_string()),
+                base09: Some("#D08770".to_string()),
+                base0a: Some("#EBCB8B".to_string()),
+                base0b: Some("#A3BE8C".to_string()),
+                base0c: Some("#88C0D0".to_string()),
+                base0d: Some("#81A1C1".to_string()),
+                base0e: Some("#B48EAD".to_string()),
+                base0f: Some("#5E81AC".to_string()),
+                ..Default::default()
+            },
+            semantic: SemanticColors::default(),
+            inherits: None,
+            variants: None,
+            overrides: None,
+            name: Some("Nord".to_string()),
+            author: Some("arcticicestudio".to_string()),
+            description: Some("An arctic, north-bluish color palette".to_string()),
+            variant: Some(ThemeVariant::Dark),
+        });
+        
+        // Tokyo Night Dark
+        self.built_in_themes.insert("base16-tokyo-night-dark".to_string(), Theme {
+            system: ThemeSystem::Base16,
+            scheme: "base16-tokyo-night-dark".to_string(),
+            palette: ThemePalette {
+                base00: Some("#1A1B26".to_string()),
+                base01: Some("#16161E".to_string()),
+                base02: Some("#2F3549".to_string()),
+                base03: Some("#444B6A".to_string()),
+                base04: Some("#787C99".to_string()),
+                base05: Some("#A9B1D6".to_string()),
+                base06: Some("#CBCCD1".to_string()),
+                base07: Some("#D5D6DB".to_string()),
+                base08: Some("#C0CAF5".to_string()),
+                base09: Some("#A9B1D6".to_string()),
+                base0a: Some("#0DB9D7".to_string()),
+                base0b: Some("#9ECE6A".to_string()),
+                base0c: Some("#B4F9F8".to_string()),
+                base0d: Some("#2AC3DE".to_string()),
+                base0e: Some("#BB9AF7".to_string()),
+                base0f: Some("#F7768E".to_string()),
+                ..Default::default()
+            },
+            semantic: SemanticColors::default(),
+            inherits: None,
+            variants: None,
+            overrides: None,
+            name: Some("Tokyo Night Dark".to_string()),
+            author: Some("Michaël Ball".to_string()),
+            description: Some("A clean, dark theme celebrating the lights of Downtown Tokyo at night".to_string()),
+            variant: Some(ThemeVariant::Dark),
+        });
+        
+        // Everforest
+        self.built_in_themes.insert("base16-everforest".to_string(), Theme {
+            system: ThemeSystem::Base16,
+            scheme: "base16-everforest".to_string(),
+            palette: ThemePalette {
+                base00: Some("#2d353b".to_string()), // bg0
+                base01: Some("#343f44".to_string()), // bg1
+                base02: Some("#475258".to_string()), // bg3
+                base03: Some("#859289".to_string()), // grey1
+                base04: Some("#9da9a0".to_string()), // grey2
+                base05: Some("#d3c6aa".to_string()), // fg
+                base06: Some("#e6e2cc".to_string()), // bg3 light
+                base07: Some("#fdf6e3".to_string()), // bg0 light
+                base08: Some("#e67e80".to_string()), // red
+                base09: Some("#e69875".to_string()), // orange
+                base0a: Some("#dbbc7f".to_string()), // yellow
+                base0b: Some("#a7c080".to_string()), // green
+                base0c: Some("#83c092".to_string()), // aqua
+                base0d: Some("#7fbbb3".to_string()), // blue
+                base0e: Some("#d699b6".to_string()), // purple
+                base0f: Some("#9da9a0".to_string()), // grey2
+                ..Default::default()
+            },
+            semantic: SemanticColors::default(),
+            inherits: None,
+            variants: None,
+            overrides: None,
+            name: Some("Everforest".to_string()),
+            author: Some("Sainnhe Park (https://github.com/sainnhe)".to_string()),
+            description: Some("Comfortable & Pleasant Color Scheme".to_string()),
+            variant: Some(ThemeVariant::Dark),
+        });
+        
+        // Backward compatibility aliases (without base16- prefix)
+        if let Some(catppuccin_theme) = self.built_in_themes.get("base16-catppuccin-mocha").cloned() {
+            self.built_in_themes.insert("catppuccin-mocha".to_string(), catppuccin_theme);
+        }
     }
 }
 
@@ -719,14 +910,17 @@ mod tests {
         let themes = loader.list_themes();
         assert!(themes.contains(&"base16-default-dark".to_string()));
         assert!(themes.contains(&"base16-default-light".to_string()));
-        assert!(themes.contains(&"catppuccin-mocha".to_string()));
+        assert!(themes.contains(&"base16-catppuccin-mocha".to_string()));
+        assert!(themes.contains(&"base16-nord".to_string()));
+        assert!(themes.contains(&"base16-tokyo-night-dark".to_string()));
+        assert!(themes.contains(&"base16-everforest".to_string()));
     }
 
     #[test]
     fn test_load_built_in_theme() {
         let loader = ThemeLoader::new();
-        let theme = loader.load_theme("catppuccin-mocha").unwrap();
-        assert_eq!(theme.scheme, "catppuccin-mocha");
+        let theme = loader.load_theme("base16-catppuccin-mocha").unwrap();
+        assert_eq!(theme.scheme, "base16-catppuccin-mocha");
         assert_eq!(theme.system, ThemeSystem::Base16);
         assert!(theme.palette.base00.is_some());
     }
@@ -734,7 +928,7 @@ mod tests {
     #[test]
     fn test_css_generation() {
         let loader = ThemeLoader::new();
-        let theme = loader.load_theme("catppuccin-mocha").unwrap();
+        let theme = loader.load_theme("base16-catppuccin-mocha").unwrap();
         let css = theme.generate_css_variables();
         
         // Check that base colors are generated
@@ -753,7 +947,7 @@ mod tests {
     #[test]
     fn test_color_resolution() {
         let loader = ThemeLoader::new();
-        let theme = loader.load_theme("catppuccin-mocha").unwrap();
+        let theme = loader.load_theme("base16-catppuccin-mocha").unwrap();
         
         // Test base color resolution
         assert_eq!(theme.resolve_base_color("base00"), Some("#1e1e2e".to_string()));

@@ -15,6 +15,7 @@ The theming system is built around the [Base16](https://github.com/tinted-themin
 ## Current Implementation Status
 
 ✅ **Fully Implemented:**
+
 - Core theme system in `lst-core` with base16/base24 support
 - CLI theme commands (`lst theme list`, `lst theme apply`, etc.)
 - Desktop app theme integration with live switching
@@ -23,6 +24,7 @@ The theming system is built around the [Base16](https://github.com/tinted-themin
 - Built-in themes (Catppuccin, Gruvbox, Nord, Solarized, etc.)
 
 🚧 **Planned Features:**
+
 - Tinty integration for centralized theme management
 - User theme directory support
 - Theme file discovery and validation
@@ -162,6 +164,7 @@ The application ships with several built-in themes:
 ### Theme Usage
 
 **CLI Commands:**
+
 ```bash
 # List all available themes
 lst theme list
@@ -180,11 +183,13 @@ lst theme validate path/to/theme.toml
 ```
 
 **Desktop App:**
+
 - Theme selector in the sidebar for instant switching
 - Live preview of theme changes
 - No restart required
 
 **Mobile App:**
+
 - Theme selector in Settings panel
 - Bottom sheet interface for mobile-friendly selection
 - Immediate theme application
@@ -196,6 +201,7 @@ lst theme validate path/to/theme.toml
 ### Setup with Tinty
 
 1. **Install Tinty:**
+
    ```bash
    cargo install tinty
    # or
@@ -203,6 +209,7 @@ lst theme validate path/to/theme.toml
    ```
 
 2. **Configure Tinty** (`~/.config/tinted-theming/tinty/config.toml`):
+
    ```toml
    [[items]]
    name = "lst"
@@ -213,6 +220,7 @@ lst theme validate path/to/theme.toml
    ```
 
 3. **Sync and apply themes:**
+
    ```bash
    tinty sync
    tinty apply base16-catppuccin-mocha
@@ -237,6 +245,7 @@ When using Tinty hooks, the following environment variables are available:
 ### For Application Developers
 
 1. **Theme Loading:**
+
    ```rust
    // Load theme from config
    let theme = config.theme.unwrap_or_default();
@@ -249,6 +258,7 @@ When using Tinty hooks, the following environment variables are available:
    ```
 
 2. **Runtime Theme Switching:**
+
    ```rust
    // Watch for theme file changes
    let watcher = notify::watcher(|event| {
@@ -261,6 +271,7 @@ When using Tinty hooks, the following environment variables are available:
    ```
 
 3. **CSS Variable Generation:**
+
    ```rust
    fn generate_css_variables(theme: &Theme) -> String {
        let mut css = String::new();
@@ -283,6 +294,7 @@ When using Tinty hooks, the following environment variables are available:
 ### For Frontend Applications
 
 1. **CSS Usage:**
+
    ```css
    :root {
      /* Palette colors */
@@ -308,6 +320,7 @@ When using Tinty hooks, the following environment variables are available:
    ```
 
 2. **React/TypeScript Integration:**
+
    ```typescript
    interface ThemeColors {
      background: string;
@@ -330,6 +343,7 @@ When using Tinty hooks, the following environment variables are available:
 ### Creating Custom Themes
 
 1. **Start with a base16 template:**
+
    ```toml
    [theme]
    system = "base16"
@@ -349,6 +363,7 @@ When using Tinty hooks, the following environment variables are available:
    ```
 
 2. **Test your theme:**
+
    ```bash
    # Copy to themes directory
    cp my-theme.toml ~/.config/lst/themes/
@@ -445,3 +460,4 @@ When contributing themes or theme-related features:
 5. **Consider accessibility** and contrast requirements
 
 This theming system provides a solid foundation for consistent, customizable, and maintainable color schemes across all your applications.
+

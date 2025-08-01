@@ -1725,7 +1725,8 @@ pub async fn category_remove(list: &str, name: &str, json: bool) -> Result<()> {
 
 /// List all available themes
 pub fn theme_list(verbose: bool, json: bool) -> Result<()> {
-    let loader = ThemeLoader::new();
+    let config = Config::load()?;
+    let loader = config.get_theme_loader();
     let themes = loader.list_themes();
     
     if json {
@@ -1849,7 +1850,8 @@ pub async fn theme_apply(theme_name: &str, json: bool) -> Result<()> {
 
 /// Show detailed information about a theme
 pub fn theme_info(theme_name: &str, json: bool) -> Result<()> {
-    let loader = ThemeLoader::new();
+    let config = Config::load()?;
+    let loader = config.get_theme_loader();
     let theme = loader.load_theme(theme_name)
         .with_context(|| format!("Failed to load theme '{}'", theme_name))?;
     
@@ -1917,7 +1919,8 @@ pub fn theme_info(theme_name: &str, json: bool) -> Result<()> {
 
 /// Validate a theme file
 pub fn theme_validate(file_path: &str, json: bool) -> Result<()> {
-    let loader = ThemeLoader::new();
+    let config = Config::load()?;
+    let loader = config.get_theme_loader();
     let path = Path::new(file_path);
     
     if !path.exists() {

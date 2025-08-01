@@ -75,6 +75,8 @@ pub struct PathsConfig {
     pub content_dir: Option<PathBuf>,
     pub media_dir: Option<PathBuf>,
     pub kinds: Option<Vec<String>>,
+    /// Directory containing theme files (defaults to ~/.config/themes)
+    pub themes_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -163,6 +165,7 @@ impl Default for Config {
                 content_dir: None,
                 media_dir: None,
                 kinds: None,
+                themes_dir: None,
             },
             server: ServerConfig::default(),
             theme: None,
@@ -199,6 +202,7 @@ impl Default for PathsConfig {
             content_dir: None,
             media_dir: None,
             kinds: None,
+            themes_dir: None,
         }
     }
 }
@@ -366,7 +370,7 @@ impl Config {
             Ok(theme.clone())
         } else {
             // Load default theme
-            let loader = ThemeLoader::new();
+            let loader = ThemeLoader::with_config(self.paths.themes_dir.clone());
             loader.load_theme("base16-default-dark")
         }
     }
@@ -378,13 +382,13 @@ impl Config {
 
     /// Load theme by name
     pub fn load_theme_by_name(&self, name: &str) -> Result<Theme> {
-        let loader = ThemeLoader::new();
+        let loader = ThemeLoader::with_config(self.paths.themes_dir.clone());
         loader.load_theme(name)
     }
 
     /// Get theme loader
     pub fn get_theme_loader(&self) -> ThemeLoader {
-        ThemeLoader::new()
+        ThemeLoader::with_config(self.paths.themes_dir.clone())
     }
 }
 
