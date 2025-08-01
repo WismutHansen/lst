@@ -1043,6 +1043,28 @@ async fn notify_file_changed(file_path: &str) -> Result<()> {
     Ok(())
 }
 
+/// Send notification to desktop app that theme was changed
+#[cfg(feature = "gui")]
+async fn notify_theme_changed(theme_name: &str) -> Result<()> {
+    let client = reqwest::Client::new();
+    let res = client
+        .post("http://localhost:33333/command/theme-changed")
+        .body(theme_name.to_string())
+        .send()
+        .await;
+
+    match res {
+        Ok(response) if response.status().is_success() => {
+            // Notification sent successfully, but don't print anything to avoid cluttering CLI output
+        }
+        _ => {
+            // Silently ignore notification failures - the CLI should work even if GUI isn't running
+        }
+    }
+
+    Ok(())
+}
+
 /// Tidy all lists: ensure they have proper YAML frontmatter and formatting
 pub fn tidy_lists(json: bool) -> Result<()> {
     let entries = storage::list_lists_with_info()?;
@@ -1795,13 +1817,19 @@ pub fn theme_current(json: bool) -> Result<()> {
 }
 
 /// Apply a theme
-pub fn theme_apply(theme_name: &str, json: bool) -> Result<()> {
+pub async fn theme_apply(theme_name: &str, json: bool) -> Result<()> {
     let mut config = Config::load()?;
     let theme = config.load_theme_by_name(theme_name)
         .with_context(|| format!("Failed to load theme '{}'", theme_name))?;
     
     config.set_theme(theme.clone());
     config.save()?;
+    
+    // Notify GUI applications about theme change
+    #[cfg(feature = "gui")]
+    {
+        let _ = notify_theme_changed(theme_name).await;
+    }
     
     if json {
         println!("{}", serde_json::json!({

@@ -101,6 +101,16 @@ async fn file_changed_handler(app_handle: AppHandle, file_path: String) {
     }
 }
 
+async fn theme_changed_handler(app_handle: AppHandle, theme_name: String) {
+    println!("🎨 CLI command received: theme changed to '{}'", theme_name);
+
+    // Use the existing broadcast_theme function to emit theme-update event
+    match crate::theme::broadcast_theme(&app_handle) {
+        Ok(_) => println!("󰸞 Theme update broadcasted successfully"),
+        Err(e) => println!(" Failed to broadcast theme update: {}", e),
+    }
+}
+
 pub fn start_command_server(app_handle: AppHandle) {
     println!("🚀 Starting command server...");
     std::thread::spawn(move || {
@@ -117,6 +127,7 @@ pub fn start_command_server(app_handle: AppHandle) {
             let app_handle_4 = app_handle.clone();
             let app_handle_5 = app_handle.clone();
             let app_handle_6 = app_handle.clone();
+            let app_handle_7 = app_handle.clone();
 
             let app = Router::new()
                 .route(
@@ -151,6 +162,12 @@ pub fn start_command_server(app_handle: AppHandle) {
                     "/command/file-changed",
                     post(move |file_path: String| {
                         file_changed_handler(app_handle_6.clone(), file_path)
+                    }),
+                )
+                .route(
+                    "/command/theme-changed",
+                    post(move |theme_name: String| {
+                        theme_changed_handler(app_handle_7.clone(), theme_name)
                     }),
                 )
                 .layer(cors);

@@ -1156,7 +1156,7 @@ export default function App() {
       <div
         className="fixed bottom-0 left-0 right-0 h-5 border border-border bg-card text-xs flex items-center px-2 rounded-b-lg"
       >
-        <span className="text-muted-foreground truncate pr-4">
+        <span className="text-secondary-foreground truncate pr-4">
           lst {currentList ? `- ${currentList.title}.md` : ""}
         </span>
         <span className="text-muted-foreground">

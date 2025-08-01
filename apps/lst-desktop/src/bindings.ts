@@ -165,6 +165,9 @@ async renameCategory(listName: string, oldName: string, newName: string) : Promi
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Get the current theme and generate CSS variables
+ */
 async getCurrentTheme() : Promise<Result<ThemeData, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_current_theme") };
@@ -173,6 +176,9 @@ async getCurrentTheme() : Promise<Result<ThemeData, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Apply a theme by name
+ */
 async applyTheme(themeName: string) : Promise<Result<ThemeData, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("apply_theme", { themeName }) };
@@ -181,6 +187,9 @@ async applyTheme(themeName: string) : Promise<Result<ThemeData, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * List all available themes
+ */
 async listThemes() : Promise<Result<string[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("list_themes") };
@@ -189,7 +198,7 @@ async listThemes() : Promise<Result<string[], string>> {
     else return { status: "error", error: e  as any };
 }
 }
-};
+}
 
 /** user-defined events **/
 
@@ -217,6 +226,7 @@ items: ListItem[] }
  * Represents the status of a list item (done or not)
  */
 export type ItemStatus = "Todo" | "Done"
+export type LegacyThemeConfig = { vars?: Partial<{ [key in string]: string }> }
 /**
  * Represents a complete list with metadata and items
  */
@@ -266,7 +276,6 @@ status: ItemStatus;
  */
 anchor: string }
 export type Note = { title: string; content: string; created: string | null; file_path: string }
-export type ThemeConfig = { vars?: Partial<{ [key in string]: string }> }
 export type ThemeData = { css_variables: string; scheme: string; name: string | null; variant: string | null }
 export type UiConfig = { resolution_order?: string[]; 
 /**
@@ -276,7 +285,7 @@ vim_mode?: boolean;
 /**
  * Leader key used for command sequences (defaults to space)
  */
-leader_key?: string; theme?: ThemeConfig }
+leader_key?: string; theme?: LegacyThemeConfig }
 
 /** tauri-specta globals **/
 

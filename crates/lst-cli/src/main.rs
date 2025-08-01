@@ -190,7 +190,7 @@ async fn main() -> Result<()> {
                 cli::commands::theme_current(cli.json)?;
             }
             ThemeCommands::Apply { theme } => {
-                cli::commands::theme_apply(theme, cli.json)?;
+                cli::commands::theme_apply(theme, cli.json).await?;
             }
             ThemeCommands::Info { theme } => {
                 cli::commands::theme_info(theme, cli.json)?;

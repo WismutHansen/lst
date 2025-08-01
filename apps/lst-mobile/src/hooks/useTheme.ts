@@ -55,12 +55,10 @@ export function useTheme() {
 
     initializeTheme();
 
-    const unlisten = listen<ThemePayload>("theme-update", ({ payload }) => {
-      if (payload?.vars) {
-        const root = document.documentElement;
-        Object.entries(payload.vars).forEach(([k, v]) => {
-          root.style.setProperty(`--${k}`, v);
-        });
+    const unlisten = listen<ThemeData>("theme-update", ({ payload }) => {
+      if (payload) {
+        setThemeData(payload);
+        applyThemeToDOM(payload);
       }
     });
 

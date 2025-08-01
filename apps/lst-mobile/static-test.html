@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iOS Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        p {
+            font-size: 1.2em;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .status {
+            background: rgba(76, 175, 80, 0.2);
+            border: 2px solid #4caf50;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        .emoji {
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="emoji">🎉</div>
+        <h1>iOS App Working!</h1>
+        <p>This is a static HTML test to verify the iOS WebView is functioning correctly.</p>
+        <div class="status">
+            <p><strong>✅ Static HTML: Working</strong></p>
+            <p><strong>✅ CSS Styling: Working</strong></p>
+            <p><strong>✅ iOS WebView: Working</strong></p>
+        </div>
+        <p style="margin-top: 20px; font-size: 0.9em; opacity: 0.8;">
+            If you can see this, the basic WebView functionality is working.
+        </p>
+    </div>
+
+    <script>
+        // Simple JavaScript test
+        console.log('🚀 JavaScript is working on iOS!');
+        
+        // Add a simple interaction
+        document.addEventListener('DOMContentLoaded', function() {
+            const container = document.querySelector('.container');
+            container.addEventListener('click', function() {
+                container.style.transform = container.style.transform === 'scale(1.05)' ? 'scale(1)' : 'scale(1.05)';
+                container.style.transition = 'transform 0.2s ease';
+            });
+        });
+    </script>
+</body>
+</html>
