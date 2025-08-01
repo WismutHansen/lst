@@ -1,4 +1,4 @@
-use lst_cli::config::get_config;
+
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, Emitter};
@@ -15,7 +15,8 @@ pub struct ThemeData {
 #[tauri::command]
 #[specta::specta]
 pub fn get_current_theme() -> Result<ThemeData, String> {
-    let config = get_config();
+    // Reload config from disk to get latest theme changes from CLI
+    let config = lst_cli::config::Config::load().map_err(|e| e.to_string())?;
     let theme = config.get_theme().map_err(|e| e.to_string())?;
     
     Ok(ThemeData {
@@ -48,7 +49,8 @@ pub fn apply_theme(theme_name: String) -> Result<ThemeData, String> {
 #[tauri::command]
 #[specta::specta]
 pub fn list_themes() -> Result<Vec<String>, String> {
-    let config = get_config();
+    // Reload config to get latest themes directory configuration
+    let config = lst_cli::config::Config::load().map_err(|e| e.to_string())?;
     let loader = config.get_theme_loader();
     Ok(loader.list_themes())
 }

@@ -401,7 +401,7 @@ export default function App() {
   function scrollToSidebarItem(index: number) {
     // Get the current active container based on the view
     const activeContainer = currentView === "lists" ? listsContainerRef.current : notesContainerRef.current;
-    
+
     if (!activeContainer) return;
 
     // Find the sidebar item by index using data-sidebar-index attribute
@@ -685,7 +685,7 @@ export default function App() {
             return;
           }
         }
-        
+
         // Arrow keys (work in both vim and non-vim mode for sidebar)
         if (["ArrowDown", "ArrowUp"].includes(e.key)) {
           next(e.key === "ArrowDown" ? 1 : -1);
@@ -891,8 +891,8 @@ export default function App() {
     /* --- render --- */
     return (
       <div
-        className="mb-6 w-full h-full rounded-lg border p-4"
-        style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
+        className="bg-muted/20 mb-6 w-full h-full rounded-lg border p-4"
+      // style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
       >
         {/* header row */}
         {/* <div className="flex items-center gap-4"> */}
@@ -937,11 +937,11 @@ export default function App() {
                   draggable
                   onDragStart={() => (dragIndex.current = idx)}
                   onDragOver={(e) => e.preventDefault()}
-                      onDrop={() => {
-                        if (dragIndex.current === null || !currentName) return;
-                        const allItems = getAllItems(currentList);
-                        if (!allItems[dragIndex.current]) return;
-                        const fromAnchor = allItems[dragIndex.current].anchor;                    commands
+                  onDrop={() => {
+                    if (dragIndex.current === null || !currentName) return;
+                    const allItems = getAllItems(currentList);
+                    if (!allItems[dragIndex.current]) return;
+                    const fromAnchor = allItems[dragIndex.current].anchor; commands
                       .reorderItem(currentName, fromAnchor, idx)
                       .then((res) => {
                         res.status === "ok"
@@ -999,14 +999,14 @@ export default function App() {
                   <h3 className="text-sm font-semibold text-primary">{category.name}</h3>
                   <span className="text-xs text-muted-foreground">({category.items.length})</span>
                 </div>
-                
+
                 {/* Category items */}
                 {category.items.map((it, idx) => {
-                  const globalIdx = (currentList.uncategorized_items?.length ?? 0) + 
+                  const globalIdx = (currentList.uncategorized_items?.length ?? 0) +
                     (currentList.categories ?? [])
                       .slice(0, (currentList.categories ?? []).findIndex(c => c.name === category.name))
                       .reduce((acc, cat) => acc + cat.items.length, 0) + idx;
-                  
+
                   return editingAnchor === it.anchor ? (
                     <form
                       key={it.anchor}
@@ -1162,7 +1162,7 @@ export default function App() {
             onClick={() => {
               // Update the sidebar cursor to match the clicked item
               setSidebarCursor(flatIndex);
-              
+
               if (node.isList) {
                 currentView === "lists" ? loadList(node.path) : loadNote(node.path);
               } else {
@@ -1214,37 +1214,37 @@ export default function App() {
         </div>
 
         {creating && (
-            <form className="flex gap-2 mt-2" onSubmit={createNewList}>
-              <Input
-                className="flex-1"
-                placeholder={currentView === "lists" ? "List name" : "Note name"}
-                value={newListName}
-                onChange={(e) => setNewListName(e.target.value)}
-                disabled={isDisabled} // 🔒 fully blocks input
-                onClick={() => { setMode("edit"); setIsDisabled(false); }}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    if (vimMode) {
-                      setMode("normal");
-                      (e.target as HTMLInputElement).blur();
-                    }
+          <form className="flex gap-2 mt-2" onSubmit={createNewList}>
+            <Input
+              className="flex-1"
+              placeholder={currentView === "lists" ? "List name" : "Note name"}
+              value={newListName}
+              onChange={(e) => setNewListName(e.target.value)}
+              disabled={isDisabled} // 🔒 fully blocks input
+              onClick={() => { setMode("edit"); setIsDisabled(false); }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  if (vimMode) {
+                    setMode("normal");
+                    (e.target as HTMLInputElement).blur();
                   }
-                }}
-              />
-              <Button size="sm" type="submit">
-                Create
-              </Button>
-            </form>
-          )}
+                }
+              }}
+            />
+            <Button size="sm" type="submit">
+              Create
+            </Button>
+          </form>
+        )}
 
-          <Tabs defaultValue="lists" className="flex-1 flex flex-col">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="lists">Lists</TabsTrigger>
-              <TabsTrigger value="notes">Notes</TabsTrigger>
-            </TabsList>
+        <Tabs defaultValue="lists" className="flex-1 flex flex-col">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="lists">Lists</TabsTrigger>
+            <TabsTrigger value="notes">Notes</TabsTrigger>
+          </TabsList>
 
-            <TabsContent 
-            value="lists" 
+          <TabsContent
+            value="lists"
             ref={listsContainerRef}
             className="flex-1 overflow-y-auto pl-2 w-auto mt-2 min-h-0"
             onWheel={(e) => e.stopPropagation()}
@@ -1253,8 +1253,8 @@ export default function App() {
             {renderNodes(listTree)}
           </TabsContent>
 
-          <TabsContent 
-            value="notes" 
+          <TabsContent
+            value="notes"
             ref={notesContainerRef}
             className="flex-1 overflow-y-auto pl-2 w-auto mt-2 min-h-0"
             onWheel={(e) => e.stopPropagation()}
@@ -1363,9 +1363,9 @@ export default function App() {
       </main>
       {/* Status bar */}
       <div
-        className="fixed bottom-0 left-0 right-0 h-5 border border-border bg-card text-xs flex items-center px-2 rounded-b-lg"
+        className="fixed bottom-0 left-0 right-0 h-5 border border-border bg-muted/20 text-xs flex items-center px-2 rounded-b-lg"
       >
-        <span className="text-muted-foreground truncate pr-4">
+        <span className="text-primary-background truncate pr-8">
           {message && !error ? (
             <span className="text-green-600">{message}</span>
           ) : error ? (
