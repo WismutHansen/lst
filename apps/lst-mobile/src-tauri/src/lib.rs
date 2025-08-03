@@ -245,13 +245,9 @@ async fn request_auth_token(email: String, server_url: String, password: Option<
 #[tauri::command]
 #[specta::specta]
 async fn verify_auth_token(email: String, token: String) -> Result<String, String> {
-    // Use default config for mobile to avoid file system issues
-    let config = Config::default();
-    let server_url = config.syncd
-        .as_ref()
-        .and_then(|s| s.url.as_ref())
-        .cloned()
-        .unwrap_or_default();
+    // Get server URL from saved sync config
+    let sync_config = auth::get_sync_config().map_err(|e| e.to_string())?;
+    let server_url = sync_config.0; // server_url is the first element of the tuple
     
     if server_url.is_empty() {
         return Err("Server URL not configured".to_string());
@@ -283,17 +279,16 @@ fn toggle_sync(enabled: bool) -> Result<(), String> {
 #[tauri::command]
 #[specta::specta]
 async fn test_sync_connection() -> Result<String, String> {
-    let config = Config::default();
+    // Get server URL from saved sync config
+    let sync_config = auth::get_sync_config().map_err(|e| e.to_string())?;
+    let server_url = sync_config.0; // server_url is the first element of the tuple
     
-    // Check if sync is configured
-    let server_url = config.syncd
-        .as_ref()
-        .and_then(|s| s.url.as_ref())
-        .ok_or("Server URL not configured")?;
-    
-    if !config.is_jwt_valid() {
-        return Err("No valid JWT token. Please authenticate first.".to_string());
+    if server_url.is_empty() {
+        return Err("Server URL not configured".to_string());
     }
+    
+    // For now, skip JWT validation since we're using the auth module's config
+    // TODO: Implement proper JWT validation for mobile
     
     // Test basic HTTP connectivity
     let base_url = server_url

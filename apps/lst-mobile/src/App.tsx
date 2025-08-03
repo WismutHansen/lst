@@ -150,6 +150,20 @@ export default function App() {
   /* ---------- sidebar & responsive ---------- */
   // sidebar is collapsed by default
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  
+  // Auto-collapse sidebar on mobile when screen size changes
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 640) { // sm breakpoint
+        setSidebarCollapsed(true);
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    handleResize(); // Check initial size
+    
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const dragIndex = useRef<number | null>(null);
 
@@ -205,6 +219,10 @@ export default function App() {
       setCurrentName(name);
       setShowSuggestions(false);
       setQuery("");
+      // Auto-collapse sidebar on mobile after selecting a list
+      if (window.innerWidth < 640) {
+        setSidebarCollapsed(true);
+      }
     } else {
       console.error("❌ Failed to load list:", res.error);
       setError(res.error);
@@ -368,7 +386,7 @@ export default function App() {
         {/* </div> */}
 
         {/* list items */}
-        <div className="flex h-[80vh] w-full overflow-y-auto scroll-fade">
+        <div className="flex h-[calc(100vh-12rem)] sm:h-[80vh] w-full overflow-y-auto scroll-fade">
           <div ref={listContainerRef} className="w-full h-full">
             {/* Render uncategorized items first */}
             {(currentList.uncategorized_items ?? []).map((it, idx) =>
@@ -620,16 +638,25 @@ export default function App() {
       });
 
     const sidebarContent = (
-      <aside className="flex w-64 pl-2 flex-col gap-4 rounded-l-lg border-r border-border bg-background p-4 min-w-0">
+      <aside className="flex w-64 pl-2 flex-col gap-4 border-r border-border bg-background p-4 min-w-0 sm:rounded-l-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSidebarCollapsed(true)}
-              className="h-7 w-7"
+              className="h-7 w-7 sm:inline-flex"
             >
               󰞗
+            </Button>
+            {/* Mobile close button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarCollapsed(true)}
+              className="h-8 w-8 sm:hidden"
+            >
+              ✕
             </Button>
             <div className="flex gap-1">
               <Button
@@ -697,20 +724,32 @@ export default function App() {
     );
 
 
-    // desktop regular sidebar
-    return sidebarContent;
+    // Mobile overlay sidebar
+    return (
+      <>
+        {/* Mobile backdrop */}
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 sm:hidden"
+          onClick={() => setSidebarCollapsed(true)}
+        />
+        {/* Mobile sidebar */}
+        <div className="fixed left-0 top-0 h-full z-50 sm:relative sm:z-auto">
+          {sidebarContent}
+        </div>
+      </>
+    );
   }
 
   const items = getAllItems(currentList);
   /* ---------- root render ---------- */
   return (
     <div
-      className="flex min-h-screen border border-border bg-background text-foreground min-w-0 w-full"
-      style={{ borderRadius: "0px", backgroundColor: "var(--background)" }}
+      className="flex h-screen bg-background text-foreground min-w-0 w-full overflow-hidden mobile-safe-area"
+      style={{ backgroundColor: "var(--background)" }}
     >
       {renderSidebar()}
 
-      <main className="relative flex flex-1 flex-col p-6 min-w-0 overflow-hidden">
+      <main className="relative flex flex-1 flex-col p-4 sm:p-6 min-w-0 overflow-hidden">
         {/* top bar */}
         <div className="mt-2 mb-2 flex items-center gap-4">
           <form

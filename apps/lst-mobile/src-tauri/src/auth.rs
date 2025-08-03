@@ -5,9 +5,12 @@ use keyring::Entry;
 use lst_cli::config::Config;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
+use std::collections::HashMap;
 use lazy_static::lazy_static;
 
+// Mobile-specific in-memory storage for sync config
 lazy_static! {
+    static ref MOBILE_SYNC_CONFIG: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
     static ref CONFIG_MUTEX: Mutex<Config> = Mutex::new(Config::default());
 }
 
@@ -107,7 +110,10 @@ pub async fn request_auth_token(email: String, server_url: String, password: Opt
         .replace("wss://", "https://")
         .replace("/api/sync", "");
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .context("Failed to create HTTP client")?;
     let response = client
         .post(&format!("{}/api/auth/request", base_url))
         .json(&auth_request)
@@ -142,7 +148,10 @@ pub async fn verify_auth_token(email: String, token: String, server_url: String)
         .replace("wss://", "https://")
         .replace("/api/sync", "");
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .context("Failed to create HTTP client")?;
     let response = client
         .post(&format!("{}/api/auth/verify", base_url))
         .json(&verify_request)
@@ -189,64 +198,37 @@ fn update_config_with_jwt(jwt_token: String, expires_at: chrono::DateTime<chrono
 /// Update sync configuration
 pub fn update_sync_config(
     server_url: String,
-    _email: String,
+    email: String,
     device_id: String,
-    _sync_enabled: bool,
+    sync_enabled: bool,
     sync_interval: u32,
 ) -> Result<()> {
-    let mut config = CONFIG_MUTEX.lock().unwrap();
-    
-    // Initialize syncd config if not present
-    if config.syncd.is_none() {
-        drop(config);
-        let mut temp_config = CONFIG_MUTEX.lock().unwrap();
-        temp_config.init_syncd()?;
-        config = temp_config;
-    }
-    
-    // Update syncd configuration
-    if let Some(ref mut syncd) = config.syncd {
-        syncd.url = if server_url.is_empty() { None } else { Some(server_url) };
-        syncd.device_id = Some(device_id);
-    }
-    
-    // Update sync settings
-    if let Some(ref mut sync) = config.sync {
-        sync.interval_seconds = sync_interval as u64;
-    }
-    
-    // Save configuration
-    config.save().context("Failed to save sync configuration")?;
+    // Store in mobile-specific in-memory storage
+    let mut storage = MOBILE_SYNC_CONFIG.lock().unwrap();
+    storage.insert("server_url".to_string(), server_url);
+    storage.insert("email".to_string(), email);
+    storage.insert("device_id".to_string(), device_id);
+    storage.insert("sync_enabled".to_string(), sync_enabled.to_string());
+    storage.insert("sync_interval".to_string(), sync_interval.to_string());
     
     Ok(())
 }
 
 /// Get current sync configuration
 pub fn get_sync_config() -> Result<(String, String, String, bool, u32)> {
-    let config = CONFIG_MUTEX.lock().unwrap();
+    let storage = MOBILE_SYNC_CONFIG.lock().unwrap();
     
-    let server_url = config.syncd
-        .as_ref()
-        .and_then(|s| s.url.as_ref())
-        .cloned()
-        .unwrap_or_default();
+    let server_url = storage.get("server_url").cloned().unwrap_or_default();
+    let email = storage.get("email").cloned().unwrap_or_default();
+    let device_id = storage.get("device_id").cloned().unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     
-    let device_id = config.syncd
-        .as_ref()
-        .and_then(|s| s.device_id.as_ref())
-        .cloned()
-        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-    
-    let sync_interval = config.sync
-        .as_ref()
-        .map(|s| s.interval_seconds as u32)
+    let sync_interval = storage.get("sync_interval")
+        .and_then(|s| s.parse::<u32>().ok())
         .unwrap_or(30);
     
-    let sync_enabled = !server_url.is_empty() && config.is_jwt_valid();
-    
-    // For email, we'll need to store it separately or extract from JWT
-    // For now, return empty string
-    let email = String::new();
+    let sync_enabled = storage.get("sync_enabled")
+        .and_then(|s| s.parse::<bool>().ok())
+        .unwrap_or(false);
     
     Ok((server_url, email, device_id, sync_enabled, sync_interval))
 }
