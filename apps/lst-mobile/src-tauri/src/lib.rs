@@ -1,5 +1,5 @@
 use anyhow::Result;
-use lst_cli::config::{get_config, UiConfig};
+use lst_cli::config::{Config, UiConfig};
 use lst_cli::models::List;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -125,7 +125,8 @@ fn remove_item(
 #[tauri::command]
 #[specta::specta]
 fn get_ui_config() -> Result<UiConfig, String> {
-    Ok(get_config().ui.clone())
+    // Use default config for mobile to avoid file system issues
+    Ok(Config::default().ui.clone())
 }
 
 #[tauri::command]
@@ -244,8 +245,8 @@ async fn request_auth_token(email: String, server_url: String, password: Option<
 #[tauri::command]
 #[specta::specta]
 async fn verify_auth_token(email: String, token: String) -> Result<String, String> {
-    // We need the server URL for verification, let's get it from config
-    let config = get_config();
+    // Use default config for mobile to avoid file system issues
+    let config = Config::default();
     let server_url = config.syncd
         .as_ref()
         .and_then(|s| s.url.as_ref())
@@ -282,7 +283,7 @@ fn toggle_sync(enabled: bool) -> Result<(), String> {
 #[tauri::command]
 #[specta::specta]
 async fn test_sync_connection() -> Result<String, String> {
-    let config = get_config();
+    let config = Config::default();
     
     // Check if sync is configured
     let server_url = config.syncd
@@ -311,6 +312,20 @@ async fn test_sync_connection() -> Result<String, String> {
         }
         Err(e) => Err(format!("Failed to connect to server: {}", e)),
     }
+}
+
+// Minimal version for crash debugging
+pub fn run_minimal() {
+    println!("🚀 Starting minimal lst-mobile...");
+    
+    tauri::Builder::default()
+        .setup(|_app| {
+            println!("✅ Tauri setup completed successfully");
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -381,7 +396,7 @@ pub fn run() {
             }
 
             // Start sync service on all platforms (including mobile)
-            let config = get_config().clone();
+            let config = Config::default();
             tauri::async_runtime::spawn(async move {
                 match sync::SyncManager::new(config).await {
                     Ok(mut mgr) => {

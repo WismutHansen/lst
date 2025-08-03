@@ -2,13 +2,13 @@ use anyhow::{Context, Result};
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::{rand_core::OsRng, SaltString};
 use keyring::Entry;
-use lst_cli::config::{get_config, Config};
+use lst_cli::config::Config;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use lazy_static::lazy_static;
 
 lazy_static! {
-    static ref CONFIG_MUTEX: Mutex<Config> = Mutex::new(get_config().clone());
+    static ref CONFIG_MUTEX: Mutex<Config> = Mutex::new(Config::default());
 }
 
 #[derive(Debug, Serialize, Deserialize)]

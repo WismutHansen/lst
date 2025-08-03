@@ -411,6 +411,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            #[cfg(not(target_os = "ios"))]
             let _tray = TrayIconBuilder::new().build(app)?;
             let _window = app.get_webview_window("main").unwrap();
 

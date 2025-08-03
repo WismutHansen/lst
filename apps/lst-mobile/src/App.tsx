@@ -1,4 +1,4 @@
-import { listen } from "@tauri-apps/api/event";
+
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import Logo from "./assets/logo.png";
 import { commands, type List, type ListItem, type Category } from "./bindings";
@@ -126,7 +126,7 @@ export default function App() {
   const addItemRef = useRef<HTMLInputElement>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
 
-  useTheme();
+  useTheme(); // Re-enabled with better error handling
 
   const [query, setQuery] = useState("");
   const [lists, setLists] = useState<string[]>([]);
@@ -150,18 +150,7 @@ export default function App() {
   /* ---------- sidebar & responsive ---------- */
   // sidebar is collapsed by default
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-  // track if screen is mobile-sized (≤640 px)
-  // keyboard focus index inside sidebar
-  const [sidebarCursor, setSidebarCursor] = useState(0);
 
-  /* ----- vim-like mode (unchanged) ----- */
-  const [vimMode, setVimMode] = useState(false);
-  const [leaderKey, setLeaderKey] = useState(" ");
-  const [mode, setMode] = useState<"normal" | "edit">("edit");
-  const [cursorIndex, setCursorIndex] = useState(0);
-  const [leaderActive, setLeaderActive] = useState(false);
-  const [leaderSeq, setLeaderSeq] = useState("");
-  const [gPressed, setGPressed] = useState(false);
   const dragIndex = useRef<number | null>(null);
 
   /* ---------- folder management ---------- */
@@ -270,36 +259,7 @@ export default function App() {
     } else setError(res.error);
   }
 
-  /* ---------- scroll helpers ---------- */
-  function scrollToItem(index: number) {
-    if (!listContainerRef.current || !currentList) return;
 
-    const allItems = getAllItems(currentList);
-    // If navigating to add item (index === allItems.length)
-    if (allItems.length === 0) return;
-    if (index === allItems.length) {
-      // Scroll the container to the bottom to show the add item form
-      const container = listContainerRef.current.parentElement; // The scrollable div
-      if (container) {
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: "smooth"
-        });
-      }
-      return;
-    }
-
-    // For regular list items, find the element by index
-    const listItems = listContainerRef.current.querySelectorAll("[data-item-index]");
-    const targetItem = listItems[index] as HTMLElement;
-
-    if (targetItem) {
-      targetItem.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest"
-      });
-    }
-  }
 
   /* ---------- derived ---------- */
 
@@ -314,19 +274,6 @@ export default function App() {
     [resolvedQuery, lists]
   );
   const listTree = useMemo(() => buildListTree(lists, sortOrder), [lists, sortOrder]);
-  // flattened sidebar list for keyboard nav
-  const flatSidebarItems: { path: string; isList: boolean }[] = useMemo(() => {
-    const dfs = (nodes: ListNode[]): { path: string; isList: boolean }[] =>
-      nodes.flatMap((n) => {
-        const isFolder = !n.isList;
-        const children = (isFolder && expandedFolders.has(n.path)) ? dfs(n.children) : [];
-        return [
-          { path: n.path, isList: n.isList },
-          ...children,
-        ];
-      });
-    return dfs(listTree);
-  }, [listTree, expandedFolders]);
 
   const paletteCommands = useMemo<PaletteCommand[]>(
     () => [
@@ -344,12 +291,7 @@ export default function App() {
     return () => window.removeEventListener("resize", listener);
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      const res = await commands.getUiConfig();
-      if (res.status === "ok") { const { vim_mode = false, leader_key = "<leader>" } = res.data; setVimMode(vim_mode); setLeaderKey(leader_key); setMode(vim_mode ? "normal" : "edit"); }
-    })();
-  }, []);
+
 
   useEffect(() => {
     fetchLists();
@@ -383,279 +325,11 @@ export default function App() {
     }
   }
 
-  useEffect(() => {
-    console.log("🎧 Setting up event listener for 'switch-list'");
-    const unlisten = listen<string>("switch-list", (event) => {
-      console.log("📨 Received 'switch-list' event with payload:", event.payload);
-      loadList(event.payload);
-    });
-    return () => {
-      console.log("🔇 Cleaning up 'switch-list' event listener");
-      unlisten.then((fn) => fn());
-    };
-  }, [loadList]);
 
-  // Test event listener
-  useEffect(() => {
-    console.log("🧪 Setting up test event listener");
-    const unlisten = listen<string>("test-event", (event) => {
-      console.log("🎉 Received test event with payload:", event.payload);
-      alert("Test event received: " + event.payload);
-    });
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  }, []);
 
-  // Auto-refresh mechanism
-  useEffect(() => {
-    const refreshInterval = setInterval(async () => {
-      // Refresh the lists
-      await fetchLists();
 
-      // If we have a current list loaded, refresh it too
-      if (currentName) {
-        const res = await commands.getList(currentName);
-        if (res.status === "ok") {
-          setCurrentList(res.data);
-        }
-      }
-    }, 2000); // Refresh every 2 seconds
 
-    return () => clearInterval(refreshInterval);
-  }, [currentName]);
 
-  /* ---------- keybindings ---------- */
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      // Check if any input is focused - if so, don't process vim commands
-      const activeElement = document.activeElement;
-      const isInputFocused = activeElement && (
-        activeElement.tagName === "INPUT" ||
-        activeElement.tagName === "TEXTAREA" //||
-        // activeElement.contentEditable === "true"
-      );
-
-      // toggle sidebar with Ctrl-b
-      if (e.key.toLowerCase() === "/") {
-
-        e.preventDefault();
-        return;
-      }
-
-      // toggle sidebar with Ctrl-b
-      if (e.ctrlKey && e.key.toLowerCase() === "b") {
-        setSidebarCollapsed((c) => !c);
-        e.preventDefault();
-        return;
-      }
-
-      // sidebar navigation (when open)
-      if (!sidebarCollapsed) {
-        const next = (delta: number) => {
-          setSidebarCursor((i) =>
-            (i + delta + flatSidebarItems.length) % flatSidebarItems.length
-          );
-        };
-
-        // Vim or arrow keys
-        if (vimMode && mode === "normal") {
-          if (["j", "k"].includes(e.key)) {
-            next(e.key === "j" ? 1 : -1);
-            e.preventDefault();
-            return;
-          }
-          if (e.key === "l") {
-            const item = flatSidebarItems[sidebarCursor];
-            if (item?.isList) loadList(item.path);
-            e.preventDefault();
-            return;
-          }
-          if (e.key === " ") {
-            const item = flatSidebarItems[sidebarCursor];
-            if (item && !item.isList) toggleFolder(item.path);
-            e.preventDefault();
-            return;
-          }
-        } else {
-          if (["ArrowDown", "ArrowUp"].includes(e.key)) {
-            next(e.key === "ArrowDown" ? 1 : -1);
-            e.preventDefault();
-            return;
-          }
-          if (e.key === "ArrowRight") {
-            const item = flatSidebarItems[sidebarCursor];
-            if (item?.isList) loadList(item.path);
-            e.preventDefault();
-            return;
-          }
-          if (e.key === " ") {
-            const item = flatSidebarItems[sidebarCursor];
-            if (item && !item.isList) toggleFolder(item.path);
-            e.preventDefault();
-            return;
-          }
-        }
-      }
-
-      // List item navigation in vim mode (only if no input is focused)
-      if (vimMode && currentList && sidebarCollapsed && !isInputFocused) {
-        // ESC key - exit edit mode to normal mode
-        if (e.key === "Escape") {
-          if (mode === "edit") {
-            setMode("normal");
-            setEditingAnchor(null);
-            setEditText("");
-            e.preventDefault();
-            return;
-          }
-        }
-
-        // Normal mode keybindings
-        if (mode === "normal") {
-          // j/k navigation within list items (including add item input)
-          const allItems = getAllItems(currentList);
-          const maxIndex = allItems.length; // Add item is at allItems.length
-          if (e.key === "j") {
-            const newIndex = Math.min(cursorIndex + 1, maxIndex);
-            setCursorIndex(newIndex);
-            scrollToItem(newIndex);
-            if (newIndex === maxIndex) {
-              // Focus on add item input
-              addItemRef.current?.focus();
-            }
-            e.preventDefault();
-            return;
-          }
-          if (e.key === "k") {
-            const newIndex = Math.max(cursorIndex - 1, 0);
-            setCursorIndex(newIndex);
-            scrollToItem(newIndex);
-            if (cursorIndex === maxIndex) {
-              // Moving up from add item, blur it
-              addItemRef.current?.blur();
-            }
-            e.preventDefault();
-            return;
-          }
-
-          // 'g' handling for 'gg' sequence
-          if (e.key === "g") {
-            if (gPressed) {
-              // Second 'g' - jump to top
-              setCursorIndex(0);
-              scrollToItem(0);
-              addItemRef.current?.blur();
-              setGPressed(false);
-            } else {
-              // First 'g' - wait for second
-              setGPressed(true);
-              // Clear the g-pressed state after a timeout
-              setTimeout(() => setGPressed(false), 1000);
-            }
-            e.preventDefault();
-            return;
-          }
-
-          // 'G' to jump to bottom (Add item)
-          if (e.key === "G") {
-            setCursorIndex(maxIndex);
-            scrollToItem(maxIndex);
-            addItemRef.current?.focus();
-            setGPressed(false); // Clear any pending g press
-            e.preventDefault();
-            return;
-          }
-
-          // Reset g-pressed state on any other key
-          if (gPressed && e.key !== "g") {
-            setGPressed(false);
-          }
-
-          // 'i' to enter edit mode on current item
-          if (e.key === "i") {
-            const allItems = getAllItems(currentList);
-            const currentItem = allItems[cursorIndex];
-            if (currentItem) {
-              startEdit(currentItem);
-              setMode("edit");
-            }
-            e.preventDefault();
-            return;
-          }
-
-          // Leader key combinations
-          if (leaderActive) {
-            if (leaderSeq === "" && e.key === "d") {
-              setLeaderSeq("d");
-              e.preventDefault();
-              return;
-            }
-
-            // 'dd' to delete current item
-            if (leaderSeq === "d" && e.key === "d") {
-              const allItems = getAllItems(currentList);
-              const currentItem = allItems[cursorIndex];
-              if (currentItem) {
-                deleteItem(currentItem.anchor);
-              }
-              setLeaderActive(false);
-              setLeaderSeq("");
-              e.preventDefault();
-              return;
-            }
-
-            // 'md' to mark as done
-            if (leaderSeq === "m" && e.key === "d") {
-              const allItems = getAllItems(currentList);
-              const currentItem = allItems[cursorIndex];
-              if (currentItem) {
-                toggleItemStatus(currentItem.anchor);
-              }
-              setLeaderActive(false);
-              setLeaderSeq("");
-              e.preventDefault();
-              return;
-            }
-
-            if (e.key === "m") {
-              setLeaderSeq("m");
-              e.preventDefault();
-              return;
-            }
-
-            // Reset on any other key
-            setLeaderActive(false);
-            setLeaderSeq("");
-          } else if (e.key === leaderKey) {
-            // Activate leader key
-            setLeaderActive(true);
-            setLeaderSeq("");
-            e.preventDefault();
-            return;
-          }
-        }
-      }
-
-      /* other key handling (existing logic, omitted) */
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [
-    sidebarCollapsed,
-    flatSidebarItems,
-    sidebarCursor,
-    vimMode,
-    mode,
-    leaderActive,
-    leaderSeq,
-    leaderKey,
-    currentList,
-    cursorIndex,
-    editingAnchor,
-    currentName,
-    gPressed,
-  ]);
 
   /* ---------- UI helpers ---------- */
   function renderSuggestions() {
@@ -713,8 +387,7 @@ export default function App() {
                     onChange={(e) => setEditText(e.currentTarget.value)}
                     onBlur={() => saveEdit(it.anchor)}
                     onKeyDown={(e) => {
-                      if (e.key === "Escape" && vimMode) {
-                        setMode("normal");
+                      if (e.key === "Escape") {
                         setEditingAnchor(null);
                         setEditText("");
                         e.preventDefault();
@@ -745,10 +418,7 @@ export default function App() {
                       });
                     dragIndex.current = null;
                   }}
-                  className={`text-[10pt]/4 flex items-center border-b min-h-10 py-2 mb-0 px-1 ${vimMode && mode === "normal" && idx === cursorIndex
-                    ? "border-b border-primary"
-                    : ""
-                    } ${selected.has(it.anchor) ? "bg-primary text-primary-foreground" : ""}`}
+                  className={`text-[10pt]/4 flex items-center border-b min-h-10 py-2 mb-0 px-1 ${selected.has(it.anchor) ? "bg-primary text-primary-foreground" : ""}`}
                 >
                   <Checkbox
                     className="h-4 w-4 hidden"
@@ -817,8 +487,7 @@ export default function App() {
                         onChange={(e) => setEditText(e.currentTarget.value)}
                         onBlur={() => saveEdit(it.anchor)}
                         onKeyDown={(e) => {
-                          if (e.key === "Escape" && vimMode) {
-                            setMode("normal");
+                          if (e.key === "Escape") {
                             setEditingAnchor(null);
                             setEditText("");
                             e.preventDefault();
@@ -849,10 +518,7 @@ export default function App() {
                           });
                         dragIndex.current = null;
                       }}
-                      className={`text-[10pt]/4 flex items-center border-b min-h-10 py-2 mb-0 px-1 ${vimMode && mode === "normal" && globalIdx === cursorIndex
-                        ? "border-b border-primary"
-                        : ""
-                        } ${selected.has(it.anchor) ? "bg-primary text-primary-foreground" : ""}`}
+                      className={`text-[10pt]/4 flex items-center border-b min-h-10 py-2 mb-0 px-1 ${selected.has(it.anchor) ? "bg-primary text-primary-foreground" : ""}`}
                     >
                       <Checkbox
                         className="h-4 w-4 hidden"
@@ -874,10 +540,7 @@ export default function App() {
             ))}
 
             {/* quick-add form */}
-            <form className={`flex gap-2 border-b ${vimMode && mode === "normal" && cursorIndex === getAllItems(currentList).length
-              ? "border-b border-primary"
-              : ""
-              }`} onSubmit={quickAddItem}>
+            <form className="flex gap-2 border-b" onSubmit={quickAddItem}>
               <Input
                 ref={addItemRef}
                 className="flex-1 text-[10pt] border-none"
@@ -885,8 +548,7 @@ export default function App() {
                 value={newItem}
                 onChange={(e) => setNewItem(e.currentTarget.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Escape" && vimMode) {
-                    setMode("normal");
+                  if (e.key === "Escape") {
                     addItemRef.current?.blur();
                     e.preventDefault();
                     e.stopPropagation();
@@ -927,22 +589,15 @@ export default function App() {
     ): JSX.Element[] =>
       nodes.flatMap((node) => {
         const isFolder = !node.isList;
-        const flatIndex = flatSidebarItems.findIndex(
-          (f) => f.path === node.path && f.isList === node.isList
-        );
-        const highlighted = flatIndex === sidebarCursor;
 
         // ── class helpers ──────────────────────────────
         const common = "cursor-pointer rounded-sm py-1 pl-2 text-sm flex items-center";
         const listClasses =
           node.isList && node.path === currentName
             ? "bg-muted font-medium"
-            : highlighted
-              ? "bg-muted-foreground/20"
-              : "hover:bg-muted";
+            : "hover:bg-muted";
 
-        const folderClasses =
-          highlighted ? "bg-muted-foreground/10" : "hover:bg-muted/50";
+        const folderClasses = "hover:bg-muted/50";
 
         return [
           <div
@@ -1021,13 +676,10 @@ export default function App() {
               value={newListName}
               onChange={(e) => setNewListName(e.target.value)}
               disabled={isDisabled} // 🔒 fully blocks input
-              onClick={() => { setMode("edit"); setIsDisabled(false); }}
+              onClick={() => { setIsDisabled(false); }}
               onKeyDown={(e) => {
                 if (e.key === "Escape") {
-                  if (vimMode) {
-                    setMode("normal");
-                    (e.target as HTMLInputElement).blur();
-                  }
+                  (e.target as HTMLInputElement).blur();
                 }
               }}
             />
@@ -1086,9 +738,6 @@ export default function App() {
                   setShowSuggestions(false);
                   setQuery("");
                   inputRef.current?.blur();
-                  if (vimMode) {
-                    setMode("normal");
-                  }
                   e.preventDefault();
                   return;
                 }
@@ -1138,7 +787,7 @@ export default function App() {
         {currentView === "lists" ? (
           renderCurrentList()
         ) : currentView === "notes" ? (
-          <MobileNotesPanel vimMode={vimMode} theme="dark" />
+          <MobileNotesPanel vimMode={false} theme="dark" />
         ) : (
           <SettingsPanel />
         )}

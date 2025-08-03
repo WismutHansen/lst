@@ -1,5 +1,5 @@
 use anyhow::Result;
-use lst_cli::config::get_config;
+use lst_cli::config::Config;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -48,7 +48,7 @@ pub fn update_sync_status(
 
 /// Get current sync status
 pub fn get_sync_status() -> Result<SyncStatusInfo> {
-    let config = get_config();
+    let config = Config::default();
     let status = SYNC_STATUS.lock().unwrap();
     
     // Check if sync is enabled

@@ -13,6 +13,8 @@ export function useTheme() {
 
   const loadCurrentTheme = async () => {
     try {
+      // Add delay to ensure Tauri is fully initialized
+      await new Promise(resolve => setTimeout(resolve, 100));
       const result = await commands.getCurrentTheme();
       if (result.status === "ok") {
         setThemeData(result.data);
@@ -20,6 +22,8 @@ export function useTheme() {
       }
     } catch (error) {
       console.error("Failed to load current theme:", error);
+      // Don't crash the app, just continue without theme
+      setLoading(false);
     }
   };
 
@@ -31,6 +35,7 @@ export function useTheme() {
       }
     } catch (error) {
       console.error("Failed to load available themes:", error);
+      // Don't crash the app, just continue without themes list
     }
   };
 
@@ -49,21 +54,36 @@ export function useTheme() {
   useEffect(() => {
     const initializeTheme = async () => {
       setLoading(true);
-      await Promise.all([loadCurrentTheme(), loadAvailableThemes()]);
-      setLoading(false);
+      try {
+        await Promise.all([loadCurrentTheme(), loadAvailableThemes()]);
+      } catch (error) {
+        console.error("Failed to initialize theme:", error);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    initializeTheme();
+    // Delay initialization to ensure app is fully loaded
+    const timer = setTimeout(initializeTheme, 200);
 
-    const unlisten = listen<ThemeData>("theme-update", ({ payload }) => {
-      if (payload) {
-        setThemeData(payload);
-        applyThemeToDOM(payload);
-      }
-    });
+    let unlistenPromise: Promise<() => void> | null = null;
+    
+    try {
+      unlistenPromise = listen<ThemeData>("theme-update", ({ payload }) => {
+        if (payload) {
+          setThemeData(payload);
+          applyThemeToDOM(payload);
+        }
+      });
+    } catch (error) {
+      console.error("Failed to setup theme listener:", error);
+    }
 
     return () => {
-      unlisten.then((f) => f());
+      clearTimeout(timer);
+      if (unlistenPromise) {
+        unlistenPromise.then((f) => f()).catch(() => {});
+      }
     };
   }, []);
 
