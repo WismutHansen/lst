@@ -7,10 +7,11 @@ import { MobileNotesPanel } from "./components/MobileNotesPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { SyncStatusIndicator } from "./components/SyncStatusIndicator";
 import { MobileThemeSelector } from "./components/MobileThemeSelector";
-import { Folder as FolderIcon, List as ListIcon, FileText, Clipboard, Settings, Menu } from "lucide-react";
+import { Folder as FolderIcon, List as ListIcon, FileText, Clipboard, Settings, Menu, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+
 import { useTheme } from "./hooks/useTheme";
 
 interface ListNode {
@@ -146,24 +147,9 @@ export default function App() {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<"name" | "date-asc" | "date-desc">("name");
   const [currentView, setCurrentView] = useState<"lists" | "notes" | "settings">("lists");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  /* ---------- sidebar & responsive ---------- */
-  // sidebar is collapsed by default
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
-  // Auto-collapse sidebar on mobile when screen size changes
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth < 640) { // sm breakpoint
-        setSidebarCollapsed(true);
-      }
-    };
-
-    window.addEventListener("resize", handleResize);
-    handleResize(); // Check initial size
-
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
 
   const dragIndex = useRef<number | null>(null);
 
@@ -219,10 +205,6 @@ export default function App() {
       setCurrentName(name);
       setShowSuggestions(false);
       setQuery("");
-      // Auto-collapse sidebar on mobile after selecting a list
-      if (window.innerWidth < 640) {
-        setSidebarCollapsed(true);
-      }
     } else {
       console.error("❌ Failed to load list:", res.error);
       setError(res.error);
@@ -378,14 +360,18 @@ export default function App() {
       return renderListBrowser();
     } else if (currentView === "notes") {
       return (
-        <div className="h-full w-full rounded-lg border p-4 bg-muted/20 overflow-y-auto">
-          <MobileNotesPanel vimMode={false} theme="dark" />
+        <div className="h-full w-full rounded-lg border bg-muted/20 overflow-y-auto">
+          <div className="h-full w-full" style={{ padding: "2px" }}>
+            <MobileNotesPanel vimMode={false} theme="dark" />
+          </div>
         </div>
       );
     } else if (currentView === "settings") {
       return (
-        <div className="h-full w-full rounded-lg border p-4 bg-muted/20 overflow-y-auto">
-          <SettingsPanel />
+        <div className="h-full w-full rounded-lg border bg-muted/20 overflow-y-auto">
+          <div className="h-full w-full" style={{ padding: "2px" }}>
+            <SettingsPanel />
+          </div>
         </div>
       );
     }
@@ -662,81 +648,7 @@ export default function App() {
     );
   }
 
-  function renderSidebar() {
-    if (sidebarCollapsed) {
-      return null; // Don't render collapsed sidebar on mobile
-    }
 
-    const sidebarContent = (
-      <aside className="flex w-full h-full flex-col gap-4 bg-background p-4 mobile-safe-area">
-        <div className="flex items-center justify-between">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSidebarCollapsed(true)}
-            className="h-8 w-8"
-          >
-            ✕
-          </Button>
-          <span className="text-sm font-medium">Quick Actions</span>
-        </div>
-        
-        <div className="flex flex-col gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setCreating(true);
-              setCurrentView("lists");
-              setSidebarCollapsed(true);
-            }}
-            className="justify-start"
-          >
-            + New List
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setCurrentView("notes");
-              setSidebarCollapsed(true);
-            }}
-            className="justify-start"
-          >
-            <FileText className="h-3 w-3 mr-2" />
-            Browse Notes
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setCurrentView("settings");
-              setSidebarCollapsed(true);
-            }}
-            className="justify-start"
-          >
-            <Settings className="h-3 w-3 mr-2" />
-            Settings
-          </Button>
-        </div>
-      </aside>
-    );
-
-    // Mobile overlay sidebar
-    return (
-      <>
-        {/* Mobile backdrop */}
-        <div
-          className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 z-40"
-          onClick={() => setSidebarCollapsed(true)}
-        />
-        {/* Mobile sidebar */}
-        <div className="fixed top-0 left-0 right-0 bottom-0 z-50">
-          {sidebarContent}
-        </div>
-      </>
-    );
-  }
 
   /* ---------- root render ---------- */
   const items = getAllItems(currentList);
@@ -752,14 +664,70 @@ export default function App() {
             className="flex w-full"
             onSubmit={(e) => e.preventDefault()}
           >
-            <div className="flex">
-              <button
-                onClick={() => setSidebarCollapsed(false)}
-                className="sm:hidden mr-2 h-9 w-9 p-0 border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md flex items-center justify-center transition-colors text-xs"
-                style={{ minHeight: "36px", maxHeight: "36px", minWidth: "36px", maxWidth: "36px" }}
+            <div className="flex relative">
+              <Button
+                variant="outline"
+                size="icon"
+                className="mr-2 h-9 w-9"
+                onClick={() => setDropdownOpen(!dropdownOpen)}
               >
                 <Menu className="h-3 w-3" />
-              </button>
+              </Button>
+              
+              {dropdownOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setDropdownOpen(false)}
+                  />
+                  <div className="absolute top-10 left-0 z-20 min-w-[160px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+                    <div className="px-2 py-1.5 text-sm font-semibold">Navigation</div>
+                    <div className="h-px bg-muted my-1" />
+                    <button
+                      className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground w-full text-left"
+                      onClick={() => {
+                        setCurrentView("lists");
+                        setDropdownOpen(false);
+                      }}
+                    >
+                      <Clipboard className="mr-2 h-4 w-4" />
+                      Lists
+                    </button>
+                    <button
+                      className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground w-full text-left"
+                      onClick={() => {
+                        setCurrentView("notes");
+                        setDropdownOpen(false);
+                      }}
+                    >
+                      <FileText className="mr-2 h-4 w-4" />
+                      Notes
+                    </button>
+                    <button
+                      className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground w-full text-left"
+                      onClick={() => {
+                        setCurrentView("settings");
+                        setDropdownOpen(false);
+                      }}
+                    >
+                      <Settings className="mr-2 h-4 w-4" />
+                      Settings
+                    </button>
+                    <div className="h-px bg-muted my-1" />
+                    <button
+                      className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground w-full text-left"
+                      onClick={() => {
+                        setCreating(true);
+                        setCurrentView("lists");
+                        setDropdownOpen(false);
+                      }}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      New List
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
             <Input
@@ -820,46 +788,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Navigation bar */}
-      <div className="flex-shrink-0 px-4 pb-2">
-        <div className="flex items-center gap-1">
-          <Button
-            variant={currentView === "lists" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setCurrentView("lists")}
-            className="h-7 px-3 text-xs"
-          >
-            <Clipboard className="h-3 w-3 mr-1" />
-            Lists
-          </Button>
-          <Button
-            variant={currentView === "notes" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setCurrentView("notes")}
-            className="h-7 px-3 text-xs"
-          >
-            <FileText className="h-3 w-3 mr-1" />
-            Notes
-          </Button>
-          <Button
-            variant={currentView === "settings" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setCurrentView("settings")}
-            className="h-7 px-3 text-xs"
-          >
-            <Settings className="h-3 w-3 mr-1" />
-            Settings
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCreating((c) => !c)}
-            className="h-7 w-7 px-2 text-xs ml-auto"
-          >
-            +
-          </Button>
-        </div>
-      </div>
+
 
       {/* Main content area - shows different content based on currentView */}
       <main className="flex-1 px-4 pb-4 min-w-0 overflow-hidden">
@@ -887,8 +816,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Overlay sidebar for mobile */}
-      {renderSidebar()}
+
 
       {/* Command palette */}
       <CommandPalette
