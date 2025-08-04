@@ -360,18 +360,14 @@ export default function App() {
       return renderListBrowser();
     } else if (currentView === "notes") {
       return (
-        <div className="h-full w-full rounded-lg border bg-muted/20 overflow-y-auto">
-          <div className="h-full w-full" style={{ padding: "2px" }}>
-            <MobileNotesPanel vimMode={false} theme="dark" />
-          </div>
+        <div className="h-full w-full rounded-lg border bg-muted/20 overflow-y-auto p-0.5">
+          <MobileNotesPanel vimMode={false} theme="dark" />
         </div>
       );
     } else if (currentView === "settings") {
       return (
-        <div className="h-full w-full rounded-lg border bg-muted/20 overflow-y-auto">
-          <div className="h-full w-full" style={{ padding: "2px" }}>
-            <SettingsPanel />
-          </div>
+        <div className="h-full w-full rounded-lg border bg-muted/20 overflow-y-auto p-0.5">
+          <SettingsPanel />
         </div>
       );
     }
