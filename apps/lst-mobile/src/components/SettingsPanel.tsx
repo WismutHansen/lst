@@ -7,13 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  Settings, 
-  Wifi, 
-  WifiOff, 
-  CheckCircle, 
-  XCircle, 
-  Loader2, 
+import {
+  Settings,
+  Wifi,
+  WifiOff,
+  CheckCircle,
+  XCircle,
+  Loader2,
   Server,
   Shield,
   Smartphone,
@@ -31,6 +31,11 @@ interface SyncConfig {
   syncEnabled: boolean;
   syncInterval: number;
   encryptionEnabled: boolean;
+}
+
+interface ServerConnection {
+  ip: string;
+  port: string;
 }
 
 interface SyncStatus {
@@ -56,6 +61,11 @@ export function SettingsPanel() {
     syncEnabled: false,
     syncInterval: 30,
     encryptionEnabled: true,
+  });
+
+  const [serverConnection, setServerConnection] = useState<ServerConnection>({
+    ip: "",
+    port: "5673",
   });
 
   const [status, setStatus] = useState<SyncStatus>({
@@ -93,10 +103,34 @@ export function SettingsPanel() {
           syncInterval: result.data.sync_interval,
           encryptionEnabled: result.data.encryption_enabled,
         });
+
+        // Parse server URL to extract IP and port
+        parseServerUrl(result.data.server_url);
       }
     } catch (error) {
       console.error("Failed to load sync config:", error);
     }
+  };
+
+  const parseServerUrl = (url: string) => {
+    if (!url) return;
+
+    try {
+      // Handle URLs like "ws://192.168.1.100:5673/api/sync"
+      const urlObj = new URL(url);
+      setServerConnection({
+        ip: urlObj.hostname,
+        port: urlObj.port || "5673",
+      });
+    } catch (error) {
+      console.error("Failed to parse server URL:", error);
+    }
+  };
+
+  const constructServerUrl = (ip: string, port: string): string => {
+    if (!ip.trim()) return "";
+    const cleanPort = port.trim() || "5673";
+    return `ws://${ip.trim()}:${cleanPort}/api/sync`;
   };
 
   const loadSyncStatus = async () => {
@@ -115,8 +149,13 @@ export function SettingsPanel() {
     }
   };
 
-  const handleServerUrlChange = (url: string) => {
-    setConfig(prev => ({ ...prev, serverUrl: url }));
+  const handleServerConnectionChange = (field: keyof ServerConnection, value: string) => {
+    const newConnection = { ...serverConnection, [field]: value };
+    setServerConnection(newConnection);
+
+    // Update the full server URL in config
+    const fullUrl = constructServerUrl(newConnection.ip, newConnection.port);
+    setConfig(prev => ({ ...prev, serverUrl: fullUrl }));
   };
 
   const handleEmailChange = (email: string) => {
@@ -125,8 +164,8 @@ export function SettingsPanel() {
   };
 
   const requestAuthToken = async () => {
-    if (!config.email || !config.serverUrl) {
-      setAuth(prev => ({ ...prev, error: "Please enter email and server URL" }));
+    if (!config.email || !serverConnection.ip) {
+      setAuth(prev => ({ ...prev, error: "Please enter email and server IP address" }));
       return;
     }
 
@@ -134,12 +173,16 @@ export function SettingsPanel() {
     setLoading(true);
 
     try {
+      // Construct the full server URL
+      const fullServerUrl = constructServerUrl(serverConnection.ip, serverConnection.port);
+      const updatedConfig = { ...config, serverUrl: fullServerUrl };
+
       // First save the server URL to config so it's available for verification
-      await saveSyncConfig({ ...config, serverUrl: config.serverUrl });
-      
+      await saveSyncConfig(updatedConfig);
+
       const result = await commands.requestAuthToken(
-        config.email, 
-        config.serverUrl, 
+        config.email,
+        fullServerUrl,
         auth.password || null
       );
       if (result.status === "ok") {
@@ -148,10 +191,10 @@ export function SettingsPanel() {
         setAuth(prev => ({ ...prev, step: "idle", error: result.error }));
       }
     } catch (error) {
-      setAuth(prev => ({ 
-        ...prev, 
-        step: "idle", 
-        error: error instanceof Error ? error.message : "Failed to request token" 
+      setAuth(prev => ({
+        ...prev,
+        step: "idle",
+        error: error instanceof Error ? error.message : "Failed to request token"
       }));
     } finally {
       setLoading(false);
@@ -176,9 +219,9 @@ export function SettingsPanel() {
         setAuth(prev => ({ ...prev, error: result.error }));
       }
     } catch (error) {
-      setAuth(prev => ({ 
-        ...prev, 
-        error: error instanceof Error ? error.message : "Failed to verify token" 
+      setAuth(prev => ({
+        ...prev,
+        error: error instanceof Error ? error.message : "Failed to verify token"
       }));
       setLoading(false);
     }
@@ -234,6 +277,26 @@ export function SettingsPanel() {
     }
   };
 
+  const triggerSync = async () => {
+    setLoading(true);
+    try {
+      const result = await commands.triggerSync();
+      if (result.status === "ok") {
+        setStatus(prev => ({ ...prev, error: null }));
+        alert("Sync successful: " + result.data);
+      } else {
+        setStatus(prev => ({ ...prev, error: result.error }));
+        alert("Sync failed: " + result.error);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Sync failed";
+      setStatus(prev => ({ ...prev, error: errorMsg }));
+      alert("Sync failed: " + errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const resetAuth = () => {
     setAuth({
       step: "idle",
@@ -247,35 +310,35 @@ export function SettingsPanel() {
 
   const getConnectionStatusBadge = () => {
     if (!config.syncEnabled) {
-      return <Badge variant="secondary"><WifiOff className="w-3 h-3 mr-1" />Disabled</Badge>;
+      return <Badge variant="secondary"><WifiOff className="text-muted-foreground w-3 h-3 mr-1" />Disabled</Badge>;
     }
-    
+
     if (status.connected) {
-      return <Badge variant="default" className="bg-green-600"><CheckCircle className="w-3 h-3 mr-1" />Connected</Badge>;
+      return <Badge variant="default" className="bg-green-600"><CheckCircle className="text-muted-foreground w-3 h-3 mr-1" />Connected</Badge>;
     }
-    
+
     if (status.error) {
-      return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Error</Badge>;
+      return <Badge variant="destructive"><XCircle className="text-muted-foreground w-3 h-3 mr-1" />Error</Badge>;
     }
-    
-    return <Badge variant="secondary"><Loader2 className="w-3 h-3 mr-1 animate-spin" />Connecting</Badge>;
+
+    return <Badge variant="secondary"><Loader2 className="text-muted-foreground w-3 h-3 mr-1 animate-spin" />Connecting</Badge>;
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-2xl mx-auto">
+    <div className="p-4 space-y-6 w-full h-full overflow-y-auto">
       <div className="flex items-center gap-2 mb-6">
         <Settings className="w-5 h-5" />
         <h1 className="text-xl font-semibold">Settings</h1>
       </div>
 
       {/* Sync Configuration */}
-      <Card>
+      <Card className="bg-muted/20">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Server className="w-4 h-4" />
             Sync Configuration
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-primary/40">
             Connect to a lst-server instance to sync your lists and notes across devices
           </CardDescription>
         </CardHeader>
@@ -288,16 +351,36 @@ export function SettingsPanel() {
 
           <Separator />
 
-          {/* Server URL */}
+          {/* Server Connection */}
           <div className="space-y-2">
-            <Label htmlFor="serverUrl">Server URL</Label>
-            <Input
-              id="serverUrl"
-              placeholder="ws://your-server:5673/api/sync"
-              value={config.serverUrl}
-              onChange={(e) => handleServerUrlChange(e.target.value)}
-              disabled={config.syncEnabled}
-            />
+            <Label>Server Connection</Label>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Label htmlFor="serverIp" className="text-xs text-muted-foreground">IP Address</Label>
+                <Input
+                  id="serverIp"
+                  placeholder="192.168.1.100"
+                  value={serverConnection.ip}
+                  onChange={(e) => handleServerConnectionChange("ip", e.target.value)}
+                  disabled={config.syncEnabled}
+                />
+              </div>
+              <div className="w-20">
+                <Label htmlFor="serverPort" className="text-xs text-muted-foreground">Port</Label>
+                <Input
+                  id="serverPort"
+                  placeholder="5673"
+                  value={serverConnection.port}
+                  onChange={(e) => handleServerConnectionChange("port", e.target.value)}
+                  disabled={config.syncEnabled}
+                />
+              </div>
+            </div>
+            {serverConnection.ip && (
+              <p className="text-xs text-muted-foreground">
+                Will connect to: ws://{serverConnection.ip}:{serverConnection.port || "5673"}/api/sync
+              </p>
+            )}
           </div>
 
           {/* Email */}
@@ -335,11 +418,11 @@ export function SettingsPanel() {
           {!config.syncEnabled && (
             <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
               <h4 className="font-medium">Authentication</h4>
-              
+
               {auth.step === "idle" && (
-                <Button 
-                  onClick={requestAuthToken} 
-                  disabled={loading || !config.email || !config.serverUrl}
+                <Button
+                  onClick={requestAuthToken}
+                  disabled={loading || !config.email || !serverConnection.ip}
                   className="w-full"
                 >
                   {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
@@ -416,12 +499,20 @@ export function SettingsPanel() {
                 {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Test Connection
               </Button>
+              <Button 
+                variant="outline" 
+                onClick={triggerSync} 
+                disabled={loading}
+                className="w-full"
+              >
+                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Trigger Sync
+              </Button>
               <Button variant="outline" onClick={resetAuth} className="w-full">
                 Reset Authentication
               </Button>
             </div>
-          )}
-        </CardContent>
+          )}        </CardContent>
       </Card>
 
       {/* Theme Configuration */}
@@ -491,7 +582,7 @@ export function SettingsPanel() {
               {config.deviceId || "Not configured"}
             </p>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <Shield className="w-4 h-4 text-green-600" />
             <span className="text-sm">End-to-end encryption enabled</span>
@@ -516,9 +607,9 @@ export function SettingsPanel() {
               min="10"
               max="300"
               value={config.syncInterval}
-              onChange={(e) => setConfig(prev => ({ 
-                ...prev, 
-                syncInterval: parseInt(e.target.value) || 30 
+              onChange={(e) => setConfig(prev => ({
+                ...prev,
+                syncInterval: parseInt(e.target.value) || 30
               }))}
             />
             <p className="text-xs text-muted-foreground">

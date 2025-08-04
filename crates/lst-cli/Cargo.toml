@@ -55,6 +55,7 @@ rusqlite = { workspace = true }
 uuid = { workspace = true }
 url = "2.5.0"
 argon2 = { workspace = true }
+urlencoding = "2.1.3"
 
 [features]
 default = ["lists", "gui"]

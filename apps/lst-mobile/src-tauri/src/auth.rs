@@ -34,6 +34,12 @@ struct AuthResponse {
     jwt_token: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct VerifyResponse {
+    jwt: String,
+    user: String,
+}
+
 /// Hash a password using Argon2id
 pub fn hash_password(password: &str) -> Result<String> {
     let salt = SaltString::generate(&mut OsRng);
@@ -160,37 +166,71 @@ pub async fn verify_auth_token(email: String, token: String, server_url: String)
         .context("Failed to send token verification request")?;
 
     if response.status().is_success() {
-        let auth_response: AuthResponse = response
+        // Parse the server's VerifyResponse format
+        let verify_response: VerifyResponse = response
             .json()
             .await
             .context("Failed to parse authentication response")?;
 
-        if auth_response.success {
-            if let Some(jwt_token) = auth_response.jwt_token {
-                // Store JWT token securely
-                store_jwt_token(&email, &jwt_token)?;
-                
-                // Update config with JWT token (expires in 1 hour by default)
-                let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
-                update_config_with_jwt(jwt_token.to_string(), expires_at)?;
-                
-                Ok("Authentication successful! Sync is now enabled.".to_string())
-            } else {
-                Err(anyhow::anyhow!("Server did not return JWT token"))
-            }
-        } else {
-            Err(anyhow::anyhow!("Authentication failed: {}", auth_response.message))
-        }
+        // Store JWT token securely
+        store_jwt_token(&email, &verify_response.jwt)?;
+        
+        // Update config with JWT token (expires in 1 hour by default)
+        let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
+        update_config_with_jwt(verify_response.jwt, expires_at)?;
+        
+        Ok("Authentication successful! Sync is now enabled.".to_string())
     } else {
         let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
         Err(anyhow::anyhow!("Token verification failed: {}", error_text))
     }
 }
 
-/// Update config with JWT token
+/// Update config with JWT token and sync settings
 fn update_config_with_jwt(jwt_token: String, expires_at: chrono::DateTime<chrono::Utc>) -> Result<()> {
     let mut config = CONFIG_MUTEX.lock().unwrap();
     config.store_jwt(jwt_token, expires_at);
+    
+    // Also update the sync configuration from mobile storage
+    let storage = MOBILE_SYNC_CONFIG.lock().unwrap();
+    if let Some(server_url) = storage.get("server_url") {
+        // Set up syncd configuration
+        let mut syncd_config = lst_cli::config::SyncdConfig {
+            url: Some(server_url.clone()),
+            auth_token: None, // We use JWT instead
+            device_id: storage.get("device_id").cloned(),
+            database_path: None,
+            encryption_key_ref: None,
+        };
+        
+        // Set up basic paths for mobile
+        let app_data_dir = std::env::temp_dir().join("lst-mobile");
+        std::fs::create_dir_all(&app_data_dir).ok();
+        
+        syncd_config.database_path = Some(app_data_dir.join("sync.db"));
+        
+        // Create a simple encryption key if it doesn't exist
+        let key_path = app_data_dir.join("sync.key");
+        if !key_path.exists() {
+            // Generate a simple 32-byte key for demo purposes
+            let key = (0..32).map(|i| (i as u8).wrapping_mul(7).wrapping_add(42)).collect::<Vec<u8>>();
+            std::fs::write(&key_path, key).ok();
+        }
+        syncd_config.encryption_key_ref = Some(key_path.to_string_lossy().to_string());
+        
+        config.syncd = Some(syncd_config);
+        
+        // Set up sync configuration
+        let sync_config = lst_cli::config::SyncSettings {
+            interval_seconds: storage.get("sync_interval")
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(30),
+            max_file_size: 10 * 1024 * 1024, // 10MB default
+            exclude_patterns: vec![],
+        };
+        config.sync = Some(sync_config);
+    }
+    
     config.save().context("Failed to save config with JWT token")?;
     Ok(())
 }
@@ -212,6 +252,12 @@ pub fn update_sync_config(
     storage.insert("sync_interval".to_string(), sync_interval.to_string());
     
     Ok(())
+}
+
+/// Get current config for sync manager
+pub fn get_current_config() -> Config {
+    let config_guard = CONFIG_MUTEX.lock().unwrap();
+    config_guard.clone()
 }
 
 /// Get current sync configuration

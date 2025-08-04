@@ -150,7 +150,7 @@ export default function App() {
   /* ---------- sidebar & responsive ---------- */
   // sidebar is collapsed by default
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-  
+
   // Auto-collapse sidebar on mobile when screen size changes
   useEffect(() => {
     const handleResize = () => {
@@ -158,11 +158,11 @@ export default function App() {
         setSidebarCollapsed(true);
       }
     };
-    
-    window.addEventListener('resize', handleResize);
+
+    window.addEventListener("resize", handleResize);
     handleResize(); // Check initial size
-    
-    return () => window.removeEventListener('resize', handleResize);
+
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   const dragIndex = useRef<number | null>(null);
@@ -377,8 +377,8 @@ export default function App() {
     /* --- render --- */
     return (
       <div
-        className="mb-6 w-full h-full rounded-lg border p-4"
-        style={{ backgroundColor: "var(--card)", border: "1px solid var(--border)" }}
+        className="mb-6 w-full h-full rounded-lg border p-4 bg-muted/20"
+        style={{ border: "1px solid var(--border)" }}
       >
         {/* header row */}
         {/* <div className="flex items-center gap-4"> */}
@@ -583,22 +583,7 @@ export default function App() {
 
   function renderSidebar() {
     if (sidebarCollapsed) {
-      return (
-        <aside className="hidden sm:flex w-12 flex-col gap-4 rounded-l-lg border-r border-border bg-background p-4 min-w-0 shrink-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setSidebarCollapsed(false)}
-                className="h-6 w-6 p-0 pt-8"
-              >󰞘
-              </Button>
-              <div className="h-8"></div>
-            </div>
-          </div>
-        </aside>
-      );
+      return null; // Don't render collapsed sidebar on mobile
     }
 
     const renderNodes = (
@@ -638,23 +623,14 @@ export default function App() {
       });
 
     const sidebarContent = (
-      <aside className="flex w-64 pl-2 flex-col gap-4 border-r border-border bg-background p-4 min-w-0 sm:rounded-l-lg">
+      <aside className="flex w-full h-full flex-col gap-4 bg-background p-4 mobile-safe-area">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSidebarCollapsed(true)}
-              className="h-7 w-7 sm:inline-flex"
-            >
-              󰞗
-            </Button>
-            {/* Mobile close button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarCollapsed(true)}
-              className="h-8 w-8 sm:hidden"
+              className="h-8 w-8"
             >
               ✕
             </Button>
@@ -662,7 +638,10 @@ export default function App() {
               <Button
                 variant={currentView === "lists" ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setCurrentView("lists")}
+                onClick={() => {
+                  setCurrentView("lists");
+                  setSidebarCollapsed(true);
+                }}
                 className="h-7 px-2 text-xs"
               >
                 <Clipboard className="h-3 w-3" />
@@ -670,7 +649,10 @@ export default function App() {
               <Button
                 variant={currentView === "notes" ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setCurrentView("notes")}
+                onClick={() => {
+                  setCurrentView("notes");
+                  setSidebarCollapsed(true);
+                }}
                 className="h-7 px-2 text-xs"
               >
                 <FileText className="h-3 w-3" />
@@ -688,7 +670,10 @@ export default function App() {
           <Button
             variant={currentView === "settings" ? "default" : "ghost"}
             size="sm"
-            onClick={() => setCurrentView("settings")}
+            onClick={() => {
+              setCurrentView("settings");
+              setSidebarCollapsed(true);
+            }}
             className="h-7 px-2 text-xs"
           >
             <Settings className="h-3 w-3 mr-1" />
@@ -718,7 +703,7 @@ export default function App() {
         }
 
         {currentView === "lists" && (
-          <div className="flex-1 overflow-y-auto pl-2 w-auto">{renderNodes(listTree)}</div>
+          <div className="flex-1 overflow-y-auto w-full">{renderNodes(listTree)}</div>
         )}
       </aside >
     );
@@ -728,12 +713,12 @@ export default function App() {
     return (
       <>
         {/* Mobile backdrop */}
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 sm:hidden"
+        <div
+          className="fixed top-0 left-0 right-0 bottom-8 bg-black/50 z-40"
           onClick={() => setSidebarCollapsed(true)}
         />
         {/* Mobile sidebar */}
-        <div className="fixed left-0 top-0 h-full z-50 sm:relative sm:z-auto">
+        <div className="fixed top-0 left-0 right-0 bottom-8 z-50">
           {sidebarContent}
         </div>
       </>
@@ -744,27 +729,26 @@ export default function App() {
   /* ---------- root render ---------- */
   return (
     <div
-      className="flex h-screen bg-background text-foreground min-w-0 w-full overflow-hidden mobile-safe-area"
+      className="flex h-screen bg-background text-foreground min-w-0 w-full overflow-hidden"
       style={{ backgroundColor: "var(--background)" }}
     >
       {renderSidebar()}
 
-      <main className="relative flex flex-1 flex-col p-4 sm:p-6 min-w-0 overflow-hidden">
+        <main className="relative flex flex-1 flex-col p-4 min-w-0 overflow-hidden">
         {/* top bar */}
         <div className="mt-2 mb-2 flex items-center gap-4">
           <form
             className="flex w-full"
             onSubmit={(e) => e.preventDefault()}
           >
-            <div>            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setSidebarCollapsed(false)}
-              className="sm:hidden mr-2"
-            >
-              <Menu></Menu>
-            </Button>
-            </div>
+            <div className="flex">
+              <button
+                onClick={() => setSidebarCollapsed(false)}
+                className="sm:hidden mr-2 h-9 w-9 p-0 border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md flex items-center justify-center transition-colors text-xs"
+                style={{ minHeight: "36px", maxHeight: "36px", minWidth: "36px", maxWidth: "36px" }}
+              >
+                <Menu className="h-3 w-3" />
+              </button>            </div>
 
             <Input
               ref={inputRef}
@@ -812,24 +796,26 @@ export default function App() {
             {renderSuggestions()}
 
             <div
-              className="border ml-2 flex items-center h-9 w-12"
+              className="border ml-2 flex items-center justify-center h-9 w-9 flex-shrink-0"
             >
               <img
                 src={Logo}
                 alt="lst icon"
-                className="opacity-75"
+                className="opacity-75 w-8 h-8 object-contain"
               />
             </div>
           </form>
         </div>
 
-        {currentView === "lists" ? (
-          renderCurrentList()
-        ) : currentView === "notes" ? (
-          <MobileNotesPanel vimMode={false} theme="dark" />
-        ) : (
-          <SettingsPanel />
-        )}
+        {
+          currentView === "lists" ? (
+            renderCurrentList()
+          ) : currentView === "notes" ? (
+            <MobileNotesPanel vimMode={false} theme="dark" />
+          ) : (
+            <SettingsPanel />
+          )
+        }
 
 
         {/* command palette (portal inside) */}
@@ -839,10 +825,15 @@ export default function App() {
           commands={paletteCommands}
         />
 
-      </main>
+      </main >
       {/* Status bar */}
-      <div
-        className="fixed bottom-0 left-0 right-0 h-5 border border-border bg-card text-xs flex items-center px-2 rounded-b-lg"
+      < div
+        className="fixed bottom-0 left-0 right-0 border border-border bg-muted/20 text-xs flex items-center px-2 rounded-b-lg"
+        style={{ 
+          height: "calc(20px + max(env(safe-area-inset-bottom), 4px) * 2)",
+          paddingTop: "max(env(safe-area-inset-bottom), 4px)",
+          paddingBottom: "max(env(safe-area-inset-bottom), 4px)"
+        }}
       >
         <span className="text-secondary-foreground truncate pr-4">
           lst {currentList ? `- ${currentList.title}.md` : ""}
@@ -856,7 +847,7 @@ export default function App() {
             {currentList ? `${items.length} items` : "No list selected"}
           </span>
         </div>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 }

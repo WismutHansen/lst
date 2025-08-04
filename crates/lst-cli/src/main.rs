@@ -5,7 +5,7 @@ use lst_cli::{config, models, storage};
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{AuthCommands, CategoryCommands, Cli, Commands, GuiCommands, ImageCommands, NoteCommands, ServerCommands, ThemeCommands};
+use cli::{AuthCommands, CategoryCommands, Cli, Commands, GuiCommands, ImageCommands, NoteCommands, ServerCommands, ThemeCommands, UserCommands};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -197,6 +197,23 @@ async fn main() -> Result<()> {
             }
             ThemeCommands::Validate { file } => {
                 cli::commands::theme_validate(file, cli.json)?;
+            }
+        },
+        Commands::User(user_cmd) => match user_cmd {
+            UserCommands::List => {
+                cli::commands::user_list(cli.json).await?;
+            }
+            UserCommands::Create { email, name } => {
+                cli::commands::user_create(email, name.as_deref(), cli.json).await?;
+            }
+            UserCommands::Delete { email, force } => {
+                cli::commands::user_delete(email, *force, cli.json).await?;
+            }
+            UserCommands::Update { email, name, enabled } => {
+                cli::commands::user_update(email, name.as_deref(), *enabled, cli.json).await?;
+            }
+            UserCommands::Info { email } => {
+                cli::commands::user_info(email, cli.json).await?;
             }
         },
     }

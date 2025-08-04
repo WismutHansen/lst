@@ -1974,3 +1974,243 @@ pub fn theme_generate_css(json: bool) -> Result<()> {
     
     Ok(())
 }
+
+// ============================================================================
+// User Management Commands (requires lst-server binary)
+// ============================================================================
+
+/// Check if lst-server binary is available
+fn check_server_binary() -> Result<()> {
+    match std::process::Command::new("lst-server")
+        .arg("--version")
+        .output()
+    {
+        Ok(output) if output.status.success() => Ok(()),
+        Ok(_) => bail!("lst-server binary found but returned error. Please ensure lst-server is properly installed."),
+        Err(_) => bail!("lst-server binary not found. Please install lst-server to use user management commands."),
+    }
+}
+
+/// List all users
+pub async fn user_list(json: bool) -> Result<()> {
+    check_server_binary()?;
+    
+    let response = make_authenticated_request(reqwest::Method::GET, "/api/admin/users", None).await?;
+    
+    if response.status().is_success() {
+        let users: serde_json::Value = response.json().await?;
+        
+        if json {
+            println!("{}", serde_json::to_string_pretty(&users)?);
+        } else {
+            if let Some(users_array) = users.as_array() {
+                if users_array.is_empty() {
+                    println!("No users found.");
+                } else {
+                    println!("Users:");
+                    for user in users_array {
+                        if let (Some(email), Some(enabled)) = (user.get("email"), user.get("enabled")) {
+                            let status = if enabled.as_bool().unwrap_or(false) { "enabled".green() } else { "disabled".red() };
+                            println!("  {} ({})", email.as_str().unwrap_or("unknown").cyan(), status);
+                            if let Some(name) = user.get("name").and_then(|n| n.as_str()) {
+                                println!("    Name: {}", name.dimmed());
+                            }
+                            if let Some(created) = user.get("created_at").and_then(|c| c.as_str()) {
+                                println!("    Created: {}", created.dimmed());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        let error_text = response.text().await?;
+        bail!("Failed to list users: {}", error_text);
+    }
+    
+    Ok(())
+}
+
+/// Create a new user
+pub async fn user_create(email: &str, name: Option<&str>, json: bool) -> Result<()> {
+    check_server_binary()?;
+    
+    let mut payload = serde_json::json!({
+        "email": email,
+        "enabled": true
+    });
+    
+    if let Some(name) = name {
+        payload["name"] = serde_json::Value::String(name.to_string());
+    }
+    
+    let response = make_authenticated_request(reqwest::Method::POST, "/api/admin/users", Some(payload)).await?;
+    
+    if response.status().is_success() {
+        let result: serde_json::Value = response.json().await?;
+        
+        if json {
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        } else {
+            println!("Successfully created user: {}", email.cyan());
+            if let Some(name) = name {
+                println!("  Name: {}", name);
+            }
+        }
+    } else if response.status() == reqwest::StatusCode::CONFLICT {
+        if json {
+            println!("{}", serde_json::json!({"error": "User already exists"}));
+        } else {
+            bail!("User '{}' already exists", email);
+        }
+    } else {
+        let error_text = response.text().await?;
+        bail!("Failed to create user: {}", error_text);
+    }
+    
+    Ok(())
+}
+
+/// Delete a user
+pub async fn user_delete(email: &str, force: bool, json: bool) -> Result<()> {
+    check_server_binary()?;
+    
+    if !force && !json {
+        use dialoguer::Confirm;
+        let confirmed = Confirm::new()
+            .with_prompt(format!("Are you sure you want to delete user '{}'?", email))
+            .default(false)
+            .interact()?;
+        
+        if !confirmed {
+            println!("User deletion cancelled.");
+            return Ok(());
+        }
+    }
+    
+    let endpoint = format!("/api/admin/users/{}", urlencoding::encode(email));
+    let response = make_authenticated_request(reqwest::Method::DELETE, &endpoint, None).await?;
+    
+    if response.status().is_success() {
+        let result: serde_json::Value = response.json().await?;
+        
+        if json {
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        } else {
+            println!("Successfully deleted user: {}", email.cyan());
+        }
+    } else if response.status() == reqwest::StatusCode::NOT_FOUND {
+        if json {
+            println!("{}", serde_json::json!({"error": "User not found"}));
+        } else {
+            bail!("User '{}' not found", email);
+        }
+    } else {
+        let error_text = response.text().await?;
+        bail!("Failed to delete user: {}", error_text);
+    }
+    
+    Ok(())
+}
+
+/// Update user information
+pub async fn user_update(email: &str, name: Option<&str>, enabled: Option<bool>, json: bool) -> Result<()> {
+    check_server_binary()?;
+    
+    let mut payload = serde_json::json!({});
+    
+    if let Some(name) = name {
+        payload["name"] = serde_json::Value::String(name.to_string());
+    }
+    
+    if let Some(enabled) = enabled {
+        payload["enabled"] = serde_json::Value::Bool(enabled);
+    }
+    
+    if payload.as_object().unwrap().is_empty() {
+        bail!("No updates specified. Use --name or --enabled flags.");
+    }
+    
+    let endpoint = format!("/api/admin/users/{}", urlencoding::encode(email));
+    let response = make_authenticated_request(reqwest::Method::PATCH, &endpoint, Some(payload)).await?;
+    
+    if response.status().is_success() {
+        let result: serde_json::Value = response.json().await?;
+        
+        if json {
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        } else {
+            println!("Successfully updated user: {}", email.cyan());
+            if let Some(name) = name {
+                println!("  Name: {}", name);
+            }
+            if let Some(enabled) = enabled {
+                let status = if enabled { "enabled".green() } else { "disabled".red() };
+                println!("  Status: {}", status);
+            }
+        }
+    } else if response.status() == reqwest::StatusCode::NOT_FOUND {
+        if json {
+            println!("{}", serde_json::json!({"error": "User not found"}));
+        } else {
+            bail!("User '{}' not found", email);
+        }
+    } else {
+        let error_text = response.text().await?;
+        bail!("Failed to update user: {}", error_text);
+    }
+    
+    Ok(())
+}
+
+/// Show detailed information about a user
+pub async fn user_info(email: &str, json: bool) -> Result<()> {
+    check_server_binary()?;
+    
+    let endpoint = format!("/api/admin/users/{}", urlencoding::encode(email));
+    let response = make_authenticated_request(reqwest::Method::GET, &endpoint, None).await?;
+    
+    if response.status().is_success() {
+        let user: serde_json::Value = response.json().await?;
+        
+        if json {
+            println!("{}", serde_json::to_string_pretty(&user)?);
+        } else {
+            println!("User: {}", email.cyan());
+            
+            if let Some(name) = user.get("name").and_then(|n| n.as_str()) {
+                println!("  Name: {}", name);
+            }
+            
+            if let Some(enabled) = user.get("enabled").and_then(|e| e.as_bool()) {
+                let status = if enabled { "enabled".green() } else { "disabled".red() };
+                println!("  Status: {}", status);
+            }
+            
+            if let Some(created) = user.get("created_at").and_then(|c| c.as_str()) {
+                println!("  Created: {}", created.dimmed());
+            }
+            
+            if let Some(updated) = user.get("updated_at").and_then(|u| u.as_str()) {
+                println!("  Updated: {}", updated.dimmed());
+            }
+            
+            if let Some(last_login) = user.get("last_login_at").and_then(|l| l.as_str()) {
+                println!("  Last login: {}", last_login.dimmed());
+            } else {
+                println!("  Last login: {}", "Never".dimmed());
+            }
+        }
+    } else if response.status() == reqwest::StatusCode::NOT_FOUND {
+        if json {
+            println!("{}", serde_json::json!({"error": "User not found"}));
+        } else {
+            bail!("User '{}' not found", email);
+        }
+    } else {
+        let error_text = response.text().await?;
+        bail!("Failed to get user info: {}", error_text);
+    }
+    
+    Ok(())
+}

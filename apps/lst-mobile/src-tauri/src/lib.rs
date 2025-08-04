@@ -11,7 +11,7 @@ mod sync;
 mod sync_db;
 mod sync_status;
 use database::Database;
-use specta_typescript::Typescript;
+// use specta_typescript::Typescript; // Only needed for debug builds
 use tauri::Manager;
 use tauri_plugin_opener;
 use tauri_specta::{collect_commands, Builder};
@@ -278,6 +278,41 @@ fn toggle_sync(enabled: bool) -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
+async fn trigger_sync() -> Result<String, String> {
+    let config = auth::get_current_config();
+    
+    if config.syncd.is_none() {
+        return Err("Sync not configured".to_string());
+    }
+    
+    if !config.is_jwt_valid() {
+        return Err("JWT token expired or invalid".to_string());
+    }
+    
+    match sync::SyncManager::new(config).await {
+        Ok(mut mgr) => {
+            match mgr.periodic_sync().await {
+                Ok(()) => {
+                    sync_status::mark_sync_connected().ok();
+                    Ok("Sync completed successfully".to_string())
+                }
+                Err(e) => {
+                    let error_msg = format!("Sync failed: {}", e);
+                    sync_status::mark_sync_disconnected(error_msg.clone()).ok();
+                    Err(error_msg)
+                }
+            }
+        }
+        Err(e) => {
+            let error_msg = format!("Failed to initialize sync: {}", e);
+            sync_status::mark_sync_disconnected(error_msg.clone()).ok();
+            Err(error_msg)
+        }
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
 async fn test_sync_connection() -> Result<String, String> {
     // Get server URL from saved sync config
     let sync_config = auth::get_sync_config().map_err(|e| e.to_string())?;
@@ -309,23 +344,24 @@ async fn test_sync_connection() -> Result<String, String> {
     }
 }
 
-// Minimal version for crash debugging
-pub fn run_minimal() {
-    println!("🚀 Starting minimal lst-mobile...");
-    
-    tauri::Builder::default()
-        .setup(|_app| {
-            println!("✅ Tauri setup completed successfully");
-            Ok(())
-        })
-        .invoke_handler(tauri::generate_handler![])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
-}
+// Minimal version for crash debugging - commented out to avoid duplicate symbol
+// #[allow(dead_code)]
+// pub fn run_minimal() {
+//     println!("🚀 Starting minimal lst-mobile...");
+//     
+//     tauri::Builder::default()
+//         .setup(|_app| {
+//             println!("✅ Tauri setup completed successfully");
+//             Ok(())
+//         })
+//         .invoke_handler(tauri::generate_handler![])
+//         .run(tauri::generate_context!())
+//         .expect("error while running tauri application");
+// }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = Builder::<tauri::Wry>::new()
+    let _builder = Builder::<tauri::Wry>::new()
         // Then register them (separated by a comma)
         .commands(collect_commands![
             get_lists,
@@ -354,6 +390,7 @@ pub fn run() {
             request_auth_token,
             verify_auth_token,
             toggle_sync,
+            trigger_sync,
             test_sync_connection,
             theme::get_current_theme,
             theme::apply_theme,
@@ -361,9 +398,12 @@ pub fn run() {
         ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
-    builder
-        .export(Typescript::default(), "../src/bindings.ts")
-        .expect("Failed to export typescript bindings");
+    {
+        use specta_typescript::Typescript;
+        _builder
+            .export(Typescript::default(), "../src/bindings.ts")
+            .expect("Failed to export typescript bindings");
+    }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -391,21 +431,32 @@ pub fn run() {
             }
 
             // Start sync service on all platforms (including mobile)
-            let config = Config::default();
             tauri::async_runtime::spawn(async move {
-                match sync::SyncManager::new(config).await {
-                    Ok(mut mgr) => {
-                        loop {
-                            if let Err(e) = mgr.periodic_sync().await {
-                                eprintln!("sync error: {e}");
+                loop {
+                    // Get the current config (which may have been updated with JWT)
+                    let config = auth::get_current_config();
+                    
+                    // Only try to sync if we have sync configuration
+                    if config.syncd.is_some() && config.is_jwt_valid() {
+                        match sync::SyncManager::new(config).await {
+                            Ok(mut mgr) => {
+                                if let Err(e) = mgr.periodic_sync().await {
+                                    eprintln!("sync error: {e}");
+                                    sync_status::mark_sync_disconnected(e.to_string()).ok();
+                                } else {
+                                    sync_status::mark_sync_connected().ok();
+                                }
                             }
-                            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                            Err(e) => {
+                                eprintln!("Failed to initialize sync manager: {}", e);
+                                sync_status::mark_sync_disconnected(format!("Init failed: {}", e)).ok();
+                            }
                         }
+                    } else {
+                        sync_status::mark_sync_disconnected("Sync not configured or JWT expired".to_string()).ok();
                     }
-                    Err(e) => {
-                        eprintln!("Failed to initialize sync manager: {}", e);
-                        // Continue without sync rather than crashing
-                    }
+                    
+                    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
                 }
             });
 
@@ -454,6 +505,7 @@ pub fn run() {
             request_auth_token,
             verify_auth_token,
             toggle_sync,
+            trigger_sync,
             test_sync_connection,
             theme::get_current_theme,
             theme::apply_theme,

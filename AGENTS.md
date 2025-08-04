@@ -91,6 +91,16 @@ lst theme info <name>   # Get theme details
 lst theme validate <file> # Validate theme file
 ```
 
+#### CLI User Management Commands (requires lst-server)
+```bash
+lst user list                    # List all users
+lst user create <email>          # Create a new user
+lst user delete <email>          # Delete a user (with confirmation)
+lst user delete <email> --force  # Delete a user without confirmation
+lst user update <email> --name <name> --enabled <true/false>  # Update user info
+lst user info <email>            # Show detailed user information
+```
+
 #### Frontend Integration
 - **Desktop**: Theme selector in sidebar with live switching
 - **Mobile**: Theme selector in Settings panel with bottom sheet UI

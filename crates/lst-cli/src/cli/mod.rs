@@ -165,7 +165,60 @@ pub enum Commands {
     /// Theme management commands
     #[clap(subcommand, name = "themes")]
     Themes(ThemeCommands),
+
+    /// User management commands (requires lst-server)
+    #[clap(subcommand, name = "user")]
+    User(UserCommands),
 }
+
+/// User management subcommands (requires lst-server binary)
+#[derive(Subcommand)]
+pub enum UserCommands {
+    /// List all users
+    #[clap(name = "list")]
+    List,
+
+    /// Create a new user
+    #[clap(name = "create")]
+    Create {
+        /// Email address for the new user
+        email: String,
+        /// Optional display name
+        #[clap(long)]
+        name: Option<String>,
+    },
+
+    /// Delete a user
+    #[clap(name = "delete")]
+    Delete {
+        /// Email address of the user to delete
+        email: String,
+        /// Skip confirmation prompt
+        #[clap(short, long)]
+        force: bool,
+    },
+
+    /// Update user information
+    #[clap(name = "update")]
+    Update {
+        /// Email address of the user to update
+        email: String,
+        /// New display name
+        #[clap(long)]
+        name: Option<String>,
+        /// Enable or disable the user
+        #[clap(long)]
+        enabled: Option<bool>,
+    },
+
+    /// Show detailed information about a user
+    #[clap(name = "info")]
+    Info {
+        /// Email address of the user
+        email: String,
+    },
+}
+
 
 #[derive(Subcommand)]
 pub enum GuiCommands {

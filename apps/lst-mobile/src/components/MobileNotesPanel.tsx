@@ -1,170 +1,170 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { commands, Note } from '../bindings'
-import { MobileNoteEditor } from './MobileNoteEditor'
-import { Button } from './ui/button'
-import { Input } from './ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
-import { ScrollArea } from './ui/scroll-area'
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from './ui/sheet'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
-import { FileText, Plus, Search, Edit, Trash2, Save, ArrowLeft, Menu } from 'lucide-react'
+import React, { useState, useEffect, useCallback } from "react";
+import { commands, Note } from "../bindings";
+import { MobileNoteEditor } from "./MobileNoteEditor";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { ScrollArea } from "./ui/scroll-area";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
+import { FileText, Plus, Search, Edit, Trash2, Save, ArrowLeft, Menu } from "lucide-react";
 
 interface MobileNotesPanelProps {
   vimMode?: boolean
-  theme?: 'light' | 'dark'
+  theme?: "light" | "dark"
 }
 
-export function MobileNotesPanel({ vimMode = false, theme = 'light' }: MobileNotesPanelProps) {
-  const [notes, setNotes] = useState<string[]>([])
-  const [selectedNote, setSelectedNote] = useState<Note | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [isEditing, setIsEditing] = useState(false)
-  const [isCreating, setIsCreating] = useState(false)
-  const [newNoteTitle, setNewNoteTitle] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [showNotesList, setShowNotesList] = useState(false)
+export function MobileNotesPanel({ vimMode = false, theme = "light" }: MobileNotesPanelProps) {
+  const [notes, setNotes] = useState<string[]>([]);
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [newNoteTitle, setNewNoteTitle] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showNotesList, setShowNotesList] = useState(false);
 
   const loadNotes = useCallback(async () => {
     try {
-      const result = await commands.getNotes()
-      if (result.status === 'ok') {
-        setNotes(result.data)
+      const result = await commands.getNotes();
+      if (result.status === "ok") {
+        setNotes(result.data);
       } else {
-        setError(result.error)
+        setError(result.error);
       }
     } catch (err) {
-      setError(String(err))
+      setError(String(err));
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    loadNotes()
-  }, [loadNotes])
+    loadNotes();
+  }, [loadNotes]);
 
   const filteredNotes = notes.filter(note =>
     note.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  );
 
   const handleSelectNote = async (noteName: string) => {
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
     try {
-      const result = await commands.getNote(noteName)
-      if (result.status === 'ok') {
-        setSelectedNote(result.data)
-        setIsEditing(false)
-        setShowNotesList(false) // Close notes list on mobile
+      const result = await commands.getNote(noteName);
+      if (result.status === "ok") {
+        setSelectedNote(result.data);
+        setIsEditing(false);
+        setShowNotesList(false); // Close notes list on mobile
       } else {
-        setError(result.error)
+        setError(result.error);
       }
     } catch (err) {
-      setError(String(err))
+      setError(String(err));
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleCreateNote = async () => {
-    if (!newNoteTitle.trim()) return
+    if (!newNoteTitle.trim()) return;
 
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
     try {
-      const result = await commands.createNoteCmd(newNoteTitle.trim())
-      if (result.status === 'ok') {
-        setSelectedNote(result.data)
-        setIsEditing(true)
-        setIsCreating(false)
-        setNewNoteTitle('')
-        setShowNotesList(false)
-        await loadNotes()
+      const result = await commands.createNoteCmd(newNoteTitle.trim());
+      if (result.status === "ok") {
+        setSelectedNote(result.data);
+        setIsEditing(true);
+        setIsCreating(false);
+        setNewNoteTitle("");
+        setShowNotesList(false);
+        await loadNotes();
       } else {
-        setError(result.error)
+        setError(result.error);
       }
     } catch (err) {
-      setError(String(err))
+      setError(String(err));
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleSaveNote = async () => {
-    if (!selectedNote) return
+    if (!selectedNote) return;
 
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
     try {
-      const result = await commands.saveNote(selectedNote)
-      if (result.status === 'ok') {
-        setIsEditing(false)
+      const result = await commands.saveNote(selectedNote);
+      if (result.status === "ok") {
+        setIsEditing(false);
       } else {
-        setError(result.error)
+        setError(result.error);
       }
     } catch (err) {
-      setError(String(err))
+      setError(String(err));
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleDeleteNote = async (noteName: string) => {
-    if (!confirm(`Are you sure you want to delete "${noteName}"?`)) return
+    if (!confirm(`Are you sure you want to delete "${noteName}"?`)) return;
 
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
     try {
-      const result = await commands.deleteNoteCmd(noteName)
-      if (result.status === 'ok') {
+      const result = await commands.deleteNoteCmd(noteName);
+      if (result.status === "ok") {
         if (selectedNote && selectedNote.title === noteName) {
-          setSelectedNote(null)
-          setIsEditing(false)
+          setSelectedNote(null);
+          setIsEditing(false);
         }
-        await loadNotes()
-        setShowNotesList(true) // Return to notes list
+        await loadNotes();
+        setShowNotesList(true); // Return to notes list
       } else {
-        setError(result.error)
+        setError(result.error);
       }
     } catch (err) {
-      setError(String(err))
+      setError(String(err));
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleNoteContentChange = (content: string) => {
     if (selectedNote) {
-      setSelectedNote({ ...selectedNote, content })
+      setSelectedNote({ ...selectedNote, content });
     }
-  }
+  };
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    if (!vimMode) return
+    if (!vimMode) return;
 
-    if (event.key === 'Escape') {
+    if (event.key === "Escape") {
       if (isEditing) {
-        setIsEditing(false)
+        setIsEditing(false);
       } else if (selectedNote) {
-        setSelectedNote(null)
-        setShowNotesList(true)
+        setSelectedNote(null);
+        setShowNotesList(true);
       }
-      return
+      return;
     }
 
-    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
-      event.preventDefault()
+    if ((event.ctrlKey || event.metaKey) && event.key === "s") {
+      event.preventDefault();
       if (isEditing && selectedNote) {
-        handleSaveNote()
+        handleSaveNote();
       }
     }
-  }, [vimMode, isEditing, selectedNote])
+  }, [vimMode, isEditing, selectedNote]);
 
   useEffect(() => {
     if (vimMode) {
-      document.addEventListener('keydown', handleKeyDown)
-      return () => document.removeEventListener('keydown', handleKeyDown)
+      document.addEventListener("keydown", handleKeyDown);
+      return () => document.removeEventListener("keydown", handleKeyDown);
     }
-  }, [handleKeyDown, vimMode])
+  }, [handleKeyDown, vimMode]);
 
   // Mobile view: show either notes list or selected note
   if (!selectedNote || showNotesList) {
@@ -193,8 +193,8 @@ export function MobileNotesPanel({ vimMode = false, theme = 'light' }: MobileNot
                   onChange={(e) => setNewNoteTitle(e.target.value)}
                   placeholder="Enter note title..."
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleCreateNote()
+                    if (e.key === "Enter") {
+                      handleCreateNote();
                     }
                   }}
                   autoFocus
@@ -238,20 +238,20 @@ export function MobileNotesPanel({ vimMode = false, theme = 'light' }: MobileNot
             {filteredNotes.map((noteName) => (
               <Card
                 key={noteName}
-                className="cursor-pointer transition-colors hover:bg-accent active:bg-accent/80"
+                className="cursor-pointer transition-colors hover:bg-muted active:bg-accent/80"
                 onClick={() => handleSelectNote(noteName)}
               >
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <span className="font-medium truncate pr-2">
-                      {noteName.replace('.md', '')}
+                      {noteName.replace(".md", "")}
                     </span>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={(e) => {
-                        e.stopPropagation()
-                        handleDeleteNote(noteName)
+                        e.stopPropagation();
+                        handleDeleteNote(noteName);
                       }}
                       disabled={loading}
                       className="h-8 w-8 p-0 shrink-0"
@@ -272,7 +272,7 @@ export function MobileNotesPanel({ vimMode = false, theme = 'light' }: MobileNot
           </div>
         </ScrollArea>
       </div>
-    )
+    );
   }
 
   // Mobile view: show selected note
@@ -337,7 +337,7 @@ export function MobileNotesPanel({ vimMode = false, theme = 'light' }: MobileNot
             <div className="p-4">
               <div className="prose max-w-none">
                 <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed">
-                  {selectedNote.content || 'This note is empty. Tap Edit to add content.'}
+                  {selectedNote.content || "This note is empty. Tap Edit to add content."}
                 </pre>
               </div>
             </div>
@@ -345,5 +345,5 @@ export function MobileNotesPanel({ vimMode = false, theme = 'light' }: MobileNot
         )}
       </div>
     </div>
-  )
+  );
 }
