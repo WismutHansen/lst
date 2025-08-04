@@ -377,17 +377,9 @@ export default function App() {
     } else if (currentView === "lists" && !currentList) {
       return renderListBrowser();
     } else if (currentView === "notes") {
-      return (
-        <div className="h-full w-full rounded-lg border p-4 bg-muted/20 overflow-y-auto">
-          <MobileNotesPanel vimMode={false} theme="dark" />
-        </div>
-      );
+      return <MobileNotesPanel vimMode={false} theme="dark" />;
     } else if (currentView === "settings") {
-      return (
-        <div className="h-full w-full rounded-lg border p-4 bg-muted/20 overflow-y-auto">
-          <SettingsPanel />
-        </div>
-      );
+      return <SettingsPanel />;
     }
     return null;
   }
@@ -738,6 +730,145 @@ export default function App() {
     );
   }
 
+    const renderNodes = (
+      nodes: ListNode[],
+      depth = 0
+    ): JSX.Element[] =>
+      nodes.flatMap((node) => {
+        const isFolder = !node.isList;
+
+        // ── class helpers ──────────────────────────────
+        const common = "cursor-pointer rounded-sm py-1 pl-2 text-sm flex items-center";
+        const listClasses =
+          node.isList && node.path === currentName
+            ? "bg-muted font-medium"
+            : "hover:bg-muted";
+
+        const folderClasses = "hover:bg-muted/50";
+
+        return [
+          <div
+            key={node.path}
+            className={`${common} ${isFolder ? folderClasses : listClasses}`}
+            style={{ marginLeft: depth * 12 }}
+            onClick={() =>
+              node.isList ? loadList(node.path) : toggleFolder(node.path)
+            }
+          >
+            {isFolder ? (
+              <FolderIcon size={16} className="mr-1 flex-none" />
+            ) : (
+              <ListIcon size={16} className="mr-1 flex-none" />
+            )}
+            {node.name}
+          </div>,
+          ...(isFolder && expandedFolders.has(node.path) ? renderNodes(node.children, depth + 1) : []),
+        ];
+      });
+
+    const sidebarContent = (
+      <aside className="flex w-full h-full flex-col gap-4 bg-background p-4 mobile-safe-area">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarCollapsed(true)}
+              className="h-8 w-8"
+            >
+              ✕
+            </Button>
+            <div className="flex gap-1">
+              <Button
+                variant={currentView === "lists" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => {
+                  setCurrentView("lists");
+                  setSidebarCollapsed(true);
+                }}
+                className="h-7 px-2 text-xs"
+              >
+                <Clipboard className="h-3 w-3" />
+              </Button>
+              <Button
+                variant={currentView === "notes" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => {
+                  setCurrentView("notes");
+                  setSidebarCollapsed(true);
+                }}
+                className="h-7 px-2 text-xs"
+              >
+                <FileText className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCreating((c) => !c)}
+                className="h-7 w-7 px-2 text-xs"
+              >
+                
+              </Button>
+            </div>
+          </div>
+          <Button
+            variant={currentView === "settings" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => {
+              setCurrentView("settings");
+              setSidebarCollapsed(true);
+            }}
+            className="h-7 px-2 text-xs"
+          >
+            <Settings className="h-3 w-3 mr-1" />
+          </Button>
+        </div>
+
+        {currentView === "lists" && creating && (
+          <form className="flex gap-2" onSubmit={createNewList}>
+            <Input
+              className="flex-1"
+              placeholder="List name"
+              value={newListName}
+              onChange={(e) => setNewListName(e.target.value)}
+              disabled={isDisabled} // 🔒 fully blocks input
+              onClick={() => { setIsDisabled(false); }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+            />
+            < Button size="sm" type="submit" >
+               Create
+            </Button>
+          </form>
+        )
+        }
+
+        {currentView === "lists" && (
+          <div className="flex-1 overflow-y-auto w-full">{renderNodes(listTree)}</div>
+        )}
+      </aside >
+    );
+
+
+    // Mobile overlay sidebar
+    return (
+      <>
+        {/* Mobile backdrop */}
+        <div
+          className="fixed top-0 left-0 right-0 bottom-8 bg-black/50 z-40"
+          onClick={() => setSidebarCollapsed(true)}
+        />
+        {/* Mobile sidebar */}
+        <div className="fixed top-0 left-0 right-0 bottom-8 z-50">
+          {sidebarContent}
+        </div>
+      </>
+    );
+  }
+
   /* ---------- root render ---------- */
   const items = getAllItems(currentList);
   return (
@@ -862,7 +993,7 @@ export default function App() {
       </div>
 
       {/* Main content area - shows different content based on currentView */}
-      <main className="flex-1 px-4 pb-4 min-w-0 overflow-hidden">
+      <main className="flex-1 px-4 min-w-0 overflow-hidden">
         {renderMainContent()}
       </main>
 
