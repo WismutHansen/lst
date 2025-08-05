@@ -423,24 +423,24 @@ export function SettingsPanel() {
                 <Button
                   onClick={requestAuthToken}
                   disabled={loading || !config.email || !serverConnection.ip}
-                  className="w-full"
+                  className="text-wrap w-full"
                 >
                   {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Request Authentication Token
+                  Request Auth Token
                 </Button>
               )}
 
               {auth.step === "requesting" && (
                 <div className="text-center">
                   <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin" />
-                   <p className="text-sm text-muted-foreground break-words">Requesting authentication token...</p>                </div>
+                  <p className="text-sm text-muted-foreground break-words">Requesting authentication token...</p>                </div>
               )}
 
               {auth.step === "verifying" && (
                 <div className="space-y-3">
-                   <p className="text-sm text-muted-foreground break-words">
-                     Check your email for the verification token and enter it below:
-                   </p>                  <Input
+                  <p className="text-sm text-muted-foreground break-words">
+                    Check your email for the verification token and enter it below:
+                  </p>                  <Input
                     placeholder="TOKEN-FROM-EMAIL"
                     value={auth.token}
                     onChange={(e) => setAuth(prev => ({ ...prev, token: e.target.value.toUpperCase() }))}
@@ -476,7 +476,7 @@ export function SettingsPanel() {
             <div className="flex items-center justify-between">
               <div>
                 <Label>Enable Sync</Label>
-                 <p className="text-sm text-muted-foreground break-words">Automatically sync changes with server</p>              </div>
+                <p className="text-sm text-muted-foreground break-words">Automatically sync changes with server</p>              </div>
               <Switch
                 checked={config.syncEnabled}
                 onCheckedChange={toggleSync}
@@ -487,18 +487,18 @@ export function SettingsPanel() {
           {/* Test Connection & Reset Authentication */}
           {config.syncEnabled && (
             <div className="space-y-2">
-              <Button 
-                variant="outline" 
-                onClick={testConnection} 
+              <Button
+                variant="outline"
+                onClick={testConnection}
                 disabled={loading}
                 className="w-full"
               >
                 {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Test Connection
               </Button>
-              <Button 
-                variant="outline" 
-                onClick={triggerSync} 
+              <Button
+                variant="outline"
+                onClick={triggerSync}
                 disabled={loading}
                 className="w-full"
               >
