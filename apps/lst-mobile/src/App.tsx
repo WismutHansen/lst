@@ -650,11 +650,11 @@ export default function App() {
   const items = getAllItems(currentList);
   return (
     <div
-      className="flex h-screen bg-background text-foreground min-w-0 w-full overflow-hidden flex-col"
+      className="flex h-screen bg-background text-foreground min-w-0 w-full overflow-hidden flex-col mobile-safe-area-vertical"
       style={{ backgroundColor: "var(--background)" }}
     >
       {/* Top bar - always visible */}
-      <div className="flex-shrink-0 p-4 pb-2">
+      <div className="flex-shrink-0 px-4 pt-4 pb-2">
         <div className="flex items-center gap-4">
           <form
             className="flex w-full"
@@ -793,10 +793,7 @@ export default function App() {
 
       {/* Status bar - always visible */}
       <div
-        className="flex-shrink-0 border-t border-border bg-muted/20 text-xs flex items-center px-4 py-2"
-        style={{ 
-          paddingBottom: "max(env(safe-area-inset-bottom), 8px)"
-        }}
+        className="flex-shrink-0 border-t border-border bg-muted/20 text-xs flex items-center px-4 py-2 pb-4"
       >
         <span className="text-secondary-foreground truncate pr-4">
           lst {currentList ? `- ${currentList.title}.md` : ""}
