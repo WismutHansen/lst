@@ -168,15 +168,20 @@
 /* Mobile-specific optimizations - only for actual mobile devices */
 @media (max-width: 640px) and (pointer: coarse) {
   .mobile-safe-area {
-    padding-top: max(env(safe-area-inset-top), 20px);
-    padding-bottom: max(env(safe-area-inset-bottom), 8px);
+    padding-top: max(env(safe-area-inset-top), 44px);
+    padding-bottom: max(env(safe-area-inset-bottom), 34px);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }
   
   .mobile-safe-area-vertical {
-    padding-top: max(env(safe-area-inset-top), 20px);
-    padding-bottom: max(env(safe-area-inset-bottom), 8px);
+    padding-top: max(env(safe-area-inset-top), 44px);
+    padding-bottom: max(env(safe-area-inset-bottom), 34px);
+  }
+  
+  .mobile-safe-area-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom), 20px);
+    margin-bottom: env(safe-area-inset-bottom);
   }
   
   /* Prevent zoom on input focus */
@@ -196,6 +201,15 @@
   .mobile-safe-area {
     padding: 16px;
   }
+  
+  .mobile-safe-area-vertical {
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+  
+  .mobile-safe-area-bottom {
+    padding-bottom: 16px;
+  }
 }
 
 /* Fallback for narrow desktop windows */
@@ -203,6 +217,25 @@
   .mobile-safe-area {
     padding: 16px;
   }
+  
+  .mobile-safe-area-vertical {
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+  
+  .mobile-safe-area-bottom {
+    padding-bottom: 16px;
+  }
+}
+
+/* Fallback for when safe-area-inset is not supported */
+.mobile-safe-area-vertical {
+  padding-top: 44px;
+  padding-bottom: 34px;
+}
+
+.mobile-safe-area-bottom {
+  padding-bottom: 20px;
 }
 
 

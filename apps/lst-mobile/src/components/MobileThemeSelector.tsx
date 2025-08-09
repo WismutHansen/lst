@@ -8,13 +8,13 @@ import { Search } from "lucide-react";
 // Simple fuzzy search function
 function fuzzySearch(query: string, text: string): boolean {
   if (!query) return true;
-  
+
   const queryLower = query.toLowerCase();
   const textLower = text.toLowerCase();
-  
+
   // Simple contains check first
   if (textLower.includes(queryLower)) return true;
-  
+
   // Fuzzy match: check if all query characters appear in order
   let queryIndex = 0;
   for (let i = 0; i < textLower.length && queryIndex < queryLower.length; i++) {
@@ -22,7 +22,7 @@ function fuzzySearch(query: string, text: string): boolean {
       queryIndex++;
     }
   }
-  
+
   return queryIndex === queryLower.length;
 }
 
@@ -34,7 +34,7 @@ export function MobileThemeSelector() {
 
   // Filter themes based on search query
   const filteredThemes = useMemo(() => {
-    return availableThemes.filter(themeName => 
+    return availableThemes.filter(themeName =>
       fuzzySearch(searchQuery, themeName)
     );
   }, [availableThemes, searchQuery]);
@@ -71,7 +71,7 @@ export function MobileThemeSelector() {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="min-w-[100px]">
+        <Button variant="outline" size="sm" className="min-w-[100px] w-full">
           {themeData?.name || "Default"}
         </Button>
       </DialogTrigger>
@@ -79,7 +79,7 @@ export function MobileThemeSelector() {
         <DialogHeader>
           <DialogTitle>Select Theme</DialogTitle>
         </DialogHeader>
-        
+
         {/* Search Bar */}
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -92,7 +92,7 @@ export function MobileThemeSelector() {
             autoFocus
           />
         </div>
-        
+
         {/* Theme List */}
         <div className="flex-1 overflow-y-auto space-y-2 max-h-[400px]">
           {filteredThemes.length === 0 ? (
@@ -109,9 +109,8 @@ export function MobileThemeSelector() {
                   setIsOpen(false);
                   setSearchQuery(""); // Reset search when closing
                 }}
-                className={`w-full justify-start ${
-                  index === selectedIndex ? "ring-2 ring-primary" : ""
-                }`}
+                className={`w-full justify-start ${index === selectedIndex ? "ring-2 ring-primary" : ""
+                  }`}
               >
                 {themeName}
               </Button>

@@ -449,7 +449,7 @@ export default function App() {
         {/* </div> */}
 
         {/* list items */}
-        <div className="flex h-[calc(100vh-12rem)] sm:h-[80vh] w-full overflow-y-auto scroll-fade">
+        <div className="flex h-[calc(100vh-16rem)] sm:h-[calc(100vh-12rem)] w-full overflow-y-auto scroll-fade">
           <div ref={listContainerRef} className="w-full h-full">
             {/* Render uncategorized items first */}
             {(currentList.uncategorized_items ?? []).map((it, idx) =>
@@ -657,17 +657,17 @@ export default function App() {
       <div className="flex-shrink-0 px-4 pt-4 pb-2">
         <div className="flex items-center gap-4">
           <form
-            className="flex w-full"
+            className="flex w-full items-center"
             onSubmit={(e) => e.preventDefault()}
           >
-            <div className="flex relative">
+            <div className="flex relative items-center">
               <Button
                 variant="outline"
                 size="icon"
-                className="mr-2 h-9 w-9"
+                className="mr-2 h-10 w-10 flex-shrink-0"
                 onClick={() => setDropdownOpen(!dropdownOpen)}
               >
-                <Menu className="h-3 w-3" />
+                <Menu className="h-4 w-4" />
               </Button>
               
               {dropdownOpen && (
@@ -732,6 +732,7 @@ export default function App() {
               value={query}
               spellCheck={false}
               placeholder=""
+              className="h-10"
               onKeyDown={(e) => {
                 if (e.key === "Escape") {
                   setShowSuggestions(false);
@@ -772,12 +773,12 @@ export default function App() {
             {renderSuggestions()}
 
             <div
-              className="border ml-2 flex items-center justify-center h-9 w-9 flex-shrink-0"
+              className="border ml-2 flex items-center justify-center h-10 w-10 flex-shrink-0 rounded-md"
             >
               <img
                 src={Logo}
                 alt="lst icon"
-                className="opacity-75 w-8 h-8 object-contain"
+                className="opacity-75 w-6 h-6 object-contain"
               />
             </div>
           </form>
@@ -793,7 +794,7 @@ export default function App() {
 
       {/* Status bar - always visible */}
       <div
-        className="flex-shrink-0 border-t border-border bg-muted/20 text-xs flex items-center px-4 py-2 pb-4"
+        className="flex-shrink-0 border-t border-border bg-muted/20 text-xs flex items-center px-4 py-2 mobile-safe-area-bottom min-h-[44px]"
       >
         <span className="text-secondary-foreground truncate pr-4">
           lst {currentList ? `- ${currentList.title}.md` : ""}

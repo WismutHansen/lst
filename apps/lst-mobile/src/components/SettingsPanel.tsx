@@ -513,21 +513,19 @@ export function SettingsPanel() {
       </Card>
 
       {/* Theme Configuration */}
-      <Card>
+      <Card className="flex content-center bg-muted/20">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Palette className="w-4 h-4" />
-            Theme
+          <CardTitle className="flex self-center">
+            <div>
+              <Palette className="self-center w-4 h-4 mr-2" />
+            </div>
+            <div className="self-center mr-2">
+              Theme
+            </div>
           </CardTitle>
-          <CardDescription>
-            Choose your preferred color theme
-          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label>Current Theme</Label>
-            <MobileThemeSelector />
-          </div>
+        <CardContent className="ml-2">
+          <MobileThemeSelector />
         </CardContent>
       </Card>
 
@@ -565,7 +563,7 @@ export function SettingsPanel() {
       )}
 
       {/* Device Information */}
-      <Card>
+      <Card className="bg-muted/20">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Smartphone className="w-4 h-4" />
@@ -588,7 +586,7 @@ export function SettingsPanel() {
       </Card>
 
       {/* Advanced Settings */}
-      <Card>
+      <Card className="bg-muted/20">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
@@ -609,7 +607,7 @@ export function SettingsPanel() {
                 syncInterval: parseInt(e.target.value) || 30
               }))}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-foreground/30">
               How often to check for changes (10-300 seconds)
             </p>
           </div>
