@@ -18,7 +18,7 @@ lazy_static! {
 struct AuthRequest {
     email: String,
     host: String,
-    password_hash: String,
+    password_hash: String, // Client-side hashed password (email-based salt)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -40,7 +40,31 @@ struct VerifyResponse {
     user: String,
 }
 
-/// Hash a password using Argon2id
+/// Hash a password using Argon2id with a deterministic salt based on email
+/// This ensures the same password+email combination always produces the same hash
+pub fn hash_password_with_email(password: &str, email: &str) -> Result<String> {
+    // Create deterministic salt from email for client-side hashing
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    use std::hash::Hasher;
+    hasher.write(email.as_bytes());
+    hasher.write(b"lst-client-salt"); // Add app-specific salt component
+    let email_hash = hasher.finish();
+    
+    // Convert hash to 16-byte array for salt
+    let salt_bytes = email_hash.to_le_bytes();
+    let mut full_salt = [0u8; 16];
+    full_salt[..8].copy_from_slice(&salt_bytes);
+    full_salt[8..].copy_from_slice(&salt_bytes); // Repeat to fill 16 bytes
+    
+    let salt = SaltString::encode_b64(&full_salt).map_err(|e| anyhow::anyhow!("Failed to encode salt: {}", e))?;
+    let argon2 = Argon2::default();
+    let password_hash = argon2
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|e| anyhow::anyhow!("Failed to hash password: {}", e))?;
+    Ok(password_hash.to_string())
+}
+
+/// Hash a password using Argon2id with random salt (for server-side storage)
 pub fn hash_password(password: &str) -> Result<String> {
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
@@ -95,19 +119,15 @@ pub async fn request_auth_token(email: String, server_url: String, password: Opt
         return Err(anyhow::anyhow!("Server URL is required"));
     }
 
-    // Hash password if provided (for now, we'll use a default password)
-    let password_hash = if let Some(pwd) = password {
-        hash_password(&pwd)?
-    } else {
-        // For demo purposes, use a default password hash
-        hash_password("default_password")?
-    };
+    // Hash password with email-based salt for secure transmission
+    let password_to_hash = password.unwrap_or_else(|| "default_password".to_string());
+    let client_password_hash = hash_password_with_email(&password_to_hash, &email)?;
 
     // Prepare request
     let auth_request = AuthRequest {
         email: email.clone(),
         host: server_url.clone(),
-        password_hash,
+        password_hash: client_password_hash, // Client-side hashed password
     };
 
     // Extract base URL from WebSocket URL
@@ -231,7 +251,8 @@ fn update_config_with_jwt(jwt_token: String, expires_at: chrono::DateTime<chrono
         config.sync = Some(sync_config);
     }
     
-    config.save().context("Failed to save config with JWT token")?;
+    // Skip saving config to file system on mobile - use in-memory storage instead
+    // Mobile apps have restricted file system access and use SQLite database
     Ok(())
 }
 

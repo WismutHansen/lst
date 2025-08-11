@@ -1283,12 +1283,25 @@ pub async fn auth_request(email: &str, host: Option<&str>, json: bool) -> Result
     use dialoguer::Password;
     use argon2::{Argon2, Algorithm, Params, PasswordHasher, Version};
     use argon2::password_hash::SaltString;
+    use std::hash::Hasher;
 
     let password = Password::new().with_prompt("Account password").interact()?;
 
+    // Create deterministic salt from email for client-side hashing (same as mobile)
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    hasher.write(email.as_bytes());
+    hasher.write(b"lst-client-salt"); // Add app-specific salt component
+    let email_hash = hasher.finish();
+    
+    // Convert hash to 16-byte array for salt
+    let salt_bytes = email_hash.to_le_bytes();
+    let mut full_salt = [0u8; 16];
+    full_salt[..8].copy_from_slice(&salt_bytes);
+    full_salt[8..].copy_from_slice(&salt_bytes); // Repeat to fill 16 bytes
+    
+    let salt = SaltString::encode_b64(&full_salt).expect("Failed to encode salt");
     let params = Params::new(128 * 1024, 3, 2, None).expect("invalid params");
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-    let salt = SaltString::encode_b64(b"clientstatic").expect("salt");
     let password_hash = argon2
         .hash_password(password.as_bytes(), &salt)
         .expect("hashing failed")
@@ -1982,7 +1995,7 @@ pub fn theme_generate_css(json: bool) -> Result<()> {
 /// Check if lst-server binary is available
 fn check_server_binary() -> Result<()> {
     match std::process::Command::new("lst-server")
-        .arg("--version")
+        .arg("--help")
         .output()
     {
         Ok(output) if output.status.success() => Ok(()),
@@ -1995,37 +2008,19 @@ fn check_server_binary() -> Result<()> {
 pub async fn user_list(json: bool) -> Result<()> {
     check_server_binary()?;
     
-    let response = make_authenticated_request(reqwest::Method::GET, "/api/admin/users", None).await?;
+    let mut cmd = std::process::Command::new("lst-server");
+    cmd.arg("user").arg("list");
+    if json {
+        cmd.arg("--json");
+    }
     
-    if response.status().is_success() {
-        let users: serde_json::Value = response.json().await?;
-        
-        if json {
-            println!("{}", serde_json::to_string_pretty(&users)?);
-        } else {
-            if let Some(users_array) = users.as_array() {
-                if users_array.is_empty() {
-                    println!("No users found.");
-                } else {
-                    println!("Users:");
-                    for user in users_array {
-                        if let (Some(email), Some(enabled)) = (user.get("email"), user.get("enabled")) {
-                            let status = if enabled.as_bool().unwrap_or(false) { "enabled".green() } else { "disabled".red() };
-                            println!("  {} ({})", email.as_str().unwrap_or("unknown").cyan(), status);
-                            if let Some(name) = user.get("name").and_then(|n| n.as_str()) {
-                                println!("    Name: {}", name.dimmed());
-                            }
-                            if let Some(created) = user.get("created_at").and_then(|c| c.as_str()) {
-                                println!("    Created: {}", created.dimmed());
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    let output = cmd.output().context("Failed to execute lst-server user list")?;
+    
+    if output.status.success() {
+        print!("{}", String::from_utf8_lossy(&output.stdout));
     } else {
-        let error_text = response.text().await?;
-        bail!("Failed to list users: {}", error_text);
+        let error = String::from_utf8_lossy(&output.stderr);
+        bail!("lst-server user list failed: {}", error);
     }
     
     Ok(())
@@ -2035,37 +2030,22 @@ pub async fn user_list(json: bool) -> Result<()> {
 pub async fn user_create(email: &str, name: Option<&str>, json: bool) -> Result<()> {
     check_server_binary()?;
     
-    let mut payload = serde_json::json!({
-        "email": email,
-        "enabled": true
-    });
-    
+    let mut cmd = std::process::Command::new("lst-server");
+    cmd.arg("user").arg("create").arg(email);
     if let Some(name) = name {
-        payload["name"] = serde_json::Value::String(name.to_string());
+        cmd.arg("--name").arg(name);
+    }
+    if json {
+        cmd.arg("--json");
     }
     
-    let response = make_authenticated_request(reqwest::Method::POST, "/api/admin/users", Some(payload)).await?;
+    let output = cmd.output().context("Failed to execute lst-server user create")?;
     
-    if response.status().is_success() {
-        let result: serde_json::Value = response.json().await?;
-        
-        if json {
-            println!("{}", serde_json::to_string_pretty(&result)?);
-        } else {
-            println!("Successfully created user: {}", email.cyan());
-            if let Some(name) = name {
-                println!("  Name: {}", name);
-            }
-        }
-    } else if response.status() == reqwest::StatusCode::CONFLICT {
-        if json {
-            println!("{}", serde_json::json!({"error": "User already exists"}));
-        } else {
-            bail!("User '{}' already exists", email);
-        }
+    if output.status.success() {
+        print!("{}", String::from_utf8_lossy(&output.stdout));
     } else {
-        let error_text = response.text().await?;
-        bail!("Failed to create user: {}", error_text);
+        let error = String::from_utf8_lossy(&output.stderr);
+        bail!("lst-server user create failed: {}", error);
     }
     
     Ok(())
@@ -2075,39 +2055,22 @@ pub async fn user_create(email: &str, name: Option<&str>, json: bool) -> Result<
 pub async fn user_delete(email: &str, force: bool, json: bool) -> Result<()> {
     check_server_binary()?;
     
-    if !force && !json {
-        use dialoguer::Confirm;
-        let confirmed = Confirm::new()
-            .with_prompt(format!("Are you sure you want to delete user '{}'?", email))
-            .default(false)
-            .interact()?;
-        
-        if !confirmed {
-            println!("User deletion cancelled.");
-            return Ok(());
-        }
+    let mut cmd = std::process::Command::new("lst-server");
+    cmd.arg("user").arg("delete").arg(email);
+    if force {
+        cmd.arg("--force");
+    }
+    if json {
+        cmd.arg("--json");
     }
     
-    let endpoint = format!("/api/admin/users/{}", urlencoding::encode(email));
-    let response = make_authenticated_request(reqwest::Method::DELETE, &endpoint, None).await?;
+    let output = cmd.output().context("Failed to execute lst-server user delete")?;
     
-    if response.status().is_success() {
-        let result: serde_json::Value = response.json().await?;
-        
-        if json {
-            println!("{}", serde_json::to_string_pretty(&result)?);
-        } else {
-            println!("Successfully deleted user: {}", email.cyan());
-        }
-    } else if response.status() == reqwest::StatusCode::NOT_FOUND {
-        if json {
-            println!("{}", serde_json::json!({"error": "User not found"}));
-        } else {
-            bail!("User '{}' not found", email);
-        }
+    if output.status.success() {
+        print!("{}", String::from_utf8_lossy(&output.stdout));
     } else {
-        let error_text = response.text().await?;
-        bail!("Failed to delete user: {}", error_text);
+        let error = String::from_utf8_lossy(&output.stderr);
+        bail!("lst-server user delete failed: {}", error);
     }
     
     Ok(())
@@ -2117,47 +2080,25 @@ pub async fn user_delete(email: &str, force: bool, json: bool) -> Result<()> {
 pub async fn user_update(email: &str, name: Option<&str>, enabled: Option<bool>, json: bool) -> Result<()> {
     check_server_binary()?;
     
-    let mut payload = serde_json::json!({});
-    
+    let mut cmd = std::process::Command::new("lst-server");
+    cmd.arg("user").arg("update").arg(email);
     if let Some(name) = name {
-        payload["name"] = serde_json::Value::String(name.to_string());
+        cmd.arg("--name").arg(name);
     }
-    
     if let Some(enabled) = enabled {
-        payload["enabled"] = serde_json::Value::Bool(enabled);
+        cmd.arg("--enabled").arg(enabled.to_string());
+    }
+    if json {
+        cmd.arg("--json");
     }
     
-    if payload.as_object().unwrap().is_empty() {
-        bail!("No updates specified. Use --name or --enabled flags.");
-    }
+    let output = cmd.output().context("Failed to execute lst-server user update")?;
     
-    let endpoint = format!("/api/admin/users/{}", urlencoding::encode(email));
-    let response = make_authenticated_request(reqwest::Method::PATCH, &endpoint, Some(payload)).await?;
-    
-    if response.status().is_success() {
-        let result: serde_json::Value = response.json().await?;
-        
-        if json {
-            println!("{}", serde_json::to_string_pretty(&result)?);
-        } else {
-            println!("Successfully updated user: {}", email.cyan());
-            if let Some(name) = name {
-                println!("  Name: {}", name);
-            }
-            if let Some(enabled) = enabled {
-                let status = if enabled { "enabled".green() } else { "disabled".red() };
-                println!("  Status: {}", status);
-            }
-        }
-    } else if response.status() == reqwest::StatusCode::NOT_FOUND {
-        if json {
-            println!("{}", serde_json::json!({"error": "User not found"}));
-        } else {
-            bail!("User '{}' not found", email);
-        }
+    if output.status.success() {
+        print!("{}", String::from_utf8_lossy(&output.stdout));
     } else {
-        let error_text = response.text().await?;
-        bail!("Failed to update user: {}", error_text);
+        let error = String::from_utf8_lossy(&output.stderr);
+        bail!("lst-server user update failed: {}", error);
     }
     
     Ok(())
@@ -2167,49 +2108,19 @@ pub async fn user_update(email: &str, name: Option<&str>, enabled: Option<bool>,
 pub async fn user_info(email: &str, json: bool) -> Result<()> {
     check_server_binary()?;
     
-    let endpoint = format!("/api/admin/users/{}", urlencoding::encode(email));
-    let response = make_authenticated_request(reqwest::Method::GET, &endpoint, None).await?;
+    let mut cmd = std::process::Command::new("lst-server");
+    cmd.arg("user").arg("info").arg(email);
+    if json {
+        cmd.arg("--json");
+    }
     
-    if response.status().is_success() {
-        let user: serde_json::Value = response.json().await?;
-        
-        if json {
-            println!("{}", serde_json::to_string_pretty(&user)?);
-        } else {
-            println!("User: {}", email.cyan());
-            
-            if let Some(name) = user.get("name").and_then(|n| n.as_str()) {
-                println!("  Name: {}", name);
-            }
-            
-            if let Some(enabled) = user.get("enabled").and_then(|e| e.as_bool()) {
-                let status = if enabled { "enabled".green() } else { "disabled".red() };
-                println!("  Status: {}", status);
-            }
-            
-            if let Some(created) = user.get("created_at").and_then(|c| c.as_str()) {
-                println!("  Created: {}", created.dimmed());
-            }
-            
-            if let Some(updated) = user.get("updated_at").and_then(|u| u.as_str()) {
-                println!("  Updated: {}", updated.dimmed());
-            }
-            
-            if let Some(last_login) = user.get("last_login_at").and_then(|l| l.as_str()) {
-                println!("  Last login: {}", last_login.dimmed());
-            } else {
-                println!("  Last login: {}", "Never".dimmed());
-            }
-        }
-    } else if response.status() == reqwest::StatusCode::NOT_FOUND {
-        if json {
-            println!("{}", serde_json::json!({"error": "User not found"}));
-        } else {
-            bail!("User '{}' not found", email);
-        }
+    let output = cmd.output().context("Failed to execute lst-server user info")?;
+    
+    if output.status.success() {
+        print!("{}", String::from_utf8_lossy(&output.stdout));
     } else {
-        let error_text = response.text().await?;
-        bail!("Failed to get user info: {}", error_text);
+        let error = String::from_utf8_lossy(&output.stderr);
+        bail!("lst-server user info failed: {}", error);
     }
     
     Ok(())

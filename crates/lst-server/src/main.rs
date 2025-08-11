@@ -13,7 +13,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use config::Settings;
 use futures_util::{SinkExt, StreamExt};
 use hex;
@@ -105,12 +105,20 @@ impl SqliteTokenStore {
             CREATE TABLE IF NOT EXISTS users (
                 email TEXT PRIMARY KEY NOT NULL,
                 password_hash TEXT NOT NULL,
-                salt TEXT NOT NULL
+                salt TEXT NOT NULL,
+                name TEXT,
+                enabled BOOLEAN NOT NULL DEFAULT 1,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
             "#,
         )
         .execute(&pool)
         .await?;
+
+        // Migrate existing users table if needed
+        let _ = sqlx::query("ALTER TABLE users ADD COLUMN name TEXT").execute(&pool).await;
+        let _ = sqlx::query("ALTER TABLE users ADD COLUMN enabled BOOLEAN DEFAULT 1").execute(&pool).await;
+        let _ = sqlx::query("ALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP").execute(&pool).await;
         Ok(SqliteTokenStore { pool })
     }
 
@@ -184,6 +192,151 @@ impl SqliteTokenStore {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    // User management methods
+    pub async fn list_users(&self) -> Result<Vec<serde_json::Value>, sqlx::Error> {
+        // Try to get all columns, fallback if created_at doesn't exist
+        let rows = match sqlx::query("SELECT email, name, enabled, created_at FROM users ORDER BY email")
+            .fetch_all(&self.pool)
+            .await
+        {
+            Ok(rows) => rows,
+            Err(_) => {
+                // Fallback for databases without created_at column
+                sqlx::query("SELECT email, name, enabled FROM users ORDER BY email")
+                    .fetch_all(&self.pool)
+                    .await?
+            }
+        };
+        
+        let mut users = Vec::new();
+        for row in rows {
+            let email: String = row.get("email");
+            let name: Option<String> = row.try_get("name").unwrap_or(None);
+            let enabled: bool = row.try_get("enabled").unwrap_or(true);
+            
+            let mut user_json = serde_json::json!({
+                "email": email,
+                "name": name,
+                "enabled": enabled
+            });
+            
+            // Try to get created_at if it exists
+            if let Ok(created_at) = row.try_get::<chrono::DateTime<chrono::Utc>, _>("created_at") {
+                user_json["created_at"] = serde_json::Value::String(created_at.to_rfc3339());
+            }
+            
+            users.push(user_json);
+        }
+        Ok(users)
+    }
+
+    pub async fn create_user(&self, email: &str, name: Option<&str>, enabled: bool) -> Result<(), sqlx::Error> {
+        // Check if user already exists
+        let existing = sqlx::query("SELECT email FROM users WHERE email = ?")
+            .bind(email)
+            .fetch_optional(&self.pool)
+            .await?;
+        
+        if existing.is_some() {
+            return Err(sqlx::Error::RowNotFound);
+        }
+
+        // Create user without password (they'll set it on first auth)
+        sqlx::query("INSERT INTO users (email, password_hash, salt, name, enabled) VALUES (?, '', '', ?, ?)")
+            .bind(email)
+            .bind(name)
+            .bind(enabled)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn delete_user(&self, email: &str) -> Result<bool, sqlx::Error> {
+        // Delete user tokens first
+        sqlx::query("DELETE FROM tokens WHERE email = ?")
+            .bind(email)
+            .execute(&self.pool)
+            .await?;
+        
+        // Delete user
+        let result = sqlx::query("DELETE FROM users WHERE email = ?")
+            .bind(email)
+            .execute(&self.pool)
+            .await?;
+        
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn update_user(&self, email: &str, name: Option<&str>, enabled: Option<bool>) -> Result<bool, sqlx::Error> {
+        match (name, enabled) {
+            (Some(name), Some(enabled)) => {
+                let result = sqlx::query("UPDATE users SET name = ?, enabled = ? WHERE email = ?")
+                    .bind(name)
+                    .bind(enabled)
+                    .bind(email)
+                    .execute(&self.pool)
+                    .await?;
+                Ok(result.rows_affected() > 0)
+            }
+            (Some(name), None) => {
+                let result = sqlx::query("UPDATE users SET name = ? WHERE email = ?")
+                    .bind(name)
+                    .bind(email)
+                    .execute(&self.pool)
+                    .await?;
+                Ok(result.rows_affected() > 0)
+            }
+            (None, Some(enabled)) => {
+                let result = sqlx::query("UPDATE users SET enabled = ? WHERE email = ?")
+                    .bind(enabled)
+                    .bind(email)
+                    .execute(&self.pool)
+                    .await?;
+                Ok(result.rows_affected() > 0)
+            }
+            (None, None) => Ok(false),
+        }
+    }
+
+    pub async fn get_user_info(&self, email: &str) -> Result<Option<serde_json::Value>, sqlx::Error> {
+        // Try to get all columns, fallback if created_at doesn't exist
+        let row = match sqlx::query("SELECT email, name, enabled, created_at FROM users WHERE email = ?")
+            .bind(email)
+            .fetch_optional(&self.pool)
+            .await
+        {
+            Ok(row) => row,
+            Err(_) => {
+                // Fallback for databases without created_at column
+                sqlx::query("SELECT email, name, enabled FROM users WHERE email = ?")
+                    .bind(email)
+                    .fetch_optional(&self.pool)
+                    .await?
+            }
+        };
+        
+        if let Some(row) = row {
+            let email: String = row.get("email");
+            let name: Option<String> = row.try_get("name").unwrap_or(None);
+            let enabled: bool = row.try_get("enabled").unwrap_or(true);
+            
+            let mut user_json = serde_json::json!({
+                "email": email,
+                "name": name,
+                "enabled": enabled
+            });
+            
+            // Try to get created_at if it exists
+            if let Ok(created_at) = row.try_get::<chrono::DateTime<chrono::Utc>, _>("created_at") {
+                user_json["created_at"] = serde_json::Value::String(created_at.to_rfc3339());
+            }
+            
+            Ok(Some(user_json))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -352,7 +505,7 @@ struct AppState {
 struct AuthRequest {
     email: String,
     host: String,
-    password_hash: String,
+    password_hash: String, // Client-side hashed password (deterministic email-based salt)
 }
 
 #[derive(Serialize)]
@@ -361,10 +514,64 @@ struct AuthResponse {
 }
 
 #[derive(Parser)]
-#[command(name = "lst-server", about = "lst server API")]
+#[command(name = "lst-server", about = "lst server API and admin CLI")]
 struct Args {
+    #[command(subcommand)]
+    command: Option<Commands>,
     #[arg(long, default_value = "~/.config/lst/lst.toml")]
     config: String,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Start the server (default mode)
+    Serve,
+    /// User management commands
+    User {
+        #[command(subcommand)]
+        command: UserCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum UserCommands {
+    /// List all users
+    List {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Create a new user
+    Create {
+        email: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Delete a user
+    Delete {
+        email: String,
+        #[arg(long)]
+        force: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Update user information
+    Update {
+        email: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        enabled: Option<bool>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Show user information
+    Info {
+        email: String,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[tokio::main]
@@ -375,7 +582,24 @@ async fn main() {
     } else {
         StdPath::new(&args.config).to_path_buf()
     };
-    let settings = Arc::new(Settings::from_file(&config_file_path_str).unwrap());
+
+    match args.command {
+        Some(Commands::Serve) | None => {
+            // Start server (default behavior)
+            start_server(config_file_path_str).await;
+        }
+        Some(Commands::User { command }) => {
+            // Handle user management commands
+            if let Err(e) = handle_user_command(command, &config_file_path_str).await {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
+}
+
+async fn start_server(config_file_path: PathBuf) {
+    let settings = Arc::new(Settings::from_file(&config_file_path).unwrap());
 
     // Get database paths from configuration
     let tokens_db_path = settings
@@ -498,6 +722,7 @@ async fn auth_request_handler(
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
     if let Ok(Some((stored, _salt))) = token_store.get_user(&req.email).await {
+        // For existing users, compare the client-hashed password with stored server-hashed version
         let parsed = PasswordHash::new(&stored).map_err(|_| {
             (StatusCode::INTERNAL_SERVER_ERROR, "Corrupt password hash".into())
         })?;
@@ -508,6 +733,7 @@ async fn auth_request_handler(
             return Err((StatusCode::UNAUTHORIZED, "Invalid password".into()));
         }
     } else {
+        // For new users, store the client-hashed password with additional server-side hashing
         let salt = SaltString::encode_b64(&rand::random::<[u8; 16]>())
             .expect("salt");
         let final_hash = argon2
@@ -934,4 +1160,202 @@ async fn jwt_auth_middleware(req: Request, next: Next) -> Result<Response, Statu
         }
     }
     Err(StatusCode::UNAUTHORIZED)
+}
+
+// User management command handlers
+async fn handle_user_command(command: UserCommands, config_file_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let settings = Settings::from_file(config_file_path)?;
+    let tokens_db_path = settings.database.tokens_db_path()?;
+    let token_store = SqliteTokenStore::new(tokens_db_path).await?;
+
+    match command {
+        UserCommands::List { json } => {
+            let users = token_store.list_users().await?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&users)?);
+            } else {
+                if users.is_empty() {
+                    println!("No users found.");
+                } else {
+                    println!("Users:");
+                    for user in users {
+                        if let (Some(email), Some(enabled)) = (user.get("email"), user.get("enabled")) {
+                            let status = if enabled.as_bool().unwrap_or(false) { "enabled" } else { "disabled" };
+                            println!("  {} ({})", email.as_str().unwrap_or("unknown"), status);
+                            if let Some(name) = user.get("name").and_then(|n| n.as_str()) {
+                                println!("    Name: {}", name);
+                            }
+                            if let Some(created) = user.get("created_at").and_then(|c| c.as_str()) {
+                                println!("    Created: {}", created);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        UserCommands::Create { email, name, json } => {
+            match token_store.create_user(&email, name.as_deref(), true).await {
+                Ok(()) => {
+                    if json {
+                        println!("{}", serde_json::json!({
+                            "status": "success",
+                            "message": "User created successfully",
+                            "email": email,
+                            "name": name
+                        }));
+                    } else {
+                        println!("Successfully created user: {}", email);
+                        if let Some(name) = name {
+                            println!("  Name: {}", name);
+                        }
+                    }
+                }
+                Err(e) => {
+                    if json {
+                        println!("{}", serde_json::json!({
+                            "status": "error",
+                            "message": format!("Failed to create user: {}", e)
+                        }));
+                    } else {
+                        return Err(format!("Failed to create user: {}", e).into());
+                    }
+                }
+            }
+        }
+        UserCommands::Delete { email, force, json } => {
+            if !force && !json {
+                use std::io::{self, Write};
+                print!("Are you sure you want to delete user '{}'? (y/N): ", email);
+                io::stdout().flush()?;
+                let mut input = String::new();
+                io::stdin().read_line(&mut input)?;
+                if !input.trim().to_lowercase().starts_with('y') {
+                    println!("User deletion cancelled.");
+                    return Ok(());
+                }
+            }
+
+            match token_store.delete_user(&email).await {
+                Ok(true) => {
+                    if json {
+                        println!("{}", serde_json::json!({
+                            "status": "success",
+                            "message": "User deleted successfully",
+                            "email": email
+                        }));
+                    } else {
+                        println!("Successfully deleted user: {}", email);
+                    }
+                }
+                Ok(false) => {
+                    if json {
+                        println!("{}", serde_json::json!({
+                            "status": "error",
+                            "message": "User not found"
+                        }));
+                    } else {
+                        return Err(format!("User '{}' not found", email).into());
+                    }
+                }
+                Err(e) => {
+                    if json {
+                        println!("{}", serde_json::json!({
+                            "status": "error",
+                            "message": format!("Failed to delete user: {}", e)
+                        }));
+                    } else {
+                        return Err(format!("Failed to delete user: {}", e).into());
+                    }
+                }
+            }
+        }
+        UserCommands::Update { email, name, enabled, json } => {
+            if name.is_none() && enabled.is_none() {
+                if json {
+                    println!("{}", serde_json::json!({
+                        "status": "error",
+                        "message": "No updates specified. Use --name or --enabled flags."
+                    }));
+                } else {
+                    return Err("No updates specified. Use --name or --enabled flags.".into());
+                }
+                return Ok(());
+            }
+
+            match token_store.update_user(&email, name.as_deref(), enabled).await {
+                Ok(true) => {
+                    if json {
+                        println!("{}", serde_json::json!({
+                            "status": "success",
+                            "message": "User updated successfully",
+                            "email": email
+                        }));
+                    } else {
+                        println!("Successfully updated user: {}", email);
+                    }
+                }
+                Ok(false) => {
+                    if json {
+                        println!("{}", serde_json::json!({
+                            "status": "error",
+                            "message": "User not found"
+                        }));
+                    } else {
+                        return Err(format!("User '{}' not found", email).into());
+                    }
+                }
+                Err(e) => {
+                    if json {
+                        println!("{}", serde_json::json!({
+                            "status": "error",
+                            "message": format!("Failed to update user: {}", e)
+                        }));
+                    } else {
+                        return Err(format!("Failed to update user: {}", e).into());
+                    }
+                }
+            }
+        }
+        UserCommands::Info { email, json } => {
+            match token_store.get_user_info(&email).await {
+                Ok(Some(user_info)) => {
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&user_info)?);
+                    } else {
+                        println!("User: {}", email);
+                        if let Some(name) = user_info.get("name").and_then(|n| n.as_str()) {
+                            println!("  Name: {}", name);
+                        }
+                        if let Some(enabled) = user_info.get("enabled").and_then(|e| e.as_bool()) {
+                            println!("  Status: {}", if enabled { "enabled" } else { "disabled" });
+                        }
+                        if let Some(created) = user_info.get("created_at").and_then(|c| c.as_str()) {
+                            println!("  Created: {}", created);
+                        }
+                    }
+                }
+                Ok(None) => {
+                    if json {
+                        println!("{}", serde_json::json!({
+                            "status": "error",
+                            "message": "User not found"
+                        }));
+                    } else {
+                        return Err(format!("User '{}' not found", email).into());
+                    }
+                }
+                Err(e) => {
+                    if json {
+                        println!("{}", serde_json::json!({
+                            "status": "error",
+                            "message": format!("Failed to get user info: {}", e)
+                        }));
+                    } else {
+                        return Err(format!("Failed to get user info: {}", e).into());
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }

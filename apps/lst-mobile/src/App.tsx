@@ -650,11 +650,11 @@ export default function App() {
   const items = getAllItems(currentList);
   return (
     <div
-      className="flex h-screen bg-background text-foreground min-w-0 w-full overflow-hidden flex-col mobile-safe-area-vertical"
+      className="flex h-screen bg-background text-foreground min-w-0 w-full overflow-hidden flex-col"
       style={{ backgroundColor: "var(--background)" }}
     >
       {/* Top bar - always visible */}
-      <div className="flex-shrink-0 px-4 pt-4 pb-2">
+      <div className="flex-shrink-0 px-4 pb-2" style={{ paddingTop: "max(env(safe-area-inset-top), 44px)" }}>
         <div className="flex items-center gap-4">
           <form
             className="flex w-full items-center"
@@ -663,8 +663,7 @@ export default function App() {
             <div className="flex relative items-center">
               <Button
                 variant="outline"
-                size="icon"
-                className="mr-2 h-10 w-10 flex-shrink-0"
+                className="mr-2 h-10 w-10 p-0 flex-shrink-0"
                 onClick={() => setDropdownOpen(!dropdownOpen)}
               >
                 <Menu className="h-4 w-4" />
