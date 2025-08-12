@@ -38,6 +38,7 @@ tokio-tungstenite = { workspace = true }
 uuid = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = { workspace = true }
 specta = { workspace = true }
 specta-typescript = { workspace = true }
 tauri-specta = { version = "2.0.0-rc.21" }

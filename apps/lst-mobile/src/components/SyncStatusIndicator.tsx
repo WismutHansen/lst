@@ -66,7 +66,7 @@ export function SyncStatusIndicator() {
     
     if (status.connected) {
       return (
-        <Badge variant="default" className="bg-green-600 text-xs">
+        <Badge variant="default" className="text-xs">
           <Wifi className="w-3 h-3 mr-1" />
           Synced
         </Badge>

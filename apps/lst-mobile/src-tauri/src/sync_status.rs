@@ -1,5 +1,4 @@
 use anyhow::Result;
-use lst_cli::config::Config;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -48,7 +47,7 @@ pub fn update_sync_status(
 
 /// Get current sync status
 pub fn get_sync_status() -> Result<SyncStatusInfo> {
-    let config = Config::default();
+    let config = crate::auth::get_current_config();
     let status = SYNC_STATUS.lock().unwrap();
     
     // Check if sync is enabled

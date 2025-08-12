@@ -84,6 +84,7 @@ export function SettingsPanel() {
   });
 
   const [loading, setLoading] = useState(false);
+  const [serverConfigSaved, setServerConfigSaved] = useState(false);
 
   // Load initial configuration
   useEffect(() => {
@@ -156,11 +157,16 @@ export function SettingsPanel() {
     // Update the full server URL in config
     const fullUrl = constructServerUrl(newConnection.ip, newConnection.port);
     setConfig(prev => ({ ...prev, serverUrl: fullUrl }));
+    
+    // Reset saved state when server settings change
+    setServerConfigSaved(false);
   };
 
   const handleEmailChange = (email: string) => {
     setConfig(prev => ({ ...prev, email }));
     setAuth(prev => ({ ...prev, email }));
+    // Reset saved state when email changes
+    setServerConfigSaved(false);
   };
 
   const requestAuthToken = async () => {
@@ -210,7 +216,7 @@ export function SettingsPanel() {
     setLoading(true);
 
     try {
-      const result = await commands.verifyAuthToken(config.email, auth.token);
+      const result = await commands.verifyAuthToken(config.email, auth.token, config.serverUrl);
       if (result.status === "ok") {
         setAuth(prev => ({ ...prev, step: "authenticated", error: null }));
         setConfig(prev => ({ ...prev, syncEnabled: true }));
@@ -257,6 +263,45 @@ export function SettingsPanel() {
     }
   };
 
+  const saveServerConfig = async () => {
+    if (!serverConnection.ip || !config.email) {
+      alert("Please enter both server IP and email before saving");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const serverUrl = `ws://${serverConnection.ip}:${serverConnection.port || "5673"}/api/sync`;
+      const deviceId = config.deviceId || `mobile-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      const result = await commands.saveSyncConfig({
+        server_url: serverUrl,
+        email: config.email,
+        device_id: deviceId,
+        sync_enabled: false, // Don't enable sync yet, just save the config
+        sync_interval: config.syncInterval,
+        encryption_enabled: config.encryptionEnabled,
+      });
+      
+      if (result.status === "ok") {
+        setConfig(prev => ({ 
+          ...prev, 
+          serverUrl,
+          deviceId 
+        }));
+        setServerConfigSaved(true);
+        alert("Server configuration saved successfully! You can now request and verify your auth token.");
+      } else {
+        alert("Failed to save server configuration: " + result.error);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Failed to save server configuration";
+      alert("Failed to save server configuration: " + errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const testConnection = async () => {
     setLoading(true);
     try {
@@ -297,6 +342,26 @@ export function SettingsPanel() {
     }
   };
 
+  const debugSyncStatus = async () => {
+    setLoading(true);
+    try {
+      const result = await commands.debugSyncStatus();
+      if (result.status === "ok") {
+        console.log("🔍 DEBUG Sync Status:", result.data);
+        alert("Debug info logged to console:\n\n" + result.data);
+      } else {
+        console.error("🔍 DEBUG Sync Status Error:", result.error);
+        alert("Debug failed: " + result.error);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Debug failed";
+      console.error("🔍 DEBUG Sync Status Exception:", errorMsg);
+      alert("Debug failed: " + errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const resetAuth = () => {
     setAuth({
       step: "idle",
@@ -314,7 +379,7 @@ export function SettingsPanel() {
     }
 
     if (status.connected) {
-      return <Badge variant="default" className="bg-green-600"><CheckCircle className="text-muted-foreground w-3 h-3 mr-1" />Connected</Badge>;
+      return <Badge variant="default"><CheckCircle className="w-3 h-3 mr-1" />Connected</Badge>;
     }
 
     if (status.error) {
@@ -414,15 +479,36 @@ export function SettingsPanel() {
             </div>
           )}
 
+          {/* Save Server Configuration - moved here to show it requires all above fields */}
+          {!config.syncEnabled && (
+            <Button
+              variant={serverConfigSaved ? "default" : "outline"}
+              onClick={saveServerConfig}
+              disabled={loading || !serverConnection.ip || !config.email}
+              className="w-full"
+            >
+              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {serverConfigSaved && !loading && <CheckCircle className="w-4 h-4 mr-2" />}
+              {serverConfigSaved ? "Server Configuration Saved" : "Save Server Configuration"}
+            </Button>
+          )}
+
           {/* Authentication Flow */}
           {!config.syncEnabled && (
             <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
               <h4 className="font-medium">Authentication</h4>
+              {!serverConfigSaved && (
+                <Alert>
+                  <AlertDescription>
+                    Please save your server configuration above before requesting an auth token.
+                  </AlertDescription>
+                </Alert>
+              )}
 
               {auth.step === "idle" && (
                 <Button
                   onClick={requestAuthToken}
-                  disabled={loading || !config.email || !serverConnection.ip}
+                  disabled={loading || !config.email || !serverConnection.ip || !serverConfigSaved}
                   className="text-wrap w-full"
                 >
                   {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
@@ -456,7 +542,7 @@ export function SettingsPanel() {
               )}
 
               {auth.step === "authenticated" && (
-                <div className="text-center text-green-600">
+                <div className="text-center text-primary">
                   <CheckCircle className="w-6 h-6 mx-auto mb-2" />
                   <p className="text-sm">Successfully authenticated! Sync is now enabled.</p>
                 </div>
@@ -504,6 +590,15 @@ export function SettingsPanel() {
               >
                 {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Trigger Sync
+              </Button>
+              <Button
+                variant="outline"
+                onClick={debugSyncStatus}
+                disabled={loading}
+                className="w-full"
+              >
+                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                🔍 Debug Sync
               </Button>
               <Button variant="outline" onClick={resetAuth} className="w-full">
                 Reset Authentication
@@ -579,7 +674,7 @@ export function SettingsPanel() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Shield className="w-4 h-4 text-green-600" />
+            <Shield className="w-4 h-4 text-primary" />
             <span className="text-sm">End-to-end encryption enabled</span>
           </div>
         </CardContent>

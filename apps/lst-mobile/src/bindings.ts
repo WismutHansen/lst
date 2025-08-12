@@ -197,9 +197,9 @@ async requestAuthToken(email: string, serverUrl: string, password: string | null
     else return { status: "error", error: e  as any };
 }
 },
-async verifyAuthToken(email: string, token: string) : Promise<Result<string, string>> {
+async verifyAuthToken(email: string, token: string, serverUrl: string) : Promise<Result<string, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("verify_auth_token", { email, token }) };
+    return { status: "ok", data: await TAURI_INVOKE("verify_auth_token", { email, token, serverUrl }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -224,6 +224,14 @@ async triggerSync() : Promise<Result<string, string>> {
 async testSyncConnection() : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("test_sync_connection") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async debugSyncStatus() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("debug_sync_status") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

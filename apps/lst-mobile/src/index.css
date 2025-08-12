@@ -168,20 +168,20 @@
 /* Mobile-specific optimizations - only for actual mobile devices */
 @media (max-width: 640px) and (pointer: coarse) {
   .mobile-safe-area {
-    padding-top: max(env(safe-area-inset-top), 44px);
-    padding-bottom: max(env(safe-area-inset-bottom), 34px);
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
+    padding-top: env(safe-area-inset-top, 44px);
+    padding-bottom: env(safe-area-inset-bottom, 34px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
   }
   
   .mobile-safe-area-vertical {
-    padding-top: max(env(safe-area-inset-top), 44px);
-    padding-bottom: max(env(safe-area-inset-bottom), 34px);
+    padding-top: env(safe-area-inset-top, 44px);
+    padding-bottom: env(safe-area-inset-bottom, 34px);
   }
   
   .mobile-safe-area-bottom {
-    padding-bottom: max(env(safe-area-inset-bottom), 20px);
-    margin-bottom: env(safe-area-inset-bottom);
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+    margin-bottom: env(safe-area-inset-bottom, 0px);
   }
   
   /* Prevent zoom on input focus */
@@ -228,14 +228,23 @@
   }
 }
 
-/* Fallback for when safe-area-inset is not supported */
+/* Enhanced support for safe areas and status bar visibility */
+.mobile-safe-area {
+  /* Ensure content doesn't overlap with system UI */
+  padding-top: env(safe-area-inset-top, 44px);
+  padding-bottom: env(safe-area-inset-bottom, 34px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
 .mobile-safe-area-vertical {
-  padding-top: 44px;
-  padding-bottom: 34px;
+  padding-top: env(safe-area-inset-top, 44px);
+  padding-bottom: env(safe-area-inset-bottom, 34px);
 }
 
 .mobile-safe-area-bottom {
-  padding-bottom: 20px;
+  padding-bottom: env(safe-area-inset-bottom, 20px);
+  margin-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 

@@ -8,9 +8,13 @@ mod auth;
 mod crypto;
 mod database;
 mod sync;
+mod sync_bridge;
 mod sync_db;
 mod sync_status;
 use database::Database;
+use sync_bridge::SyncBridge;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 // use specta_typescript::Typescript; // Only needed for debug builds
 use tauri::Manager;
 use tauri_plugin_opener;
@@ -19,7 +23,7 @@ use tauri_specta::{collect_commands, Builder};
 mod command_server;
 mod theme;
 
-#[derive(Debug, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct Note {
     pub title: String,
     pub content: String,
@@ -48,7 +52,13 @@ pub struct SyncStatus {
 #[tauri::command]
 #[specta::specta]
 fn get_lists(db: tauri::State<'_, Database>) -> Result<Vec<String>, String> {
-    db.list_titles().map_err(|e| e.to_string())
+    println!("🔍 DEBUG: get_lists called");
+    let result = db.list_titles().map_err(|e| e.to_string());
+    match &result {
+        Ok(lists) => println!("🔍 DEBUG: Found {} lists: {:?}", lists.len(), lists),
+        Err(e) => println!("🔍 DEBUG: Error getting lists: {}", e),
+    }
+    result
 }
 
 #[tauri::command]
@@ -65,20 +75,23 @@ fn get_note(name: String, db: tauri::State<'_, Database>) -> Result<Note, String
 
 #[tauri::command]
 #[specta::specta]
-fn create_note_cmd(title: String, db: tauri::State<'_, Database>) -> Result<Note, String> {
-    db.create_note(&title).map_err(|e| e.to_string())
+async fn create_note_cmd(title: String, db: tauri::State<'_, Database>, app: tauri::AppHandle) -> Result<Note, String> {
+    println!("🔍 DEBUG: create_note_cmd called with title: '{}'", title);
+    db.create_note(&title, Some(&app)).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
-fn save_note(note: Note, db: tauri::State<'_, Database>) -> Result<(), String> {
-    db.save_note(&note).map_err(|e| e.to_string())
+async fn save_note(note: Note, db: tauri::State<'_, Database>, app: tauri::AppHandle) -> Result<(), String> {
+    println!("🔍 DEBUG: save_note called - note: '{}'", note.title);
+    db.save_note(&note, Some(&app)).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
-fn delete_note_cmd(name: String, db: tauri::State<'_, Database>) -> Result<(), String> {
-    db.delete_note(&name).map_err(|e| e.to_string())
+async fn delete_note_cmd(name: String, db: tauri::State<'_, Database>, app: tauri::AppHandle) -> Result<(), String> {
+    println!("🔍 DEBUG: delete_note_cmd called with name: '{}'", name);
+    db.delete_note(&name, Some(&app)).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -89,37 +102,41 @@ fn get_list(name: String, db: tauri::State<'_, Database>) -> Result<List, String
 
 #[tauri::command]
 #[specta::specta]
-fn create_list(title: String, db: tauri::State<'_, Database>) -> Result<List, String> {
-    db.create_list(&title).map_err(|e| e.to_string())
+async fn create_list(title: String, db: tauri::State<'_, Database>, app: tauri::AppHandle) -> Result<List, String> {
+    println!("🔍 DEBUG: create_list command called with title: '{}'", title);
+    db.create_list(&title, Some(&app)).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
-fn add_item(list: String, text: String, category: Option<String>, db: tauri::State<'_, Database>) -> Result<List, String> {
+async fn add_item(list: String, text: String, category: Option<String>, db: tauri::State<'_, Database>, app: tauri::AppHandle) -> Result<List, String> {
+    println!("🔍 DEBUG: add_item command called - list: '{}', text: '{}', category: {:?}", list, text, category);
     match category {
-        Some(cat) => db.add_item_to_category(&list, &text, Some(&cat)).map_err(|e| e.to_string()),
-        None => db.add_item(&list, &text).map_err(|e| e.to_string()),
+        Some(cat) => db.add_item_to_category(&list, &text, Some(&cat), Some(&app)).await.map_err(|e| e.to_string()),
+        None => db.add_item(&list, &text, Some(&app)).await.map_err(|e| e.to_string()),
     }
 }
 
 #[tauri::command]
 #[specta::specta]
-fn toggle_item(
+async fn toggle_item(
     list: String,
     target: String,
     db: tauri::State<'_, Database>,
+    app: tauri::AppHandle,
 ) -> Result<List, String> {
-    db.toggle_item(&list, &target).map_err(|e| e.to_string())
+    db.toggle_item(&list, &target, Some(&app)).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
-fn remove_item(
+async fn remove_item(
     list: String,
     target: String,
     db: tauri::State<'_, Database>,
+    app: tauri::AppHandle,
 ) -> Result<List, String> {
-    db.remove_item(&list, &target).map_err(|e| e.to_string())
+    db.remove_item(&list, &target, Some(&app)).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -131,50 +148,55 @@ fn get_ui_config() -> Result<UiConfig, String> {
 
 #[tauri::command]
 #[specta::specta]
-fn edit_item(
+async fn edit_item(
     list: String,
     target: String,
     text: String,
     db: tauri::State<'_, Database>,
+    app: tauri::AppHandle,
 ) -> Result<List, String> {
-    db.edit_item(&list, &target, &text)
+    db.edit_item(&list, &target, &text, Some(&app))
+        .await
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
-fn reorder_item(
+async fn reorder_item(
     list: String,
     target: String,
     new_index: u32,
     db: tauri::State<'_, Database>,
+    app: tauri::AppHandle,
 ) -> Result<List, String> {
-    db.reorder_item(&list, &target, new_index as usize)
+    db.reorder_item(&list, &target, new_index as usize, Some(&app))
+        .await
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
-fn save_list(list: List, db: tauri::State<'_, Database>) -> Result<(), String> {
-    db.save_list(&list).map_err(|e| e.to_string())
+async fn save_list(list: List, db: tauri::State<'_, Database>, app: tauri::AppHandle) -> Result<(), String> {
+    println!("🔍 DEBUG: save_list command called - list: '{}'", list.metadata.title);
+    db.save_list(&list, Some(&app)).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
-fn create_category(list_name: String, category_name: String, db: tauri::State<'_, Database>) -> Result<List, String> {
-    db.create_category(&list_name, &category_name).map_err(|e| e.to_string())
+async fn create_category(list_name: String, category_name: String, db: tauri::State<'_, Database>, app: tauri::AppHandle) -> Result<List, String> {
+    db.create_category(&list_name, &category_name, Some(&app)).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
-fn move_item_to_category(list_name: String, item_anchor: String, category_name: Option<String>, db: tauri::State<'_, Database>) -> Result<List, String> {
-    db.move_item_to_category(&list_name, &item_anchor, category_name.as_deref()).map_err(|e| e.to_string())
+async fn move_item_to_category(list_name: String, item_anchor: String, category_name: Option<String>, db: tauri::State<'_, Database>, app: tauri::AppHandle) -> Result<List, String> {
+    db.move_item_to_category(&list_name, &item_anchor, category_name.as_deref(), Some(&app)).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
-fn delete_category(list_name: String, category_name: String, db: tauri::State<'_, Database>) -> Result<List, String> {
-    db.delete_category(&list_name, &category_name).map_err(|e| e.to_string())
+async fn delete_category(list_name: String, category_name: String, db: tauri::State<'_, Database>, app: tauri::AppHandle) -> Result<List, String> {
+    db.delete_category(&list_name, &category_name, Some(&app)).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -185,8 +207,8 @@ fn get_categories(list_name: String, db: tauri::State<'_, Database>) -> Result<V
 
 #[tauri::command]
 #[specta::specta]
-fn rename_category(list_name: String, old_name: String, new_name: String, db: tauri::State<'_, Database>) -> Result<List, String> {
-    db.rename_category(&list_name, &old_name, &new_name).map_err(|e| e.to_string())
+async fn rename_category(list_name: String, old_name: String, new_name: String, db: tauri::State<'_, Database>, app: tauri::AppHandle) -> Result<List, String> {
+    db.rename_category(&list_name, &old_name, &new_name, Some(&app)).await.map_err(|e| e.to_string())
 }
 
 // Sync-related commands
@@ -210,8 +232,9 @@ fn get_sync_config() -> Result<SyncConfig, String> {
 
 #[tauri::command]
 #[specta::specta]
-fn save_sync_config(config: SyncConfig) -> Result<(), String> {
-    auth::update_sync_config(
+fn save_sync_config(config: SyncConfig, db: tauri::State<Database>) -> Result<(), String> {
+    auth::update_sync_config_with_db(
+        &db,
         config.server_url,
         config.email,
         config.device_id,
@@ -244,16 +267,12 @@ async fn request_auth_token(email: String, server_url: String, password: Option<
 
 #[tauri::command]
 #[specta::specta]
-async fn verify_auth_token(email: String, token: String) -> Result<String, String> {
-    // Get server URL from saved sync config
-    let sync_config = auth::get_sync_config().map_err(|e| e.to_string())?;
-    let server_url = sync_config.0; // server_url is the first element of the tuple
-    
+async fn verify_auth_token(email: String, token: String, server_url: String, db: tauri::State<'_, Database>) -> Result<String, String> {
     if server_url.is_empty() {
         return Err("Server URL not configured".to_string());
     }
     
-    auth::verify_auth_token(email, token, server_url)
+    auth::verify_auth_token_with_db(email, token, server_url, &db)
         .await
         .map_err(|e| e.to_string())
 }
@@ -278,7 +297,12 @@ fn toggle_sync(enabled: bool) -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
-async fn trigger_sync() -> Result<String, String> {
+async fn trigger_sync(db: tauri::State<'_, Database>) -> Result<String, String> {
+    // First, try to reload JWT from database to make sure we have the latest
+    if let Err(e) = auth::initialize_sync_config_from_db(&db) {
+        eprintln!("Failed to reload sync config from database: {}", e);
+    }
+    
     let config = auth::get_current_config();
     
     if config.syncd.is_none() {
@@ -312,18 +336,58 @@ async fn trigger_sync() -> Result<String, String> {
 }
 
 #[tauri::command]
+#[specta::specta] 
+async fn debug_sync_status(db: tauri::State<'_, Database>, app: tauri::AppHandle) -> Result<String, String> {
+    println!("🔍 DEBUG: debug_sync_status called");
+    
+    let config = auth::get_current_config();
+    let mut status = String::new();
+    
+    status.push_str(&format!("Sync Config Status:\n"));
+    status.push_str(&format!("- Has syncd config: {}\n", config.syncd.is_some()));
+    status.push_str(&format!("- JWT valid: {}\n", config.is_jwt_valid()));
+    
+    if let Some(ref syncd) = config.syncd {
+        status.push_str(&format!("- Server URL: {:?}\n", syncd.url));
+        status.push_str(&format!("- Device ID: {:?}\n", syncd.device_id));
+    }
+    
+    // Test sync bridge initialization
+    let bridge_state: tauri::State<Arc<Mutex<Option<SyncBridge>>>> = app.state();
+    let bridge_guard = bridge_state.lock().await;
+    status.push_str(&format!("- Sync bridge initialized: {}\n", bridge_guard.is_some()));
+    drop(bridge_guard);
+    
+    // Test sync bridge creation
+    status.push_str("\nTrying to initialize sync bridge...\n");
+    match db.ensure_sync_bridge_initialized(&app, &bridge_state).await {
+        Ok(()) => status.push_str("✅ Sync bridge initialization: SUCCESS\n"),
+        Err(e) => status.push_str(&format!("❌ Sync bridge initialization: FAILED - {}\n", e)),
+    }
+    
+    Ok(status)
+}
+
+#[tauri::command]
 #[specta::specta]
 async fn test_sync_connection() -> Result<String, String> {
+    println!("🔍 DEBUG: test_sync_connection called");
+    
     // Get server URL from saved sync config
     let sync_config = auth::get_sync_config().map_err(|e| e.to_string())?;
     let server_url = sync_config.0; // server_url is the first element of the tuple
+    
+    println!("🔍 DEBUG: Server URL from config: '{}'", server_url);
     
     if server_url.is_empty() {
         return Err("Server URL not configured".to_string());
     }
     
-    // For now, skip JWT validation since we're using the auth module's config
-    // TODO: Implement proper JWT validation for mobile
+    // Get current config and check sync status
+    let config = auth::get_current_config();
+    println!("🔍 DEBUG: Full sync config status:");
+    println!("  - Has syncd config: {}", config.syncd.is_some());
+    println!("  - JWT valid: {}", config.is_jwt_valid());
     
     // Test basic HTTP connectivity
     let base_url = server_url
@@ -331,18 +395,26 @@ async fn test_sync_connection() -> Result<String, String> {
         .replace("wss://", "https://")
         .replace("/api/sync", "");
     
+    println!("🔍 DEBUG: Testing connection to: {}/api/health", base_url);
+    
     let client = reqwest::Client::new();
     match client.get(&format!("{}/api/health", base_url)).send().await {
         Ok(response) => {
+            println!("🔍 DEBUG: Server response status: {}", response.status());
             if response.status().is_success() {
                 Ok("Server connection successful!".to_string())
             } else {
                 Err(format!("Server returned status: {}", response.status()))
             }
         }
-        Err(e) => Err(format!("Failed to connect to server: {}", e)),
+        Err(e) => {
+            println!("🔍 DEBUG: Connection error: {}", e);
+            Err(format!("Failed to connect to server: {}", e))
+        }
     }
 }
+
+
 
 // Minimal version for crash debugging - commented out to avoid duplicate symbol
 // #[allow(dead_code)]
@@ -392,6 +464,7 @@ pub fn run() {
             toggle_sync,
             trigger_sync,
             test_sync_connection,
+            debug_sync_status,
             theme::get_current_theme,
             theme::apply_theme,
             theme::list_themes
@@ -418,7 +491,27 @@ pub fn run() {
                     return Err(e.into());
                 }
             };
+            // Initialize sync config from database
+            if let Err(e) = auth::initialize_sync_config_from_db(&db) {
+                eprintln!("Failed to initialize sync config from database: {}", e);
+                // Non-fatal error, continue with empty config
+            } else {
+                println!("🔍 DEBUG: Sync config initialized from database");
+                let config = auth::get_current_config();
+                println!("🔍 DEBUG: Sync configuration status:");
+                println!("  - Has syncd config: {}", config.syncd.is_some());
+                println!("  - JWT valid: {}", config.is_jwt_valid());
+                if let Some(ref syncd) = config.syncd {
+                    println!("  - Server URL: {:?}", syncd.url);
+                    println!("  - Device ID: {:?}", syncd.device_id);
+                }
+            }
+            
             app.manage(db);
+            
+            // Initialize sync bridge
+            let sync_bridge: Arc<Mutex<Option<SyncBridge>>> = Arc::new(Mutex::new(None));
+            app.manage(sync_bridge);
             
             // Get window with fallback for mobile
             let _window = app.get_webview_window("main");
@@ -507,6 +600,7 @@ pub fn run() {
             toggle_sync,
             trigger_sync,
             test_sync_connection,
+            debug_sync_status,
             theme::get_current_theme,
             theme::apply_theme,
             theme::list_themes

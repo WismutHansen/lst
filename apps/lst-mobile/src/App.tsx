@@ -192,8 +192,16 @@ export default function App() {
   }
 
   async function fetchLists() {
+    console.log("📋 fetchLists called");
     const res = await commands.getLists();
-    res.status === "ok" ? setLists(res.data) : setError(res.error);
+    console.log("📋 getLists result:", res);
+    if (res.status === "ok") {
+      console.log("📋 Found", res.data.length, "lists:", res.data);
+      setLists(res.data);
+    } else {
+      console.error("📋 Failed to get lists:", res.error);
+      setError(res.error);
+    }
   }
 
   const loadList = useCallback(async (name: string) => {
@@ -214,24 +222,42 @@ export default function App() {
   /* ---------- mutations ---------- */
   async function createNewList(e: React.FormEvent) {
     e.preventDefault();
+    console.log("📋 createNewList called with name:", newListName.trim());
     if (!newListName.trim()) return;
+    
+    console.log("📋 Calling commands.createList...");
     const res = await commands.createList(newListName.trim());
+    console.log("📋 createList result:", res);
+    
     if (res.status === "ok") {
+      console.log("📋 List created successfully, refreshing lists...");
       await fetchLists();
       loadList(res.data.title);
       setNewListName("");
       setCreating(false);
-    } else setError(res.error);
+    } else {
+      console.error("📋 Failed to create list:", res.error);
+      setError(res.error);
+    }
   }
 
   async function quickAddItem(e: React.FormEvent) {
     e.preventDefault();
+    console.log("📋 quickAddItem called - list:", currentName, "item:", newItem.trim());
     if (!currentName || !newItem.trim()) return;
+    
+    console.log("📋 Calling commands.addItem...");
     const res = await commands.addItem(currentName, newItem.trim(), null);
+    console.log("📋 addItem result:", res);
+    
     if (res.status === "ok") {
+      console.log("📋 Item added successfully");
       setNewItem("");
       setCurrentList(res.data);
-    } else setError(res.error);
+    } else {
+      console.error("📋 Failed to add item:", res.error);
+      setError(res.error);
+    }
   }
 
   /* ---------- item-level helpers ---------- */
@@ -277,7 +303,11 @@ export default function App() {
 
   const paletteCommands = useMemo<PaletteCommand[]>(
     () => [
-      { label: "New List", action: () => setCreating(true) },
+      { label: "New List", action: () => {
+        setCreating(true);
+        setCurrentList(null); // Clear current list to show list browser
+        setCurrentName(null);
+      }},
       ...lists.map((l) => ({ label: `Open ${l}`, action: () => loadList(l) })),
     ],
     [lists]
@@ -298,23 +328,33 @@ export default function App() {
     openTodaysDailyList();
   }, []);
 
+  // Debug creating state changes (remove this later)
+  useEffect(() => {
+    if (creating) console.log("🔍 Creating state changed to:", creating);
+  }, [creating]);
+
   async function openTodaysDailyList() {
     const today = fmt(new Date());
     const dailyListName = `daily_lists/${today}_daily_list`;
+    console.log("📅 openTodaysDailyList called for:", dailyListName);
 
     // Check if today's daily list exists in the current lists
     const res = await commands.getLists();
     if (res.status === "ok") {
       const exists = res.data.includes(dailyListName);
+      console.log("📅 Daily list exists:", exists);
 
       if (exists) {
         // Open existing daily list
+        console.log("📅 Opening existing daily list");
         loadList(dailyListName);
       } else {
         // Create new daily list using lst-cli command
+        console.log("📅 Creating new daily list");
         try {
           const createRes = await commands.createList(dailyListName);
           if (createRes.status === "ok") {
+            console.log("📅 Daily list created successfully");
             await fetchLists(); // Refresh the lists
             loadList(dailyListName);
           }
@@ -654,7 +694,7 @@ export default function App() {
       style={{ backgroundColor: "var(--background)" }}
     >
       {/* Top bar - always visible */}
-      <div className="flex-shrink-0 px-4 pb-2" style={{ paddingTop: "max(env(safe-area-inset-top), 44px)" }}>
+      <div className="flex-shrink-0 px-4 pb-2" style={{ paddingTop: "env(safe-area-inset-top, 44px)" }}>
         <div className="flex items-center gap-4">
           <form
             className="flex w-full items-center"
@@ -666,13 +706,13 @@ export default function App() {
                 className="mr-2 h-10 w-10 p-0 flex-shrink-0"
                 onClick={() => setDropdownOpen(!dropdownOpen)}
               >
-                <Menu className="h-4 w-4" />
+                <Menu className="h-4 w-4 p-0" />
               </Button>
-              
+
               {dropdownOpen && (
                 <>
-                  <div 
-                    className="fixed inset-0 z-10" 
+                  <div
+                    className="fixed inset-0 z-10"
                     onClick={() => setDropdownOpen(false)}
                   />
                   <div className="absolute top-10 left-0 z-20 min-w-[160px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
@@ -714,6 +754,8 @@ export default function App() {
                       onClick={() => {
                         setCreating(true);
                         setCurrentView("lists");
+                        setCurrentList(null); // Clear current list to show list browser
+                        setCurrentName(null);
                         setDropdownOpen(false);
                       }}
                     >
@@ -799,7 +841,7 @@ export default function App() {
           lst {currentList ? `- ${currentList.title}.md` : ""}
         </span>
         <span className="text-muted-foreground">
-          {error && <p className="ml-2 text-red-600">{error}</p>}
+          {error && <p className="ml-2 text-destructive">{error}</p>}
         </span>
         <div className="ml-auto flex items-center gap-2">
           <SyncStatusIndicator />
