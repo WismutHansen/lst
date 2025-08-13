@@ -21,9 +21,6 @@ pub struct Config {
     // New tinted theming system
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub theme: Option<Theme>,
-    // Syncd-specific configuration (optional)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub syncd: Option<SyncdConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub storage: Option<StorageConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -82,32 +79,21 @@ pub struct PathsConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "tauri", derive(Type))]
 pub struct ServerConfig {
-    pub url: Option<String>,
-    pub auth_token: Option<String>,
-    /// JWT token for authentication (stored after successful login)
-    pub jwt_token: Option<String>,
-    /// Expiration timestamp for the JWT token
-    pub jwt_expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Host for lst-server daemon (only used when running lst-server)
+    pub host: Option<String>,
+    /// Port for lst-server daemon (only used when running lst-server) 
+    pub port: Option<u16>,
+    /// Base directory for server databases (only used when running lst-server)
+    pub data_dir: Option<PathBuf>,
+    /// Tokens database filename (only used when running lst-server)
+    pub tokens_db: Option<String>,
+    /// Content database filename (only used when running lst-server)
+    pub content_db: Option<String>,
+    /// Sync database filename (only used when running lst-server)
+    pub sync_db: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "tauri", derive(Type))]
-pub struct SyncdConfig {
-    /// Server URL (if None, runs in local-only mode)
-    pub url: Option<String>,
-
-    /// Authentication token for server
-    pub auth_token: Option<String>,
-
-    /// Device identifier (auto-generated if missing)
-    pub device_id: Option<String>,
-
-    /// Path to the local sync database
-    pub database_path: Option<PathBuf>,
-
-    /// Reference to the encryption key
-    pub encryption_key_ref: Option<String>,
-}
+// SyncdConfig removed - consolidated into SyncSettings
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "tauri", derive(Type))]
@@ -123,6 +109,12 @@ pub struct StorageConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "tauri", derive(Type))]
 pub struct SyncSettings {
+    /// Server URL (if None, runs in local-only mode)
+    pub server_url: Option<String>,
+
+    /// Reference to the encryption key
+    pub encryption_key_ref: Option<String>,
+
     /// Sync interval in seconds
     #[serde(default = "default_sync_interval")]
     pub interval_seconds: u64,
@@ -134,6 +126,50 @@ pub struct SyncSettings {
     /// File patterns to exclude from sync
     #[serde(default)]
     pub exclude_patterns: Vec<String>,
+}
+
+/// Machine-specific state that should not be synced across devices
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "tauri", derive(Type))]
+pub struct State {
+    /// Authentication settings
+    #[serde(default)]
+    pub auth: AuthState,
+    
+    /// Device-specific settings
+    #[serde(default)]
+    pub device: DeviceState,
+    
+    /// Sync database settings
+    #[serde(default)]
+    pub sync: SyncState,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "tauri", derive(Type))]
+pub struct AuthState {
+    /// Authentication token for server (used for refresh)
+    pub auth_token: Option<String>,
+    
+    /// JWT token for authentication (stored after successful login)
+    pub jwt_token: Option<String>,
+    
+    /// Expiration timestamp for the JWT token
+    pub jwt_expires_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "tauri", derive(Type))]
+pub struct DeviceState {
+    /// Device identifier (auto-generated if missing)
+    pub device_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "tauri", derive(Type))]
+pub struct SyncState {
+    /// Path to the local sync database
+    pub database_path: Option<PathBuf>,
 }
 
 fn default_sync_interval() -> u64 {
@@ -169,7 +205,6 @@ impl Default for Config {
             },
             server: ServerConfig::default(),
             theme: None,
-            syncd: None,
             storage: None,
             sync: None,
         }
@@ -210,10 +245,48 @@ impl Default for PathsConfig {
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
-            url: None,
+            host: None,
+            port: None,
+            data_dir: None,
+            tokens_db: None,
+            content_db: None,
+            sync_db: None,
+        }
+    }
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            auth: AuthState::default(),
+            device: DeviceState::default(),
+            sync: SyncState::default(),
+        }
+    }
+}
+
+impl Default for AuthState {
+    fn default() -> Self {
+        Self {
             auth_token: None,
             jwt_token: None,
             jwt_expires_at: None,
+        }
+    }
+}
+
+impl Default for DeviceState {
+    fn default() -> Self {
+        Self {
+            device_id: None,
+        }
+    }
+}
+
+impl Default for SyncState {
+    fn default() -> Self {
+        Self {
+            database_path: None,
         }
     }
 }
@@ -297,71 +370,28 @@ impl Config {
         }
     }
 
-    /// Initialize syncd configuration with defaults
-    pub fn init_syncd(&mut self) -> Result<()> {
-        if self.syncd.is_none() {
+    /// Initialize sync configuration with defaults
+    pub fn init_sync(&mut self) -> Result<()> {
+        if self.sync.is_none() {
             let crdt_dir = dirs::config_dir()
                 .context("Cannot determine config directory")?
                 .join("lst")
                 .join("crdt");
 
-            let config_dir = dirs::config_dir()
-                .context("Cannot determine config directory")?
-                .join("lst");
-
-            let db_path = config_dir.join("syncd.db");
-
-            self.syncd = Some(SyncdConfig {
-                url: None,
-                auth_token: None,
-                device_id: Some(uuid::Uuid::new_v4().to_string()),
-                database_path: Some(db_path),
+            self.sync = Some(SyncSettings {
+                server_url: None,
                 encryption_key_ref: Some("lst-master-key".to_string()),
+                interval_seconds: default_sync_interval(),
+                max_file_size: default_max_file_size(),
+                exclude_patterns: vec![".*".to_string(), "*.tmp".to_string(), "*.swp".to_string()],
             });
 
             self.storage = Some(StorageConfig {
                 crdt_dir,
                 max_snapshots: default_max_snapshots(),
             });
-
-            self.sync = Some(SyncSettings {
-                interval_seconds: default_sync_interval(),
-                max_file_size: default_max_file_size(),
-                exclude_patterns: vec![".*".to_string(), "*.tmp".to_string(), "*.swp".to_string()],
-            });
         }
         Ok(())
-    }
-
-    /// Check if JWT token is valid and not expired
-    pub fn is_jwt_valid(&self) -> bool {
-        if let Some(ref jwt) = self.server.jwt_token {
-            if let Some(expires_at) = self.server.jwt_expires_at {
-                return !jwt.is_empty() && chrono::Utc::now() < expires_at;
-            }
-        }
-        false
-    }
-
-    /// Store JWT token with expiration
-    pub fn store_jwt(&mut self, jwt: String, expires_at: chrono::DateTime<chrono::Utc>) {
-        self.server.jwt_token = Some(jwt);
-        self.server.jwt_expires_at = Some(expires_at);
-    }
-
-    /// Clear JWT token
-    pub fn clear_jwt(&mut self) {
-        self.server.jwt_token = None;
-        self.server.jwt_expires_at = None;
-    }
-
-    /// Get valid JWT token if available
-    pub fn get_jwt(&self) -> Option<&str> {
-        if self.is_jwt_valid() {
-            self.server.jwt_token.as_deref()
-        } else {
-            None
-        }
     }
 
     /// Get the current theme, loading default if none specified
@@ -389,6 +419,145 @@ impl Config {
     /// Get theme loader
     pub fn get_theme_loader(&self) -> ThemeLoader {
         ThemeLoader::with_config(self.paths.themes_dir.clone())
+    }
+}
+
+impl State {
+    /// Load state from the default location
+    pub fn load() -> Result<Self> {
+        // Check if state path is specified via environment variable
+        if let Ok(custom_path) = std::env::var("LST_STATE") {
+            return Self::load_from(&PathBuf::from(custom_path));
+        }
+        
+        let state_path = Self::get_state_path()?;
+        if !state_path.exists() {
+            // Create default state if it doesn't exist
+            let state_dir = state_path.parent().unwrap();
+            fs::create_dir_all(state_dir).context("Failed to create state directory")?;
+            let default_state = Self::default();
+            default_state.save()?;
+            return Ok(default_state);
+        }
+        Self::load_from(&state_path)
+    }
+
+    /// Load state from a specific path
+    pub fn load_from(path: &Path) -> Result<Self> {
+        let content = fs::read_to_string(path)
+            .with_context(|| format!("Failed to read state file: {}", path.display()))?;
+
+        let state: Self = toml::from_str(&content)
+            .with_context(|| format!("Failed to parse state file: {}", path.display()))?;
+
+        Ok(state)
+    }
+
+    /// Save state to the default location
+    pub fn save(&self) -> Result<()> {
+        let state_path = Self::get_state_path()?;
+        let state_dir = state_path.parent().unwrap();
+        fs::create_dir_all(state_dir).context("Failed to create state directory")?;
+        let toml_str = toml::to_string_pretty(self).context("Failed to serialize state")?;
+        fs::write(&state_path, toml_str).context("Failed to write state file")?;
+        Ok(())
+    }
+
+    /// Get the state file path
+    pub fn get_state_path() -> Result<PathBuf> {
+        let home_dir = dirs::home_dir().context("Could not determine home directory")?;
+        Ok(home_dir.join(".local").join("share").join("lst").join("state.toml"))
+    }
+
+    /// Initialize state with defaults
+    pub fn init(&mut self) -> Result<()> {
+        // Generate device ID if not present
+        if self.device.device_id.is_none() {
+            self.device.device_id = Some(uuid::Uuid::new_v4().to_string());
+        }
+
+        // Set default sync database path if not present
+        if self.sync.database_path.is_none() {
+            let home_dir = dirs::home_dir().context("Could not determine home directory")?;
+            let state_dir = home_dir.join(".local").join("share").join("lst");
+            self.sync.database_path = Some(state_dir.join("sync.db"));
+        }
+
+        Ok(())
+    }
+
+    /// Check if JWT token is valid and not expired
+    pub fn is_jwt_valid(&self) -> bool {
+        if let Some(ref jwt) = self.auth.jwt_token {
+            if let Some(expires_at) = self.auth.jwt_expires_at {
+                return !jwt.is_empty() && chrono::Utc::now() < expires_at;
+            }
+        }
+        false
+    }
+
+    /// Store JWT token with expiration
+    pub fn store_jwt(&mut self, jwt: String, expires_at: chrono::DateTime<chrono::Utc>) {
+        self.auth.jwt_token = Some(jwt);
+        self.auth.jwt_expires_at = Some(expires_at);
+    }
+
+    /// Clear JWT token
+    pub fn clear_jwt(&mut self) {
+        self.auth.jwt_token = None;
+        self.auth.jwt_expires_at = None;
+    }
+
+    /// Get valid JWT token if available
+    pub fn get_jwt(&self) -> Option<&str> {
+        if self.is_jwt_valid() {
+            self.auth.jwt_token.as_deref()
+        } else {
+            None
+        }
+    }
+
+    /// Store auth token for refresh
+    pub fn store_auth_token(&mut self, auth_token: String) {
+        self.auth.auth_token = Some(auth_token);
+    }
+
+    /// Get auth token for refresh
+    pub fn get_auth_token(&self) -> Option<&str> {
+        self.auth.auth_token.as_deref()
+    }
+
+    /// Get device ID, generating one if it doesn't exist
+    pub fn get_device_id(&mut self) -> Result<String> {
+        if let Some(ref device_id) = self.device.device_id {
+            Ok(device_id.clone())
+        } else {
+            let device_id = uuid::Uuid::new_v4().to_string();
+            self.device.device_id = Some(device_id.clone());
+            self.save()?;
+            Ok(device_id)
+        }
+    }
+
+    /// Get sync database path
+    pub fn get_sync_database_path(&self) -> Option<&PathBuf> {
+        self.sync.database_path.as_ref()
+    }
+
+    /// Set sync database path
+    pub fn set_sync_database_path(&mut self, path: PathBuf) {
+        self.sync.database_path = Some(path);
+    }
+
+    /// Check if JWT is about to expire (within 5 minutes) and needs refresh
+    pub fn needs_jwt_refresh(&self) -> bool {
+        if let Some(expires_at) = self.auth.jwt_expires_at {
+            let now = chrono::Utc::now();
+            let time_until_expiry = expires_at - now;
+            time_until_expiry.num_minutes() < 5 // Refresh if less than 5 minutes left
+        } else {
+            true // No expiration time means we should refresh
+        }
     }
 }
 

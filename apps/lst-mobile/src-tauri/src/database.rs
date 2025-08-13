@@ -84,14 +84,16 @@ impl Database {
 
         // Trigger sync if app handle is provided
         if let Some(app_handle) = app {
-            println!("Triggering sync for list creation: {}", title);
-            if let Err(e) = self.trigger_list_sync(app_handle, ListOperation::Create { 
+            println!("📱 Triggering sync for list creation: {}", title);
+            match self.trigger_list_sync(app_handle, ListOperation::Create { 
                 title: title.to_string(), 
                 list: &list 
             }).await {
-                eprintln!("Failed to trigger list sync for new list '{}': {}", title, e);
-            } else {
-                println!("Successfully triggered sync for new list: {}", title);
+                Ok(()) => println!("📱 ✅ Successfully triggered sync for new list: {}", title),
+                Err(e) => {
+                    eprintln!("📱 ❌ Failed to trigger list sync for new list '{}': {}", title, e);
+                    // Don't fail the entire operation if sync fails - data is still saved locally
+                }
             }
         }
 
@@ -120,14 +122,16 @@ impl Database {
 
         // Trigger sync if app handle is provided
         if let Some(app_handle) = app {
-            println!("Triggering sync for list update: {}", list.metadata.title);
-            if let Err(e) = self.trigger_list_sync(app_handle, ListOperation::Update { 
+            println!("📱 Triggering sync for list update: {}", list.metadata.title);
+            match self.trigger_list_sync(app_handle, ListOperation::Update { 
                 title: list.metadata.title.clone(), 
                 list 
             }).await {
-                eprintln!("Failed to trigger list sync for '{}': {}", list.metadata.title, e);
-            } else {
-                println!("Successfully triggered sync for list: {}", list.metadata.title);
+                Ok(()) => println!("📱 ✅ Successfully triggered sync for list: {}", list.metadata.title),
+                Err(e) => {
+                    eprintln!("📱 ❌ Failed to trigger list sync for '{}': {}", list.metadata.title, e);
+                    // Don't fail the entire operation if sync fails - data is still saved locally
+                }
             }
         }
         
@@ -572,18 +576,14 @@ impl Database {
         
         if bridge_guard.is_none() {
             println!("Initializing sync bridge...");
-            let config = crate::auth::get_current_config();
+            let config = crate::mobile_config::get_current_config();
             
             // Check if sync is properly configured
-            if config.syncd.is_none() {
-                return Err(anyhow!("Sync not configured - no syncd config"));
-            }
-            
             if !config.is_jwt_valid() {
                 return Err(anyhow!("Sync not configured - JWT token invalid or missing"));
             }
             
-            match SyncBridge::new(config).await {
+            match SyncBridge::new().await {
                 Ok(bridge) => {
                     println!("Sync bridge initialized successfully");
                     *bridge_guard = Some(bridge);

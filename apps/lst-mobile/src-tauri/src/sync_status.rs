@@ -47,15 +47,11 @@ pub fn update_sync_status(
 
 /// Get current sync status
 pub fn get_sync_status() -> Result<SyncStatusInfo> {
-    let config = crate::auth::get_current_config();
+    let config = crate::mobile_config::get_current_config();
     let status = SYNC_STATUS.lock().unwrap();
     
     // Check if sync is enabled
-    let sync_enabled = config.syncd
-        .as_ref()
-        .and_then(|s| s.url.as_ref())
-        .map(|url| !url.is_empty())
-        .unwrap_or(false) && config.is_jwt_valid();
+    let sync_enabled = config.is_jwt_valid();
     
     if !sync_enabled {
         return Ok(SyncStatusInfo {

@@ -2,16 +2,15 @@ use anyhow::{Context, Result};
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::{rand_core::OsRng, SaltString};
 use keyring::Entry;
-use lst_cli::config::Config;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use std::collections::HashMap;
 use lazy_static::lazy_static;
+use crate::mobile_config::{MobileConfig, get_current_config, update_config};
 
 // Mobile-specific in-memory storage for sync config
 lazy_static! {
     static ref MOBILE_SYNC_CONFIG: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
-    static ref CONFIG_MUTEX: Mutex<Config> = Mutex::new(Config::default());
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -302,62 +301,47 @@ pub async fn verify_auth_token(email: String, token: String, server_url: String)
 
 /// Update config with JWT token and sync settings
 fn update_config_with_jwt(jwt_token: String, expires_at: chrono::DateTime<chrono::Utc>, server_url: String, email: String) -> Result<()> {
-    let mut config = CONFIG_MUTEX.lock().unwrap();
-    config.store_jwt(jwt_token, expires_at);
+    let server_url_clone = server_url.clone();
+    let email_clone = email.clone();
     
-    // Set up sync configuration using provided parameters instead of reading from storage
-    if !server_url.is_empty() {
-        // Generate a device ID if not already in storage
+    update_config(|config| {
+        config.store_jwt(jwt_token, expires_at);
+        
+        // Set up sync configuration using provided parameters
+        if !server_url.is_empty() {
+            // Generate a device ID if not already configured
+            let device_id = if let Some(existing_device_id) = &config.sync.device_id {
+                existing_device_id.clone()
+            } else {
+                uuid::Uuid::new_v4().to_string()
+            };
+            
+            // Update sync configuration
+            config.sync.server_url = Some(server_url.clone());
+            config.sync.device_id = Some(device_id.clone());
+            
+            // Set up syncd configuration
+            config.setup_sync(server_url, device_id);
+            
+            println!("📱 Auth: Mobile sync configuration updated");
+        }
+    });
+    
+    // Also store the basic sync config in MOBILE_SYNC_CONFIG for backwards compatibility
+    if !server_url_clone.is_empty() {
         let storage = MOBILE_SYNC_CONFIG.lock().unwrap();
         let device_id = storage.get("device_id").cloned()
             .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-        drop(storage); // Release the lock
+        drop(storage);
         
-        // Set up syncd configuration
-        let mut syncd_config = lst_cli::config::SyncdConfig {
-            url: Some(server_url.clone()),
-            auth_token: None, // We use JWT instead
-            device_id: Some(device_id.clone()),
-            database_path: None,
-            encryption_key_ref: None,
-        };
-        
-        // Set up basic paths for mobile
-        let app_data_dir = std::env::temp_dir().join("lst-mobile");
-        std::fs::create_dir_all(&app_data_dir).ok();
-        
-        syncd_config.database_path = Some(app_data_dir.join("sync.db"));
-        
-        // Create a simple encryption key if it doesn't exist
-        let key_path = app_data_dir.join("sync.key");
-        if !key_path.exists() {
-            // Generate a simple 32-byte key for demo purposes
-            let key = (0..32).map(|i| (i as u8).wrapping_mul(7).wrapping_add(42)).collect::<Vec<u8>>();
-            std::fs::write(&key_path, key).ok();
-        }
-        syncd_config.encryption_key_ref = Some(key_path.to_string_lossy().to_string());
-        
-        config.syncd = Some(syncd_config);
-        
-        // Set up sync configuration with default values
-        let sync_config = lst_cli::config::SyncSettings {
-            interval_seconds: 30, // Default 30 seconds
-            max_file_size: 10 * 1024 * 1024, // 10MB default
-            exclude_patterns: vec![],
-        };
-        config.sync = Some(sync_config);
-        
-        // Also store the basic sync config in MOBILE_SYNC_CONFIG for later use
         let mut storage = MOBILE_SYNC_CONFIG.lock().unwrap();
-        storage.insert("server_url".to_string(), server_url);
-        storage.insert("email".to_string(), email);
+        storage.insert("server_url".to_string(), server_url_clone);
+        storage.insert("email".to_string(), email_clone);
         storage.insert("device_id".to_string(), device_id);
         storage.insert("sync_enabled".to_string(), "true".to_string());
         storage.insert("sync_interval".to_string(), "30".to_string());
     }
     
-    // Skip saving config to file system on mobile - use in-memory storage instead
-    // Mobile apps have restricted file system access and use SQLite database
     Ok(())
 }
 
@@ -376,52 +360,13 @@ pub fn update_sync_config(
     storage.insert("device_id".to_string(), device_id.clone());
     storage.insert("sync_enabled".to_string(), sync_enabled.to_string());
     storage.insert("sync_interval".to_string(), sync_interval.to_string());
-    drop(storage); // Release the lock before updating CONFIG_MUTEX
-    
-    // Also update the CONFIG_MUTEX with sync configuration
-    let mut config = CONFIG_MUTEX.lock().unwrap();
-    
-    // Set up syncd configuration
-    let mut syncd_config = lst_cli::config::SyncdConfig {
-        url: Some(server_url),
-        auth_token: None, // We use JWT instead
-        device_id: Some(device_id),
-        database_path: None,
-        encryption_key_ref: None,
-    };
-    
-    // Set up basic paths for mobile
-    let app_data_dir = std::env::temp_dir().join("lst-mobile");
-    std::fs::create_dir_all(&app_data_dir).ok();
-    
-    syncd_config.database_path = Some(app_data_dir.join("sync.db"));
-    
-    // Create a simple encryption key if it doesn't exist
-    let key_path = app_data_dir.join("sync.key");
-    if !key_path.exists() {
-        // Generate a simple 32-byte key for demo purposes
-        let key = (0..32).map(|i| (i as u8).wrapping_mul(7).wrapping_add(42)).collect::<Vec<u8>>();
-        std::fs::write(&key_path, key).ok();
-    }
-    syncd_config.encryption_key_ref = Some(key_path.to_string_lossy().to_string());
-    
-    config.syncd = Some(syncd_config);
-    
-    // Set up sync configuration
-    let sync_config = lst_cli::config::SyncSettings {
-        interval_seconds: sync_interval as u64,
-        max_file_size: 10 * 1024 * 1024, // 10MB default
-        exclude_patterns: vec![],
-    };
-    config.sync = Some(sync_config);
     
     Ok(())
 }
 
 /// Get current config for sync manager
-pub fn get_current_config() -> Config {
-    let config_guard = CONFIG_MUTEX.lock().unwrap();
-    config_guard.clone()
+pub fn get_current_mobile_config() -> MobileConfig {
+    get_current_config()
 }
 
 /// Initialize sync config from database on startup
@@ -443,57 +388,12 @@ pub fn initialize_sync_config_from_db(db: &crate::database::Database) -> Result<
             .map(|dt| dt.with_timezone(&chrono::Utc))
             .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::hours(1));
         
-        // Update CONFIG_MUTEX with JWT token
-        let mut config = CONFIG_MUTEX.lock().unwrap();
-        config.store_jwt(jwt_token, expires_at);
-        drop(config); // Release config lock
+        // Update mobile config with JWT token
+        update_config(|config| {
+            config.store_jwt(jwt_token, expires_at);
+        });
     } else {
         println!("No valid JWT token found in database");
-    }
-    
-    // If we have sync config, also initialize CONFIG_MUTEX
-    if let (Some(server_url), Some(device_id)) = (config_map.get("server_url"), config_map.get("device_id")) {
-        drop(storage); // Release storage lock before acquiring CONFIG_MUTEX
-        
-        let mut config = CONFIG_MUTEX.lock().unwrap();
-        
-        // Set up syncd configuration
-        let mut syncd_config = lst_cli::config::SyncdConfig {
-            url: Some(server_url.clone()),
-            auth_token: None, // We use JWT instead
-            device_id: Some(device_id.clone()),
-            database_path: None,
-            encryption_key_ref: None,
-        };
-        
-        // Set up basic paths for mobile
-        let app_data_dir = std::env::temp_dir().join("lst-mobile");
-        std::fs::create_dir_all(&app_data_dir).ok();
-        
-        syncd_config.database_path = Some(app_data_dir.join("sync.db"));
-        
-        // Create a simple encryption key if it doesn't exist
-        let key_path = app_data_dir.join("sync.key");
-        if !key_path.exists() {
-            // Generate a simple 32-byte key for demo purposes
-            let key = (0..32).map(|i| (i as u8).wrapping_mul(7).wrapping_add(42)).collect::<Vec<u8>>();
-            std::fs::write(&key_path, key).ok();
-        }
-        syncd_config.encryption_key_ref = Some(key_path.to_string_lossy().to_string());
-        
-        config.syncd = Some(syncd_config);
-        
-        // Set up sync configuration
-        let sync_interval = config_map.get("sync_interval")
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(30);
-        
-        let sync_config = lst_cli::config::SyncSettings {
-            interval_seconds: sync_interval,
-            max_file_size: 10 * 1024 * 1024, // 10MB default
-            exclude_patterns: vec![],
-        };
-        config.sync = Some(sync_config);
     }
     
     Ok(())
@@ -515,51 +415,33 @@ pub fn update_sync_config_with_db(
     db.save_sync_config("sync_enabled", &sync_enabled.to_string())?;
     db.save_sync_config("sync_interval", &sync_interval.to_string())?;
 
+    // Update mobile config
+    update_config(|config| {
+        config.sync.server_url = Some(server_url.clone());
+        config.sync.device_id = Some(device_id.clone());
+        
+        if sync_enabled && !server_url.is_empty() {
+            config.setup_sync(server_url.clone(), device_id.clone());
+        }
+        
+        // Update sync settings
+        if let Some(ref mut sync_settings) = config.sync_settings {
+            sync_settings.interval_seconds = sync_interval as u64;
+        }
+        
+        println!("📱 Auth: Updated mobile sync config from database");
+    });
+    
+    // Save the updated configuration back to database
+    crate::mobile_config::save_config_to_db(db)?;
+
     // Also store in mobile-specific in-memory storage for backwards compatibility
     let mut storage = MOBILE_SYNC_CONFIG.lock().unwrap();
-    storage.insert("server_url".to_string(), server_url.clone());
-    storage.insert("email".to_string(), email.clone());
-    storage.insert("device_id".to_string(), device_id.clone());
+    storage.insert("server_url".to_string(), server_url);
+    storage.insert("email".to_string(), email);
+    storage.insert("device_id".to_string(), device_id);
     storage.insert("sync_enabled".to_string(), sync_enabled.to_string());
     storage.insert("sync_interval".to_string(), sync_interval.to_string());
-    drop(storage); // Release the lock before updating CONFIG_MUTEX
-
-    // Also update the CONFIG_MUTEX with sync configuration
-    let mut config = CONFIG_MUTEX.lock().unwrap();
-    
-    // Set up syncd configuration
-    let mut syncd_config = lst_cli::config::SyncdConfig {
-        url: Some(server_url),
-        auth_token: None, // We use JWT instead
-        device_id: Some(device_id),
-        database_path: None,
-        encryption_key_ref: None,
-    };
-    
-    // Set up basic paths for mobile
-    let app_data_dir = std::env::temp_dir().join("lst-mobile");
-    std::fs::create_dir_all(&app_data_dir).ok();
-    
-    syncd_config.database_path = Some(app_data_dir.join("sync.db"));
-    
-    // Create a simple encryption key if it doesn't exist
-    let key_path = app_data_dir.join("sync.key");
-    if !key_path.exists() {
-        // Generate a simple 32-byte key for demo purposes
-        let key = (0..32).map(|i| (i as u8).wrapping_mul(7).wrapping_add(42)).collect::<Vec<u8>>();
-        std::fs::write(&key_path, key).ok();
-    }
-    syncd_config.encryption_key_ref = Some(key_path.to_string_lossy().to_string());
-    
-    config.syncd = Some(syncd_config);
-    
-    // Set up sync configuration
-    let sync_config = lst_cli::config::SyncSettings {
-        interval_seconds: sync_interval as u64,
-        max_file_size: 10 * 1024 * 1024, // 10MB default
-        exclude_patterns: vec![],
-    };
-    config.sync = Some(sync_config);
     
     Ok(())
 }

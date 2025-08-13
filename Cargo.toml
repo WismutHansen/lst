@@ -3,9 +3,9 @@ version = "0.1.1"
 members = [
   "crates/lst-core",
   "crates/lst-cli",
-  "crates/lst-proto",
-  "crates/lst-server",
   "crates/lst-syncd",
+  "crates/lst-server",
+  "crates/lst-proto",
   "crates/lst-mcp",
   "apps/lst-desktop/src-tauri",
   "apps/lst-mobile/src-tauri",

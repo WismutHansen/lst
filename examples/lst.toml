@@ -65,30 +65,25 @@ kinds = ["lists", "notes", "posts"]
 # themes_dir = "~/my-custom-themes"
 
 # =============================================================================
-# Server Connection (Client-side configuration)
+# Server Daemon Configuration (lst-server only)
 # =============================================================================
 [server]
-# URL of the lst server for syncing
-url = "https://lst.example.com/api"
-
-# Authentication token for server access
-auth_token = "your-server-auth-token-here"
-
-# JWT token (automatically managed - don't set manually)
-# jwt_token = "auto-generated-jwt-token"
-
-# JWT expiration (automatically managed - don't set manually)  
-# jwt_expires_at = "2024-12-31T23:59:59Z"
-
-# =============================================================================
-# Server Process Configuration (lst-server only)
-# =============================================================================
 # Network interface to bind to
 host = "127.0.0.1" # localhost only
 # host = "0.0.0.0"   # all interfaces
 
 # Port to listen on
 port = 5673
+
+# Database configuration for lst-server daemon
+data_dir = "~/.config/lst/lst_server_data"
+# Alternative: absolute path
+# data_dir = "/var/lib/lst"
+
+# Individual database file names (relative to data_dir unless absolute)
+tokens_db = "tokens.db"   # User authentication tokens
+content_db = "content.db" # Content storage
+sync_db = "sync.db"       # CRDT sync data
 
 # =============================================================================
 # Email Configuration (lst-server only)
@@ -109,57 +104,33 @@ smtp_pass = "${SMTP_PASSWORD}" # reads from environment variable
 sender = "lst-server@yourdomain.com"
 
 # =============================================================================
-# Database Configuration (lst-server only)
+# Client Sync Configuration (lst CLI, lst-syncd, apps)
 # =============================================================================
-[database]
-# Base directory for all server databases
-data_dir = "~/.config/lst/lst_server_data"
-# Alternative: absolute path
-# data_dir = "/var/lib/lst"
+[sync]
+# Server for syncing (if None, runs in local-only mode)
+# Simple format: "host:port" (recommended)
+server_url = "192.168.1.25:5673"
+# Alternative: full WebSocket URL
+# server_url = "ws://192.168.1.25:5673/api/sync"
 
-# Individual database file names (relative to data_dir unless absolute)
-tokens_db = "tokens.db"   # User authentication tokens
-content_db = "content.db" # Content storage
-sync_db = "sync.db"       # CRDT sync data
+# Authentication token for server access
+auth_token = "your-server-auth-token-here"
 
-# Alternative: absolute paths
-# tokens_db = "/var/lib/lst/tokens.db"
-# content_db = "/var/lib/lst/content.db"  
-# sync_db = "/var/lib/lst/sync.db"
+# JWT token (automatically managed by auth commands - don't set manually)
+# jwt_token = "auto-generated-jwt-token"
 
-# =============================================================================
-# Sync Daemon Configuration (lst-syncd only)
-# =============================================================================
-[syncd]
-# Server URL for sync daemon (if None, runs in local-only mode)
-url = "https://lst.example.com/api"
-
-# Authentication token for sync daemon
-auth_token = "your-syncd-auth-token-here"
+# JWT expiration (automatically managed - don't set manually)  
+# jwt_expires_at = "2024-12-31T23:59:59Z"
 
 # Unique device identifier (auto-generated if not specified)
 device_id = "my-laptop-12345"
 
 # Local database path for sync state
-database_path = "~/.config/lst/syncd.db"
+database_path = "~/.config/lst/sync.db"
 
 # Keychain reference for encryption key (macOS/Linux keyring)
 encryption_key_ref = "lst-master-key"
 
-# =============================================================================
-# Storage Configuration (CRDT storage)
-# =============================================================================
-[storage]
-# Directory for CRDT (Conflict-free Replicated Data Type) storage
-crdt_dir = "~/.config/lst/crdt"
-
-# Maximum number of snapshots to retain
-max_snapshots = 100
-
-# =============================================================================
-# Sync Behavior Settings
-# =============================================================================
-[sync]
 # How often to check for changes (in seconds)
 interval_seconds = 30
 
@@ -181,15 +152,23 @@ exclude_patterns = [
 ]
 
 # =============================================================================
+# Storage Configuration (CRDT storage for sync)
+# =============================================================================
+[storage]
+# Directory for CRDT (Conflict-free Replicated Data Type) storage
+crdt_dir = "~/.config/lst/crdt"
+
+# Maximum number of snapshots to retain
+max_snapshots = 100
+
+# =============================================================================
 # Example Production Server Configuration
 # =============================================================================
 # Uncomment and modify for production deployment:
 #
-# # Production server binding
+# [server]
 # host = "0.0.0.0"
 # port = 8080
-#
-# [database]
 # data_dir = "/var/lib/lst"
 # tokens_db = "tokens.db"
 # content_db = "content.db"
@@ -205,6 +184,10 @@ exclude_patterns = [
 # content_dir = "/var/lib/lst/content"
 # media_dir = "media"
 # kinds = ["lists", "notes", "posts"]
+#
+# [sync]
+# server_url = "wss://lst.yourdomain.com/api/sync"
+# interval_seconds = 60
 
 # =============================================================================
 # Example Development Configuration
@@ -215,14 +198,10 @@ exclude_patterns = [
 # content_dir = "~/dev/lst-test-content"
 #
 # [server]
-# url = "http://localhost:5673/api"
-# auth_token = "dev-token-123"
-#
 # host = "127.0.0.1"
 # port = 5673
-#
-# [database]
 # data_dir = "~/.config/lst/dev_data"
 #
 # [sync]
+# server_url = "ws://localhost:5673/api/sync"
 # interval_seconds = 5  # More frequent sync for development

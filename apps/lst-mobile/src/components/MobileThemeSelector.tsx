@@ -97,7 +97,7 @@ export function MobileThemeSelector() {
         <div className="flex-1 overflow-y-auto space-y-2 max-h-[400px]">
           {filteredThemes.length === 0 ? (
             <p className="text-center text-muted-foreground py-4">
-              No themes found matching "{searchQuery}"
+              No themes found matching &quot;{searchQuery}&quot;
             </p>
           ) : (
             filteredThemes.map((themeName, index) => (

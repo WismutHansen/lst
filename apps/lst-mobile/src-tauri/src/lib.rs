@@ -1,5 +1,5 @@
 use anyhow::Result;
-use lst_cli::config::{Config, UiConfig};
+// Mobile app is standalone - no shared config
 use lst_cli::models::List;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -7,7 +7,8 @@ use specta::Type;
 mod auth;
 mod crypto;
 mod database;
-mod sync;
+mod mobile_config;
+mod mobile_sync;
 mod sync_bridge;
 mod sync_db;
 mod sync_status;
@@ -141,9 +142,9 @@ async fn remove_item(
 
 #[tauri::command]
 #[specta::specta]
-fn get_ui_config() -> Result<UiConfig, String> {
-    // Use default config for mobile to avoid file system issues
-    Ok(Config::default().ui.clone())
+fn get_ui_config() -> Result<mobile_config::MobileUiConfig, String> {
+    // Use default mobile config to avoid file system issues
+    Ok(mobile_config::MobileUiConfig::default())
 }
 
 #[tauri::command]
@@ -297,74 +298,34 @@ fn toggle_sync(enabled: bool) -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
-async fn trigger_sync(db: tauri::State<'_, Database>) -> Result<String, String> {
-    // First, try to reload JWT from database to make sure we have the latest
-    if let Err(e) = auth::initialize_sync_config_from_db(&db) {
-        eprintln!("Failed to reload sync config from database: {}", e);
+async fn trigger_sync(_db: tauri::State<'_, Database>) -> Result<String, String> {
+    let config = auth::get_current_mobile_config();
+    
+    if !config.has_syncd() || !config.is_jwt_valid() {
+        return Err("Sync not configured or JWT expired".to_string());
     }
     
-    let config = auth::get_current_config();
-    
-    if config.syncd.is_none() {
-        return Err("Sync not configured".to_string());
-    }
-    
-    if !config.is_jwt_valid() {
-        return Err("JWT token expired or invalid".to_string());
-    }
-    
-    match sync::SyncManager::new(config).await {
-        Ok(mut mgr) => {
-            match mgr.periodic_sync().await {
-                Ok(()) => {
-                    sync_status::mark_sync_connected().ok();
-                    Ok("Sync completed successfully".to_string())
-                }
-                Err(e) => {
-                    let error_msg = format!("Sync failed: {}", e);
-                    sync_status::mark_sync_disconnected(error_msg.clone()).ok();
-                    Err(error_msg)
-                }
+    match mobile_sync::MobileSyncManager::new(config).await {
+        Ok(mut sync_manager) => {
+            match sync_manager.periodic_sync().await {
+                Ok(_) => Ok("Mobile sync completed successfully".to_string()),
+                Err(e) => Err(format!("Mobile sync failed: {}", e)),
             }
         }
-        Err(e) => {
-            let error_msg = format!("Failed to initialize sync: {}", e);
-            sync_status::mark_sync_disconnected(error_msg.clone()).ok();
-            Err(error_msg)
-        }
+        Err(e) => Err(format!("Failed to create mobile sync manager: {}", e)),
     }
 }
 
 #[tauri::command]
 #[specta::specta] 
-async fn debug_sync_status(db: tauri::State<'_, Database>, app: tauri::AppHandle) -> Result<String, String> {
+async fn debug_sync_status(_db: tauri::State<'_, Database>, _app: tauri::AppHandle) -> Result<String, String> {
     println!("🔍 DEBUG: debug_sync_status called");
     
-    let config = auth::get_current_config();
+    // Mobile app is now standalone - no shared config
     let mut status = String::new();
-    
-    status.push_str(&format!("Sync Config Status:\n"));
-    status.push_str(&format!("- Has syncd config: {}\n", config.syncd.is_some()));
-    status.push_str(&format!("- JWT valid: {}\n", config.is_jwt_valid()));
-    
-    if let Some(ref syncd) = config.syncd {
-        status.push_str(&format!("- Server URL: {:?}\n", syncd.url));
-        status.push_str(&format!("- Device ID: {:?}\n", syncd.device_id));
-    }
-    
-    // Test sync bridge initialization
-    let bridge_state: tauri::State<Arc<Mutex<Option<SyncBridge>>>> = app.state();
-    let bridge_guard = bridge_state.lock().await;
-    status.push_str(&format!("- Sync bridge initialized: {}\n", bridge_guard.is_some()));
-    drop(bridge_guard);
-    
-    // Test sync bridge creation
-    status.push_str("\nTrying to initialize sync bridge...\n");
-    match db.ensure_sync_bridge_initialized(&app, &bridge_state).await {
-        Ok(()) => status.push_str("✅ Sync bridge initialization: SUCCESS\n"),
-        Err(e) => status.push_str(&format!("❌ Sync bridge initialization: FAILED - {}\n", e)),
-    }
-    
+    status.push_str("Mobile sync debugging (standalone mode):\n");
+    status.push_str("- Shared config: DISABLED\n");
+    status.push_str("- Mobile config: TODO\n");
     Ok(status)
 }
 
@@ -384,9 +345,8 @@ async fn test_sync_connection() -> Result<String, String> {
     }
     
     // Get current config and check sync status
-    let config = auth::get_current_config();
+    let config = auth::get_current_mobile_config();
     println!("🔍 DEBUG: Full sync config status:");
-    println!("  - Has syncd config: {}", config.syncd.is_some());
     println!("  - JWT valid: {}", config.is_jwt_valid());
     
     // Test basic HTTP connectivity
@@ -497,14 +457,18 @@ pub fn run() {
                 // Non-fatal error, continue with empty config
             } else {
                 println!("🔍 DEBUG: Sync config initialized from database");
-                let config = auth::get_current_config();
-                println!("🔍 DEBUG: Sync configuration status:");
-                println!("  - Has syncd config: {}", config.syncd.is_some());
+            }
+            
+            // Load mobile configuration from database
+            if let Err(e) = mobile_config::load_config_from_db(&db) {
+                eprintln!("Failed to load mobile config from database: {}", e);
+                // Non-fatal error, continue with default config
+            } else {
+                println!("🔍 DEBUG: Mobile config loaded from database");
+                let config = auth::get_current_mobile_config();
+                println!("🔍 DEBUG: Mobile configuration status:");
+                println!("  - Has syncd: {}", config.has_syncd());
                 println!("  - JWT valid: {}", config.is_jwt_valid());
-                if let Some(ref syncd) = config.syncd {
-                    println!("  - Server URL: {:?}", syncd.url);
-                    println!("  - Device ID: {:?}", syncd.device_id);
-                }
             }
             
             app.manage(db);
@@ -525,30 +489,53 @@ pub fn run() {
 
             // Start sync service on all platforms (including mobile)
             tauri::async_runtime::spawn(async move {
+                println!("🔄 Starting mobile sync service loop...");
+                let mut sync_manager: Option<mobile_sync::MobileSyncManager> = None;
+                
                 loop {
-                    // Get the current config (which may have been updated with JWT)
-                    let config = auth::get_current_config();
+                    println!("🔄 Mobile sync loop iteration starting...");
                     
-                    // Only try to sync if we have sync configuration
-                    if config.syncd.is_some() && config.is_jwt_valid() {
-                        match sync::SyncManager::new(config).await {
-                            Ok(mut mgr) => {
-                                if let Err(e) = mgr.periodic_sync().await {
-                                    eprintln!("sync error: {e}");
-                                    sync_status::mark_sync_disconnected(e.to_string()).ok();
-                                } else {
-                                    sync_status::mark_sync_connected().ok();
+                    // Get the current config (which may have been updated with JWT)
+                    let config = auth::get_current_mobile_config();
+                    
+                    // Only try to sync if we have sync configuration  
+                    if config.has_syncd() && config.is_jwt_valid() {
+                        // Create sync manager if we don't have one, or if config changed
+                        if sync_manager.is_none() {
+                            println!("🔄 Mobile config valid, creating new mobile sync manager...");
+                            match mobile_sync::MobileSyncManager::new(config).await {
+                                Ok(mgr) => {
+                                    println!("🔄 ✅ Mobile sync manager created successfully");
+                                    sync_manager = Some(mgr);
+                                }
+                                Err(e) => {
+                                    eprintln!("🔄 ❌ Failed to initialize mobile sync manager: {}", e);
+                                    sync_status::mark_sync_disconnected(format!("Init failed: {}", e)).ok();
+                                    sync_manager = None;
                                 }
                             }
-                            Err(e) => {
-                                eprintln!("Failed to initialize sync manager: {}", e);
-                                sync_status::mark_sync_disconnected(format!("Init failed: {}", e)).ok();
+                        }
+                        
+                        // Run periodic sync if we have a manager
+                        if let Some(ref mut mgr) = sync_manager {
+                            println!("🔄 Running periodic sync with mobile sync manager...");
+                            if let Err(e) = mgr.periodic_sync().await {
+                                eprintln!("🔄 ❌ Mobile sync error: {e}");
+                                sync_status::mark_sync_disconnected(e.to_string()).ok();
+                                // Reset sync manager on error so it gets recreated
+                                sync_manager = None;
+                            } else {
+                                println!("🔄 ✅ Mobile periodic sync completed successfully");
+                                sync_status::mark_sync_connected().ok();
                             }
                         }
                     } else {
-                        sync_status::mark_sync_disconnected("Sync not configured or JWT expired".to_string()).ok();
+                        println!("🔄 ⚠️ Mobile sync not configured or JWT expired");
+                        sync_status::mark_sync_disconnected("Mobile sync not configured or JWT expired".to_string()).ok();
+                        sync_manager = None; // Reset manager if config is invalid
                     }
                     
+                    println!("🔄 Mobile sync sleeping for 30 seconds...");
                     tokio::time::sleep(std::time::Duration::from_secs(30)).await;
                 }
             });

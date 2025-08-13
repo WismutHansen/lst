@@ -1,0 +1,71 @@
+[ui]
+resolution_order = ["anchor", "exact", "fuzzy", "index", "interactive"]
+vim_mode = true
+leader_key = " "
+
+[ui.theme.vars]
+
+[fuzzy]
+threshold = 0.75
+max_suggestions = 7
+
+[paths]
+content_dir = "/Users/tommyfalkowski/OneDrive - Fraunhofer/01_Arbeitsverzeichnis/01_notes/content"
+media_dir = "media"
+kinds = ["lists", "notes", "posts"]
+
+[server]
+jwt_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJoYW5zQHRlc3QuZGUiLCJleHAiOjE3NTUwMTQ0MTV9.H0E2mdCAYL0I4MFHY_s1KtMMq-gT5Q6-cWxGzUFc1_s"
+jwt_expires_at = "2025-08-03T21:31:02.796376Z"
+host = "0.0.0.0"
+
+[theme]
+system = "base16"
+scheme = "base16-nord"
+name = "Nord"
+author = "arcticicestudio"
+description = "An arctic, north-bluish color palette"
+variant = "dark"
+
+[theme.palette]
+base00 = "#2E3440"
+base01 = "#3B4252"
+base02 = "#434C5E"
+base03 = "#4C566A"
+base04 = "#D8DEE9"
+base05 = "#E5E9F0"
+base06 = "#ECEFF4"
+base07 = "#8FBCBB"
+base08 = "#BF616A"
+base09 = "#D08770"
+base0A = "#EBCB8B"
+base0B = "#A3BE8C"
+base0C = "#88C0D0"
+base0D = "#81A1C1"
+base0E = "#B48EAD"
+base0F = "#5E81AC"
+
+[theme.semantic]
+background = "base00"
+foreground = "base05"
+primary = "base0D"
+secondary = "base06"
+accent = "base0E"
+muted = "base03"
+border = "base02"
+success = "base0B"
+warning = "base0A"
+error = "base08"
+info = "base0C"
+
+[syncd]
+url = "ws://192.168.1.25:5673/api/sync"
+device_id = "desktop-lst-syncd-001"
+database_path = "/tmp/desktop-sync.db"
+encryption_key_ref = "/tmp/desktop-sync.key"
+
+[sync]
+server_url = "ws://192.168.1.25:5673/api/sync"
+interval_seconds = 30
+max_file_size = 10485760
+exclude_patterns = []

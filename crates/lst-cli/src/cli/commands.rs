@@ -6,6 +6,7 @@ use std::io::{self, BufRead};
 
 use crate::cli::{DlCmd, SyncCommands};
 use crate::config::{get_config, Config};
+use lst_core::config::State;
 use crate::storage;
 use crate::{models::ItemStatus, storage::notes::delete_note};
 use lst_core::models::Category;
@@ -643,7 +644,7 @@ pub fn display_list(list: &str, json: bool) -> Result<()> {
 /// Handle sync daemon commands
 pub fn handle_sync_command(cmd: SyncCommands, json: bool) -> Result<()> {
     match cmd {
-        SyncCommands::Setup { server, token } => sync_setup(server, token, json),
+        SyncCommands::Setup { server } => sync_setup(server, json),
         SyncCommands::Start { foreground } => sync_start(foreground, json),
         SyncCommands::Stop => sync_stop(json),
         SyncCommands::Status => sync_status(json),
@@ -652,69 +653,61 @@ pub fn handle_sync_command(cmd: SyncCommands, json: bool) -> Result<()> {
 }
 
 /// Setup sync configuration (first login flow)
-pub fn sync_setup(server: Option<String>, token: Option<String>, json: bool) -> Result<()> {
+pub fn sync_setup(server: Option<String>, json: bool) -> Result<()> {
     use dialoguer::{Confirm, Input};
 
     let mut config = Config::load()?;
-    config.init_syncd()?;
+    config.init_sync()?;
 
     let server_url = if let Some(url) = server {
         url
     } else {
         Input::<String>::new()
-            .with_prompt("Enter server URL (leave empty for local-only mode)")
+            .with_prompt("Enter server URL (host:port format, e.g. 192.168.1.25:5673)")
             .allow_empty(true)
             .interact()?
     };
 
-    let auth_token = if server_url.is_empty() {
-        None
-    } else if let Some(token) = token {
-        Some(token)
-    } else {
-        let token: String = Input::new()
-            .with_prompt("Enter authentication token")
-            .interact()?;
-        if token.is_empty() {
-            None
-        } else {
-            Some(token)
-        }
-    };
+    // No auth_token needed - just set up the server URL
+    // Authentication happens via lst auth request/verify flow
 
-    if let Some(ref mut syncd) = config.syncd {
-        syncd.url = if server_url.is_empty() {
+    if let Some(ref mut sync) = config.sync {
+        sync.server_url = if server_url.is_empty() {
             None
         } else {
-            Some(server_url.clone())
+            // Store the URL in a normalized format for sync daemon
+            if server_url.contains("://") {
+                // Full URL provided, store as-is
+                Some(server_url.clone())
+            } else {
+                // Host:port format, convert to WebSocket URL for sync
+                let parts: Vec<&str> = server_url.split(':').collect();
+                if parts.len() == 2 {
+                    Some(format!("ws://{}:{}/api/sync", parts[0], parts[1]))
+                } else {
+                    Some(server_url.clone())
+                }
+            }
         };
-        syncd.auth_token = auth_token.clone();
     }
 
     config.save()?;
 
     if json {
         println!(
-            "{{\"status\": \"configured\", \"server\": {:?}, \"has_token\": {}}}",
-            server_url,
-            auth_token.is_some()
+            "{{\"status\": \"configured\", \"server\": {:?}}}",
+            server_url
         );
     } else {
         if server_url.is_empty() {
             println!("Configured for local-only mode");
         } else {
             println!("Configured to sync with: {}", server_url.cyan());
-            if auth_token.is_some() {
-                println!("Authentication token set");
-            }
-        }
-
-        if Confirm::new()
-            .with_prompt("Start sync daemon now?")
-            .default(true)
-            .interact()?
-        {
-            sync_start(false, json)?;
+            println!("Next steps:");
+            println!("  1. Run 'lst auth request <email>' to request authentication");
+            println!("  2. Check your email for the verification token");
+            println!("  3. Run 'lst auth verify <email> <token>' to complete setup");
+            println!("  4. Run 'lst sync start' to start syncing");
         }
     }
 
@@ -780,13 +773,9 @@ pub fn sync_status(json: bool) -> Result<()> {
     let config = get_config();
 
     // Check if syncd is configured
-    let configured = config.syncd.is_some();
-    let server_url = config.syncd.as_ref().and_then(|s| s.url.as_ref());
-    let has_token = config
-        .syncd
-        .as_ref()
-        .and_then(|s| s.auth_token.as_ref())
-        .is_some();
+    let configured = config.sync.is_some();
+    let server_url = config.sync.as_ref().and_then(|s| s.server_url.as_ref());
+    // Auth token no longer used - authentication is JWT-only
 
     // Check if daemon is running
     let running = Command::new("pgrep")
@@ -797,8 +786,8 @@ pub fn sync_status(json: bool) -> Result<()> {
 
     if json {
         println!(
-            "{{\"configured\": {}, \"running\": {}, \"server\": {:?}, \"has_token\": {}}}",
-            configured, running, server_url, has_token
+            "{{\"configured\": {}, \"running\": {}, \"server\": {:?}}}",
+            configured, running, server_url
         );
     } else {
         println!("Sync Configuration:");
@@ -817,14 +806,7 @@ pub fn sync_status(json: bool) -> Result<()> {
             println!("  Mode: {}", "Local-only".yellow());
         }
 
-        println!(
-            "  Auth token: {}",
-            if has_token {
-                "Set".green()
-            } else {
-                "Not set".red()
-            }
-        );
+        // Auth token removed - authentication is via JWT only
         println!(
             "  Daemon: {}",
             if running {
@@ -897,12 +879,10 @@ pub fn share_document(doc: &str, writers: Option<&str>, readers: Option<&str>) -
     use rusqlite::Connection;
     use uuid::Uuid;
 
-    let config = get_config();
-    let db_path = config
-        .syncd
-        .as_ref()
-        .and_then(|s| s.database_path.as_ref())
-        .context("syncd.database_path not configured")?;
+    let state = State::load()?;
+    let db_path = state
+        .get_sync_database_path()
+        .context("sync database path not configured")?;
 
     // Resolve document path (list or note)
     let key = doc.trim_end_matches(".md");
@@ -1263,25 +1243,59 @@ fn get_note_file_path(note_name: &str) -> Result<std::path::PathBuf> {
 // Authentication command implementations
 
 /// Request authentication token from server
+fn parse_server_config(server_url: &str) -> Result<(String, u16)> {
+    // Handle different formats:
+    // "192.168.1.25:5673" -> ("192.168.1.25", 5673)
+    // "ws://192.168.1.25:5673/api/sync" -> ("192.168.1.25", 5673) 
+    // "http://example.com:8080" -> ("example.com", 8080)
+    
+    if let Ok(url) = url::Url::parse(server_url) {
+        let host = url.host_str().context("Invalid host in server URL")?.to_string();
+        let port = url.port().unwrap_or(if url.scheme() == "https" { 443 } else { 80 });
+        Ok((host, port))
+    } else if server_url.contains(':') {
+        // Handle "host:port" format
+        let parts: Vec<&str> = server_url.split(':').collect();
+        if parts.len() == 2 {
+            let host = parts[0].to_string();
+            let port = parts[1].parse().context("Invalid port number")?;
+            Ok((host, port))
+        } else {
+            Err(anyhow::anyhow!("Invalid server URL format. Use 'host:port' or full URL"))
+        }
+    } else {
+        Err(anyhow::anyhow!("Invalid server URL format. Use 'host:port' or full URL"))
+    }
+}
+
+fn build_http_url(host: &str, port: u16) -> String {
+    format!("http://{}:{}", host, port)
+}
+
+fn build_websocket_url(host: &str, port: u16) -> String {
+    format!("ws://{}:{}/api/sync", host, port)
+}
+
 pub async fn auth_request(email: &str, host: Option<&str>, json: bool) -> Result<()> {
     let config = get_config();
+    let mut state = State::load()?;
     let server_url = config
-        .server
-        .url
+        .sync
         .as_ref()
+        .and_then(|s| s.server_url.as_ref())
         .context("No server URL configured. Run 'lst sync setup' first.")?;
 
-    let host = if let Some(h) = host {
-        h.to_string()
+    let (host, port) = if let Some(h) = host {
+        // If host override is provided, assume default port
+        (h.to_string(), 5673)
     } else {
-        url::Url::parse(server_url)
-            .ok()
-            .and_then(|u| u.host_str().map(|s| s.to_string()))
-            .unwrap_or_else(|| "localhost".to_string())
+        parse_server_config(server_url)?
     };
 
+    let http_base_url = build_http_url(&host, port);
+
     use dialoguer::Password;
-    use argon2::{Argon2, Algorithm, Params, PasswordHasher, Version};
+    use argon2::{Argon2, PasswordHasher};
     use argon2::password_hash::SaltString;
     use std::hash::Hasher;
 
@@ -1300,8 +1314,7 @@ pub async fn auth_request(email: &str, host: Option<&str>, json: bool) -> Result
     full_salt[8..].copy_from_slice(&salt_bytes); // Repeat to fill 16 bytes
     
     let salt = SaltString::encode_b64(&full_salt).expect("Failed to encode salt");
-    let params = Params::new(128 * 1024, 3, 2, None).expect("invalid params");
-    let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
+    let argon2 = Argon2::default(); // Use default params like mobile app
     let password_hash = argon2
         .hash_password(password.as_bytes(), &salt)
         .expect("hashing failed")
@@ -1315,7 +1328,7 @@ pub async fn auth_request(email: &str, host: Option<&str>, json: bool) -> Result
     });
 
     let response = client
-        .post(format!("{}/api/auth/request", server_url))
+        .post(format!("{}/api/auth/request", http_base_url))
         .json(&payload)
         .send()
         .await?;
@@ -1325,6 +1338,10 @@ pub async fn auth_request(email: &str, host: Option<&str>, json: bool) -> Result
             .json()
             .await
             .unwrap_or_else(|_| serde_json::json!({"status":"ok"}));
+
+        // Store password hash for JWT refresh later
+        state.store_auth_token(password_hash);
+        state.save()?;
 
         if json {
             println!("{}", serde_json::to_string_pretty(&auth_response)?);
@@ -1343,12 +1360,16 @@ pub async fn auth_request(email: &str, host: Option<&str>, json: bool) -> Result
 
 /// Verify authentication token and store JWT
 pub async fn auth_verify(email: &str, token: &str, json: bool) -> Result<()> {
-    let mut config = Config::load()?;
+    let config = Config::load()?;
+    let mut state = State::load()?;
     let server_url = config
-        .server
-        .url
+        .sync
         .as_ref()
+        .and_then(|s| s.server_url.as_ref())
         .context("No server URL configured. Run 'lst sync setup' first.")?;
+
+    let (host, port) = parse_server_config(server_url)?;
+    let http_base_url = build_http_url(&host, port);
 
     let client = reqwest::Client::new();
     let payload = serde_json::json!({
@@ -1357,7 +1378,7 @@ pub async fn auth_verify(email: &str, token: &str, json: bool) -> Result<()> {
     });
 
     let response = client
-        .post(format!("{}/api/auth/verify", server_url))
+        .post(format!("{}/api/auth/verify", http_base_url))
         .json(&payload)
         .send()
         .await?;
@@ -1369,8 +1390,8 @@ pub async fn auth_verify(email: &str, token: &str, json: bool) -> Result<()> {
             // Parse JWT to get expiration (basic extraction without validation)
             let expires_at = chrono::Utc::now() + chrono::Duration::hours(1); // Default 1 hour
 
-            config.store_jwt(jwt.to_string(), expires_at);
-            config.save()?;
+            state.store_jwt(jwt.to_string(), expires_at);
+            state.save()?;
 
             if json {
                 println!("{}", serde_json::to_string_pretty(&verify_response)?);
@@ -1392,10 +1413,11 @@ pub async fn auth_verify(email: &str, token: &str, json: bool) -> Result<()> {
 /// Show current authentication status
 pub fn auth_status(json: bool) -> Result<()> {
     let config = get_config();
+    let state = State::load()?;
 
-    let has_server_url = config.server.url.is_some();
-    let has_jwt = config.server.jwt_token.is_some();
-    let jwt_valid = config.is_jwt_valid();
+    let has_server_url = config.sync.as_ref().and_then(|s| s.server_url.as_ref()).is_some();
+    let has_jwt = state.auth.jwt_token.is_some();
+    let jwt_valid = state.is_jwt_valid();
 
     if json {
         println!(
@@ -1404,7 +1426,7 @@ pub fn auth_status(json: bool) -> Result<()> {
                 "server_configured": has_server_url,
                 "jwt_token_present": has_jwt,
                 "jwt_valid": jwt_valid,
-                "jwt_expires_at": config.server.jwt_expires_at
+                "jwt_expires_at": state.auth.jwt_expires_at
             })
         );
     } else {
@@ -1414,7 +1436,7 @@ pub fn auth_status(json: bool) -> Result<()> {
             println!("  Server: {}", "Not configured".red());
             println!("  Run 'lst sync setup' to configure server URL");
         } else {
-            println!("  Server: {}", config.server.url.as_ref().unwrap().cyan());
+            println!("  Server: {}", config.sync.as_ref().and_then(|s| s.server_url.as_ref()).unwrap().cyan());
         }
 
         if !has_jwt {
@@ -1422,7 +1444,7 @@ pub fn auth_status(json: bool) -> Result<()> {
             println!("  Run 'lst auth request <email>' to authenticate");
         } else if jwt_valid {
             println!("  JWT Token: {}", "Valid".green());
-            if let Some(expires_at) = config.server.jwt_expires_at {
+            if let Some(expires_at) = state.auth.jwt_expires_at {
                 println!("  Expires: {}", expires_at.format("%Y-%m-%d %H:%M:%S UTC"));
             }
         } else {
@@ -1436,9 +1458,9 @@ pub fn auth_status(json: bool) -> Result<()> {
 
 /// Remove stored authentication token
 pub fn auth_logout(json: bool) -> Result<()> {
-    let mut config = Config::load()?;
-    config.clear_jwt();
-    config.save()?;
+    let mut state = State::load()?;
+    state.clear_jwt();
+    state.save()?;
 
     if json {
         println!("{}", serde_json::json!({"status": "logged_out"}));
@@ -1449,6 +1471,53 @@ pub fn auth_logout(json: bool) -> Result<()> {
     Ok(())
 }
 
+/// Refresh JWT token using stored auth token
+pub async fn refresh_jwt_token(config: &Config, state: &mut State) -> Result<()> {
+    let server_url = config
+        .sync
+        .as_ref()
+        .and_then(|s| s.server_url.as_ref())
+        .context("No server URL configured")?;
+
+    let auth_token = state
+        .get_auth_token()
+        .context("No auth token stored. Run 'lst auth request <email>' to authenticate")?;
+
+    let (host, port) = parse_server_config(server_url)?;
+    let http_base_url = build_http_url(&host, port);
+
+    let client = reqwest::Client::new();
+    let payload = serde_json::json!({
+        "password_hash": auth_token
+    });
+
+    let response = client
+        .post(format!("{}/api/auth/refresh", http_base_url))
+        .json(&payload)
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        let refresh_response: serde_json::Value = response.json().await?;
+
+        if let Some(jwt) = refresh_response.get("jwt").and_then(|j| j.as_str()) {
+            // Parse JWT to get expiration (basic extraction without validation)
+            let expires_at = chrono::Utc::now() + chrono::Duration::hours(1); // Default 1 hour
+
+            state.store_jwt(jwt.to_string(), expires_at);
+            state.save()?;
+            
+            println!("JWT token refreshed successfully");
+            Ok(())
+        } else {
+            bail!("Invalid refresh response: missing JWT token");
+        }
+    } else {
+        let error_text = response.text().await?;
+        bail!("Failed to refresh JWT token: {}. You may need to re-authenticate with 'lst auth request <email>'", error_text);
+    }
+}
+
 /// Helper function to make authenticated requests to the server
 pub async fn make_authenticated_request(
     method: reqwest::Method,
@@ -1456,22 +1525,39 @@ pub async fn make_authenticated_request(
     body: Option<serde_json::Value>,
 ) -> Result<reqwest::Response> {
     let config = get_config();
+    let mut state = State::load()?;
 
     let server_url = config
-        .server
-        .url
+        .sync
         .as_ref()
+        .and_then(|s| s.server_url.as_ref())
         .context("No server URL configured")?;
 
-    let jwt = config
+    let (host, port) = parse_server_config(server_url)?;
+    let http_base_url = build_http_url(&host, port);
+
+    // Check if JWT needs refresh before making the request
+    if !state.is_jwt_valid() || state.needs_jwt_refresh() {
+        if state.get_auth_token().is_some() {
+            println!("JWT token expired or about to expire, refreshing...");
+            if let Err(e) = refresh_jwt_token(&config, &mut state).await {
+                eprintln!("Failed to refresh JWT token: {}", e);
+                bail!("JWT token expired and refresh failed. Run 'lst auth request <email>' to re-authenticate");
+            }
+        } else {
+            bail!("No valid JWT token and no auth token for refresh. Run 'lst auth request <email>' to authenticate");
+        }
+    }
+
+    let jwt = state
         .get_jwt()
-        .context("No valid JWT token. Run 'lst auth request <email>' to authenticate")?;
+        .context("No valid JWT token after refresh attempt")?;
 
     let client = reqwest::Client::new();
     let mut request = client
         .request(
             method,
-            format!("{}/{}", server_url, endpoint.trim_start_matches('/')),
+            format!("{}/{}", http_base_url, endpoint.trim_start_matches('/')),
         )
         .header("Authorization", format!("Bearer {}", jwt));
 

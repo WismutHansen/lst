@@ -100,4 +100,25 @@ impl LocalDb {
             .execute("DELETE FROM documents WHERE doc_id = ?1", params![doc_id])?;
         Ok(())
     }
+
+    /// List all documents in the local database
+    pub fn list_all_documents(&self) -> Result<Vec<(String, String, String, Vec<u8>, String, Option<String>, Option<String>)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT doc_id, file_path, doc_type, automerge_state, owner, writers, readers FROM documents",
+        )?;
+        let mut rows = stmt.query([])?;
+        let mut documents = Vec::new();
+        while let Some(row) = rows.next()? {
+            documents.push((
+                row.get(0)?, // doc_id
+                row.get(1)?, // file_path
+                row.get(2)?, // doc_type
+                row.get(3)?, // automerge_state
+                row.get(4)?, // owner
+                row.get(5)?, // writers
+                row.get(6)?, // readers
+            ));
+        }
+        Ok(documents)
+    }
 }

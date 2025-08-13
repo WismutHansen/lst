@@ -381,12 +381,9 @@ pub enum SyncCommands {
     /// Configure sync settings
     #[clap(name = "setup")]
     Setup {
-        /// Server URL to sync with
+        /// Server URL to sync with (host:port format, e.g. 192.168.1.25:5673)
         #[clap(long)]
         server: Option<String>,
-        /// Authentication token
-        #[clap(long)]
-        token: Option<String>,
     },
 
     /// Show sync daemon logs

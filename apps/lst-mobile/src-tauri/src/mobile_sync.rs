@@ -1,4 +1,8 @@
+// Mobile-specific sync manager that uses mobile configuration
+// This replaces the desktop sync.rs with mobile-only functionality
+
 use crate::crypto;
+use crate::mobile_config::MobileConfig;
 use crate::sync_db::LocalDb;
 use crate::sync_status;
 use anyhow::{Context, Result};
@@ -6,7 +10,6 @@ use automerge::{
     transaction::Transactable as _, Automerge, Change, ObjType, ReadDoc, ScalarValue, Value,
 };
 use futures_util::{SinkExt, StreamExt};
-use lst_cli::config::Config;
 use lst_proto;
 use notify::Event;
 use sha2::{Digest, Sha256};
@@ -21,8 +24,10 @@ fn detect_doc_type(path: &std::path::Path) -> &str {
     let s = path.to_string_lossy();
     if s.contains("/lists/") || s.contains("daily_lists") {
         "list"
-    } else {
+    } else if s.contains("/notes/") {
         "note"
+    } else {
+        "note" // default to note
     }
 }
 
@@ -52,49 +57,60 @@ fn update_list_doc(doc: &mut Automerge, content: &str) -> Result<()> {
     Ok(())
 }
 
-pub struct SyncManager {
-    config: Config,
+pub struct MobileSyncManager {
+    config: MobileConfig,
     client: Option<reqwest::Client>,
     db: LocalDb,
     encryption_key: [u8; 32],
     last_sync: Instant,
     pending_changes: HashMap<String, Vec<Vec<u8>>>,
+    initial_sync_done: bool,
 }
 
-impl SyncManager {
-    pub async fn new(config: Config) -> Result<Self> {
-        let client = if config.syncd.as_ref().and_then(|s| s.url.as_ref()).is_some() {
+impl MobileSyncManager {
+    pub async fn new(config: MobileConfig) -> Result<Self> {
+        // Validate that we have the necessary sync configuration
+        let syncd = config.syncd.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No syncd configuration found"))?;
+        
+        let client = if syncd.url.is_some() {
             Some(reqwest::Client::new())
         } else {
             None
         };
 
         // Ensure CRDT storage directory exists
-        if let Some(ref storage) = config.storage {
-            tokio::fs::create_dir_all(&storage.crdt_dir)
-                .await
-                .with_context(|| {
-                    format!(
-                        "Failed to create CRDT directory: {}",
-                        storage.crdt_dir.display()
-                    )
-                })?;
-        }
+        let storage = config.get_storage();
+        tokio::fs::create_dir_all(&storage.crdt_dir)
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to create CRDT directory: {}",
+                    storage.crdt_dir.display()
+                )
+            })?;
 
-        let db_path = config
-            .syncd
-            .as_ref()
-            .and_then(|s| s.database_path.as_ref())
-            .expect("database_path must be set in syncd config");
+        // Set up database path
+        let db_path = syncd.database_path.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No database path in syncd config"))?;
+
+        // Ensure parent directory exists
+        if let Some(parent) = db_path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
 
         let db = LocalDb::new(db_path)?;
 
-        let key_path = config
-            .syncd
-            .as_ref()
-            .and_then(|s| s.encryption_key_ref.as_ref())
-            .expect("encryption_key_ref must be set in syncd config");
-        let encryption_key = crypto::load_key(std::path::Path::new(key_path))?;
+        // Set up encryption key
+        let key_path = syncd.encryption_key_path.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No encryption key path in syncd config"))?;
+        
+        // Ensure parent directory exists
+        if let Some(parent) = key_path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+
+        let encryption_key = crypto::load_key(key_path)?;
 
         Ok(Self {
             config,
@@ -103,6 +119,7 @@ impl SyncManager {
             encryption_key,
             last_sync: Instant::now(),
             pending_changes: HashMap::new(),
+            initial_sync_done: false,
         })
     }
 
@@ -119,22 +136,14 @@ impl SyncManager {
                 }
             }
 
-            // Generate doc_id from logical document name, not file path
-            let logical_name = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("unknown");
-            
-            let doc_type = detect_doc_type(&path);
-            let logical_identifier = format!("{}:{}", doc_type, logical_name);
-            
+            // Generate doc_id using the same method as desktop for consistency
             let doc_id = uuid::Uuid::new_v5(
                 &uuid::Uuid::NAMESPACE_OID,
-                logical_identifier.as_bytes(),
+                path.to_string_lossy().as_bytes(),
             )
             .to_string();
             
-            println!("📊 Generated doc_id '{}' for logical identifier: {}", doc_id, logical_identifier);
+            println!("📊 Mobile sync: Generated doc_id '{}' for path: {}", doc_id, path.display());
 
             if matches!(event.kind, notify::EventKind::Remove(_)) {
                 self.db.delete_document(&doc_id)?;
@@ -144,8 +153,9 @@ impl SyncManager {
 
             let data = tokio::fs::read(&path).await.unwrap_or_default();
 
-            if let Some(sync) = &self.config.sync {
-                if data.len() as u64 > sync.max_file_size {
+            // Check file size limits
+            if let Some(sync_settings) = &self.config.sync_settings {
+                if data.len() as u64 > sync_settings.max_file_size {
                     continue;
                 }
             }
@@ -156,13 +166,10 @@ impl SyncManager {
 
             let doc_type = detect_doc_type(&path);
 
-            let owner = self
-                .config
-                .syncd
-                .as_ref()
+            let owner = self.config.syncd.as_ref()
                 .and_then(|s| s.device_id.as_ref())
                 .map(String::as_str)
-                .unwrap_or("local");
+                .unwrap_or("mobile");
 
             let new_content = String::from_utf8_lossy(&data);
 
@@ -336,56 +343,28 @@ impl SyncManager {
         Ok(())
     }
 
-    /// Discover and sync a document from server if we don't have it locally
-    async fn discover_and_sync_document(&mut self, doc_info: lst_proto::DocumentInfo) -> Result<()> {
-        let doc_id_str = doc_info.doc_id.to_string();
-        
-        // Check if we already have this document locally
-        if let Some(_) = self.db.get_document(&doc_id_str)? {
-            println!("📊 Document {} already exists locally, skipping", doc_id_str);
-            return Ok(());
-        }
-        
-        println!("📊 Discovered new document {}, requesting snapshot...", doc_id_str);
-        
-        // We'll need to request the snapshot in the main sync loop
-        // For now, just log the discovery
-        // TODO: Implement snapshot request and local document creation
-        
-        Ok(())
-    }
-
     /// Connect to the sync server and exchange changes
     async fn sync_with_server(&mut self, encrypted: HashMap<String, Vec<Vec<u8>>>) -> Result<()> {
-        let syncd = match &self.config.syncd {
-            Some(s) => s,
-            None => return Err(anyhow::anyhow!("Sync not configured")),
-        };
+        let syncd = self.config.syncd.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Sync not configured"))?;
 
-        let url = match &syncd.url {
-            Some(u) => u,
-            None => return Err(anyhow::anyhow!("Server URL not configured")),
-        };
+        let url = syncd.url.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Server URL not configured"))?;
         
-        let token = self
-            .config
-            .get_jwt()
-            .context("No valid JWT token. Please authenticate first")?
-            .to_string();
+        let token = self.config.get_jwt()
+            .ok_or_else(|| anyhow::anyhow!("No valid JWT token. Please authenticate first"))?;
 
-        let device_id = syncd
-            .device_id
-            .clone()
-            .unwrap_or_else(|| "unknown".to_string());
+        let device_id = syncd.device_id.clone()
+            .unwrap_or_else(|| "mobile".to_string());
 
         // Connect to WebSocket with Authorization header
         let request = http::Request::builder()
             .method("GET")
             .uri(url.as_str())
-            .header("Host", "192.168.1.25:5673")
+            .header("Host", url.replace("ws://", "").replace("wss://", "").replace("/api/sync", ""))
             .header("Upgrade", "websocket")
             .header("Connection", "Upgrade")
-            .header("Sec-WebSocket-Key", base64::engine::general_purpose::STANDARD.encode("test-key-1234567"))
+            .header("Sec-WebSocket-Key", base64::engine::general_purpose::STANDARD.encode("mobile-key-1234567"))
             .header("Sec-WebSocket-Version", "13")
             .header("Authorization", format!("Bearer {}", token))
             .body(())?;
@@ -400,10 +379,10 @@ impl SyncManager {
         };
 
         let (mut write, mut read) = ws.split();
-        println!("📊 WebSocket connection established with HTTP header auth!");
+        println!("📱 Mobile WebSocket connection established!");
 
-        // Now request document list to discover new documents
-        println!("📊 Requesting document list from server...");
+        // Request document list to discover new documents
+        println!("📱 Requesting document list from server...");
         let request_msg = lst_proto::ClientMessage::RequestDocumentList;
         if let Err(e) = write.send(Message::Text(serde_json::to_string(&request_msg)?)).await {
             return Err(anyhow::anyhow!("Failed to request document list: {}", e));
@@ -436,37 +415,38 @@ impl SyncManager {
                             lst_proto::ServerMessage::NewChanges { doc_id, from_device_id, changes } => {
                                 // Only apply changes if they're from a different device
                                 if from_device_id != device_id {
-                                    println!("📊 Applying changes from device: {} for doc: {}", from_device_id, doc_id);
+                                    println!("📱 Mobile sync: Applying changes from device: {} for doc: {}", from_device_id, doc_id);
                                     self.apply_remote_changes(&doc_id.to_string(), changes).await?;
                                     changes_received += 1;
                                 } else {
-                                    println!("📊 Ignoring changes from own device: {} for doc: {}", from_device_id, doc_id);
+                                    println!("📱 Mobile sync: Ignoring changes from own device: {} for doc: {}", from_device_id, doc_id);
                                 }
                             }
                             lst_proto::ServerMessage::DocumentList { documents } => {
-                                println!("📊 Received document list with {} documents", documents.len());
-                                for doc_info in documents {
-                                    self.discover_and_sync_document(doc_info).await?;
+                                println!("📱 Mobile sync: Received document list with {} documents", documents.len());
+                                for doc_info in &documents {
+                                    println!("📱 Mobile sync: Server document: {} (updated: {})", doc_info.doc_id, doc_info.updated_at);
                                 }
+                                // TODO: Handle document discovery and sync unknown documents
                             }
                             lst_proto::ServerMessage::Authenticated { success } => {
-                                println!("📊 Received auth response: {}", success);
+                                println!("📱 Mobile sync: Auth response: {}", success);
                             }
                             _ => {} // Ignore other message types
                         }
                     }
                 }
                 Ok(Some(Ok(Message::Close(_)))) => {
-                    println!("Server closed connection");
+                    println!("📱 Mobile sync: Server closed connection");
                     break;
                 }
                 Ok(Some(Ok(_))) => {} // Ignore other message types
                 Ok(Some(Err(e))) => {
-                    println!("WebSocket error: {}", e);
+                    println!("📱 Mobile sync: WebSocket error: {}", e);
                     break;
                 }
                 Ok(None) => {
-                    println!("Connection closed");
+                    println!("📱 Mobile sync: Connection closed");
                     break;
                 }
                 Err(_) => break, // Timeout - normal exit
@@ -477,47 +457,44 @@ impl SyncManager {
         let _ = write.close().await;
         
         if changes_received > 0 {
-            println!("Received {} changes from server", changes_received);
+            println!("📱 Mobile sync: Received {} changes from server", changes_received);
         }
         
         Ok(())
     }
 
     pub async fn periodic_sync(&mut self) -> Result<()> {
-        let interval = self
-            .config
-            .sync
-            .as_ref()
+        let interval = self.config.sync_settings.as_ref()
             .map(|s| s.interval_seconds)
             .unwrap_or(30);
 
-        println!("🔄 periodic_sync: interval={}, elapsed={}s", interval, self.last_sync.elapsed().as_secs());
+        println!("📱 Mobile periodic_sync: interval={}, elapsed={}s", interval, self.last_sync.elapsed().as_secs());
 
         if self.last_sync.elapsed().as_secs() < interval {
-            println!("🔄 Skipping sync - not enough time elapsed");
+            println!("📱 Mobile sync: Skipping sync - not enough time elapsed");
             return Ok(());
         }
 
         // Update pending changes count in status
         let pending_count = self.pending_changes.values().map(|v| v.len()).sum::<usize>() as u32;
         sync_status::update_pending_changes(pending_count)?;
-        println!("🔄 Current pending changes: {}", pending_count);
+        println!("📱 Mobile sync: Current pending changes: {}", pending_count);
 
         if self.client.is_some() {
-            println!("🔄 Client available, performing sync...");
+            println!("📱 Mobile sync: Client available, performing sync...");
             match self.perform_sync().await {
                 Ok(()) => {
-                    println!("🔄 ✅ perform_sync completed successfully");
+                    println!("📱 Mobile sync: ✅ perform_sync completed successfully");
                     sync_status::mark_sync_connected()?;
                 }
                 Err(e) => {
-                    println!("🔄 ❌ perform_sync failed: {}", e);
+                    println!("📱 Mobile sync: ❌ perform_sync failed: {}", e);
                     sync_status::mark_sync_disconnected(e.to_string())?;
                     return Err(e);
                 }
             }
         } else {
-            println!("🔄 ⚠️ No client available - sync not configured");
+            println!("📱 Mobile sync: ⚠️ No client available - sync not configured");
             sync_status::mark_sync_disconnected("Sync not configured".to_string())?;
         }
 
@@ -527,16 +504,16 @@ impl SyncManager {
 
     /// Ensure existing documents are added to pending changes for initial sync
     async fn ensure_initial_sync(&mut self) -> Result<()> {
-        println!("📊 Starting ensure_initial_sync check...");
+        println!("📱 Mobile sync: Starting ensure_initial_sync check...");
         match self.db.list_all_documents() {
             Ok(local_docs) => {
-                println!("📊 Found {} local documents for initial sync", local_docs.len());
+                println!("📱 Mobile sync: Found {} local documents for initial sync", local_docs.len());
                 let mut added_docs = 0;
-                for (doc_id, file_path, doc_type, state, _, _, _) in local_docs {
-                    println!("📊 Processing doc: {} ({})", doc_id, file_path);
+                for (doc_id, file_path, _doc_type, state, _, _, _) in local_docs {
+                    println!("📱 Mobile sync: Processing doc: {} ({})", doc_id, file_path);
                     // Only add documents that don't already have pending changes
                     if !self.pending_changes.contains_key(&doc_id) {
-                        println!("📊 Adding existing document to pending changes: {} -> {}", doc_id, file_path);
+                        println!("📱 Mobile sync: Adding existing document to pending changes: {} -> {}", doc_id, file_path);
                         // Load the document and get all its changes (full history)
                         match Automerge::load(&state) {
                             Ok(doc) => {
@@ -546,34 +523,37 @@ impl SyncManager {
                                     .map(|c| c.raw_bytes().to_vec())
                                     .collect::<Vec<_>>();
                                 
-                                println!("📊 Document {} has {} changes", doc_id, changes.len());
+                                println!("📱 Mobile sync: Document {} has {} changes", doc_id, changes.len());
                                 if !changes.is_empty() {
                                     self.pending_changes.insert(doc_id.clone(), changes);
                                     added_docs += 1;
                                 } else {
-                                    println!("📊 Warning: Document {} has no changes", doc_id);
+                                    println!("📱 Mobile sync: Warning: Document {} has no changes", doc_id);
                                 }
                             }
                             Err(e) => {
-                                println!("📊 Error loading document {}: {}", doc_id, e);
+                                println!("📱 Mobile sync: Error loading document {}: {}", doc_id, e);
                             }
                         }
                     } else {
-                        println!("📊 Document {} already has pending changes, skipping", doc_id);
+                        println!("📱 Mobile sync: Document {} already has pending changes, skipping", doc_id);
                     }
                 }
-                println!("📊 Added {} documents to pending changes", added_docs);
+                println!("📱 Mobile sync: Added {} documents to pending changes", added_docs);
             }
             Err(e) => {
-                println!("📊 Error listing documents: {}", e);
+                println!("📱 Mobile sync: Error listing documents: {}", e);
             }
         }
         Ok(())
     }
 
     async fn perform_sync(&mut self) -> Result<()> {
-        // First, ensure existing documents are added to pending changes
-        self.ensure_initial_sync().await?;
+        // Only do initial sync once
+        if !self.initial_sync_done {
+            self.ensure_initial_sync().await?;
+            self.initial_sync_done = true;
+        }
 
         if !self.pending_changes.is_empty() {
             let mut encrypted_total = 0;
@@ -588,10 +568,11 @@ impl SyncManager {
                 encrypted.insert(doc, enc);
             }
 
-            println!("Syncing {encrypted_total} encrypted changes");
+            println!("📱 Mobile sync: Syncing {} encrypted changes", encrypted_total);
             self.sync_with_server(encrypted).await?;
         } else {
             // still poll server for new changes
+            println!("📱 Mobile sync: No pending changes, polling for remote changes");
             self.sync_with_server(HashMap::new()).await?;
         }
         Ok(())

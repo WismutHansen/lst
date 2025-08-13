@@ -3075,11 +3075,12 @@ dependencies = [
 
 [[package]]
 name = "keyring"
-version = "3.6.2"
+version = "3.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1961983669d57bdfe6c0f3ef8e4c229b5ef751afcc7d87e4271d2f71f6ccfa8b"
+checksum = "eebcc3aff044e5944a8fbaf69eb277d11986064cba30c468730e8b9909fb551c"
 dependencies = [
  "log",
+ "zeroize",
 ]
 
 [[package]]
@@ -3416,6 +3417,7 @@ dependencies = [
  "dirs 5.0.1",
  "futures-util",
  "hex",
+ "http 1.3.1",
  "keyring",
  "lazy_static",
  "lst-cli",
@@ -3501,6 +3503,7 @@ dependencies = [
  "futures-util",
  "hex",
  "lst-cli",
+ "lst-core",
  "lst-proto",
  "notify",
  "rand 0.8.5",

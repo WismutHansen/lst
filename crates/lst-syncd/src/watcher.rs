@@ -10,6 +10,7 @@ pub struct FileWatcher {
 
 impl FileWatcher {
     pub fn new(content_dir: &Path) -> Result<Self> {
+        eprintln!("DEBUG: FileWatcher::new called with path: {}", content_dir.display());
         let (tx, receiver) = mpsc::unbounded_channel();
         
         let mut watcher = RecommendedWatcher::new(

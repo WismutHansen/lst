@@ -117,7 +117,7 @@ async saveList(list: List) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async getUiConfig() : Promise<Result<UiConfig, string>> {
+async getUiConfig() : Promise<Result<MobileUiConfig, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_ui_config") };
 } catch (e) {
@@ -270,7 +270,7 @@ async listThemes() : Promise<Result<string[], string>> {
     else return { status: "error", error: e  as any };
 }
 }
-}
+};
 
 /** user-defined events **/
 
@@ -298,7 +298,6 @@ items: ListItem[] }
  * Represents the status of a list item (done or not)
  */
 export type ItemStatus = "Todo" | "Done"
-export type LegacyThemeConfig = { vars?: Partial<{ [key in string]: string }> }
 /**
  * Represents a complete list with metadata and items
  */
@@ -347,19 +346,18 @@ status: ItemStatus;
  * Unique anchor identifier for the item
  */
 anchor: string }
+/**
+ * Mobile-specific theme configuration
+ */
+export type MobileThemeConfig = { vars: Partial<{ [key in string]: string }> | null }
+/**
+ * Mobile-specific UI configuration with defaults
+ */
+export type MobileUiConfig = { resolution_order: string[] | null; keybind_mode: string | null; compact_mode: boolean | null; leader_key: string | null; theme: MobileThemeConfig | null }
 export type Note = { title: string; content: string; created: string | null; file_path: string }
 export type SyncConfig = { server_url: string; email: string; device_id: string; sync_enabled: boolean; sync_interval: number; encryption_enabled: boolean }
 export type SyncStatus = { connected: boolean; last_sync: string | null; pending_changes: number; error: string | null }
 export type ThemeData = { css_variables: string; scheme: string; name: string | null; variant: string | null }
-export type UiConfig = { resolution_order?: string[]; 
-/**
- * Enable Vim-like keybindings in the frontend
- */
-vim_mode?: boolean; 
-/**
- * Leader key used for command sequences (defaults to space)
- */
-leader_key?: string; theme?: LegacyThemeConfig }
 
 /** tauri-specta globals **/
 

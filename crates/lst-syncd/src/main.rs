@@ -7,6 +7,7 @@ mod database;
 use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
+use lst_cli::storage;
 
 use crate::config::{load_syncd_config};
 use crate::sync::SyncManager;
@@ -44,23 +45,30 @@ async fn main() -> Result<()> {
 
     if args.verbose {
         println!("lst-syncd starting with config: {}", config_path.display());
+        
+        // Get content directory with proper path expansion
+        eprintln!("DEBUG: About to call storage::get_content_dir()");
+        let content_dir = storage::get_content_dir()?;
+        eprintln!("DEBUG: storage::get_content_dir() returned: {}", content_dir.display());
         println!(
             "Watching content directory: {}",
-            config.get_content_dir().display()
+            content_dir.display()
         );
-        if let Some(ref syncd) = config.syncd {
-            if let Some(ref server_url) = syncd.url {
+        if let Some(ref sync) = config.sync {
+            if let Some(ref server_url) = sync.server_url {
                 println!("Syncing to server: {}", server_url);
             } else {
                 println!("No server configured - running in local-only mode");
             }
         } else {
-            println!("No sync daemon configuration found - running in local-only mode");
+            println!("No sync configuration found - running in local-only mode");
         }
     }
 
     // Initialize file watcher
-    let content_dir = config.get_content_dir();
+    eprintln!("DEBUG: About to call storage::get_content_dir() for watcher");
+    let content_dir = storage::get_content_dir()?;
+    eprintln!("DEBUG: storage::get_content_dir() for watcher returned: {}", content_dir.display());
     let mut watcher = FileWatcher::new(&content_dir)?;
 
     // Initialize sync manager

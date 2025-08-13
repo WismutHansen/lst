@@ -1,7 +1,8 @@
 use crate::config::Config;
+use lst_core::config::State;
 use crate::database::LocalDb;
 use crate::crypto;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use automerge::{
     transaction::Transactable as _,
     Automerge, Change, ObjType, ReadDoc, ScalarValue, Value,
@@ -52,6 +53,7 @@ fn update_list_doc(doc: &mut Automerge, content: &str) -> Result<()> {
 
 pub struct SyncManager {
     config: Config,
+    state: State,
     client: Option<reqwest::Client>,
     db: LocalDb,
     encryption_key: [u8; 32],
@@ -61,7 +63,7 @@ pub struct SyncManager {
 
 impl SyncManager {
     pub async fn new(config: Config) -> Result<Self> {
-        let client = if config.syncd.as_ref().and_then(|s| s.url.as_ref()).is_some() {
+        let client = if config.sync.as_ref().and_then(|s| s.server_url.as_ref()).is_some() {
             Some(reqwest::Client::new())
         } else {
             None
@@ -79,23 +81,23 @@ impl SyncManager {
                 })?;
         }
 
-        let db_path = config
-            .syncd
-            .as_ref()
-            .and_then(|s| s.database_path.as_ref())
-            .expect("database_path must be set in syncd config");
+        let state = State::load()?;
+        let db_path = state
+            .get_sync_database_path()
+            .expect("sync database path must be set in state");
 
         let db = LocalDb::new(db_path)?;
 
         let key_path = config
-            .syncd
+            .sync
             .as_ref()
             .and_then(|s| s.encryption_key_ref.as_ref())
-            .expect("encryption_key_ref must be set in syncd config");
+            .expect("encryption_key_ref must be set in sync config");
         let encryption_key = crypto::load_key(std::path::Path::new(key_path))?;
 
         Ok(Self {
             config,
+            state,
             client,
             db,
             encryption_key,
@@ -144,10 +146,10 @@ impl SyncManager {
             let doc_type = detect_doc_type(&path);
 
             let owner = self
-                .config
-                .syncd
+                .state
+                .device
+                .device_id
                 .as_ref()
-                .and_then(|s| s.device_id.as_ref())
                 .map(String::as_str)
                 .unwrap_or("local");
 
@@ -322,48 +324,143 @@ impl SyncManager {
         Ok(())
     }
 
+    /// Refresh JWT token using stored auth token
+    async fn refresh_jwt_token(&mut self) -> Result<()> {
+        let server_url = self.config
+            .sync
+            .as_ref()
+            .and_then(|s| s.server_url.as_ref())
+            .context("No server URL configured")?;
+
+        let auth_token = self.state
+            .get_auth_token()
+            .context("No auth token stored for refresh")?;
+
+        // Parse server URL to get host and port
+        let url_parts: Vec<&str> = server_url.split("://").collect();
+        let host_port = if url_parts.len() > 1 { url_parts[1] } else { url_parts[0] };
+        let host_port_parts: Vec<&str> = host_port.split(':').collect();
+        let host = host_port_parts[0];
+        let port: u16 = if host_port_parts.len() > 1 {
+            host_port_parts[1].parse().unwrap_or(5673)
+        } else {
+            5673
+        };
+
+        let http_base_url = format!("http://{}:{}", host, port);
+        
+        if let Some(client) = &self.client {
+            let payload = serde_json::json!({
+                "password_hash": auth_token
+            });
+
+            let response = client
+                .post(format!("{}/api/auth/refresh", http_base_url))
+                .json(&payload)
+                .send()
+                .await?;
+
+            if response.status().is_success() {
+                let refresh_response: serde_json::Value = response.json().await?;
+
+                if let Some(jwt) = refresh_response.get("jwt").and_then(|j| j.as_str()) {
+                    // Parse JWT to get expiration (basic extraction without validation)
+                    let expires_at = chrono::Utc::now() + chrono::Duration::hours(1); // Default 1 hour
+
+                    self.state.store_jwt(jwt.to_string(), expires_at);
+                    self.state.save()?;
+                    
+                    println!("DEBUG: JWT token refreshed successfully");
+                    Ok(())
+                } else {
+                    return Err(anyhow::anyhow!("Invalid refresh response: missing JWT token"));
+                }
+            } else {
+                let error_text = response.text().await?;
+                return Err(anyhow::anyhow!("Failed to refresh JWT token: {}", error_text));
+            }
+        } else {
+            return Err(anyhow::anyhow!("No HTTP client available for JWT refresh"));
+        }
+    }
+
     /// Connect to the sync server and exchange changes
     async fn sync_with_server(&mut self, encrypted: HashMap<String, Vec<Vec<u8>>>) -> Result<()> {
-        let syncd = match &self.config.syncd {
-            Some(s) => s,
-            None => return Ok(()),
+        println!("DEBUG: sync_with_server called");
+        
+        // Check if JWT needs refresh before using it
+        if !self.state.is_jwt_valid() || self.state.needs_jwt_refresh() {
+            if self.state.get_auth_token().is_some() {
+                println!("DEBUG: JWT token expired or about to expire, refreshing...");
+                if let Err(e) = self.refresh_jwt_token().await {
+                    eprintln!("Failed to refresh JWT token: {}", e);
+                    return Err(anyhow::anyhow!("JWT token expired and refresh failed. Run 'lst auth request <email>' to re-authenticate"));
+                }
+            } else {
+                return Err(anyhow::anyhow!("No valid JWT token and no auth token for refresh. Run 'lst auth request <email>' to authenticate"));
+            }
+        }
+        
+        let sync = match &self.config.sync {
+            Some(s) => {
+                println!("DEBUG: Found sync config");
+                s
+            },
+            None => {
+                println!("DEBUG: No sync config found");
+                return Ok(())
+            },
         };
 
-        let url = match &syncd.url {
-            Some(u) => u,
-            None => return Ok(()),
+        let url = match &sync.server_url {
+            Some(u) => {
+                println!("DEBUG: Found server URL: {}", u);
+                u
+            },
+            None => {
+                println!("DEBUG: No server URL found");
+                return Ok(())
+            },
         };
-        let token = self
-            .config
-            .get_jwt()
-            .context("No valid JWT token. Run 'lst auth request <email>' to authenticate")?
+
+        // Debug: Check what JWT token we have
+        if let Some(ref jwt) = self.state.auth.jwt_token {
+            let preview_len = std::cmp::min(20, jwt.len());
+            println!("DEBUG: Found JWT token: {}...", &jwt[..preview_len]);
+        } else {
+            println!("DEBUG: No JWT token found in state");
+        }
+        
+        let token = self.state
+            .auth
+            .jwt_token
+            .as_ref()
+            .context("No valid JWT token after refresh attempt")?
             .to_string();
 
-        let device_id = syncd
+        let device_id = self.state
+            .device
             .device_id
             .clone()
             .unwrap_or_else(|| "unknown".to_string());
 
-        let (ws, _) = connect_async(url).await?;
+        // Connect to WebSocket with Authorization header (like mobile app)
+        use tokio_tungstenite::tungstenite::http::Request;
+        use base64::Engine;
+        let ws_request = Request::builder()
+            .method("GET")
+            .uri(url.as_str())
+            .header("Host", "192.168.1.25:5673")
+            .header("Upgrade", "websocket")
+            .header("Connection", "Upgrade")
+            .header("Sec-WebSocket-Key", base64::engine::general_purpose::STANDARD.encode("desktop-key-12345678"))
+            .header("Sec-WebSocket-Version", "13")
+            .header("Authorization", format!("Bearer {}", token))
+            .body(())?;
+
+        let (ws, _) = connect_async(ws_request).await?;
         let (mut write, mut read) = ws.split();
-
-        let auth_msg = lst_proto::ClientMessage::Authenticate { jwt: token.clone() };
-        write
-            .send(Message::Text(serde_json::to_string(&auth_msg)?))
-            .await?;
-
-        // wait for Authenticated (ignore failure)
-        if let Ok(Some(msg)) = timeout(Duration::from_secs(5), read.next()).await {
-            if let Message::Text(txt) = msg? {
-                if let Ok(lst_proto::ServerMessage::Authenticated { success }) =
-                    serde_json::from_str(&txt)
-                {
-                    if !success {
-                        return Err(anyhow::anyhow!("Authentication failed"));
-                    }
-                }
-            }
-        }
+        println!("WebSocket connection established with HTTP header auth");
 
         for (doc_id, changes) in encrypted {
             if changes.is_empty() {

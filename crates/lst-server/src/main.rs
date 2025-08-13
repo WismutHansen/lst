@@ -1041,21 +1041,29 @@ async fn ws_handler(
 }
 
 async fn handle_ws(stream: WebSocket, state: Arc<AppState>, user: String) {
+    eprintln!("WebSocket connection established for user: {}", user);
+    
     let (mut sender, mut receiver) = stream.split();
 
-    let _ = sender
+    // Send authentication success
+    if let Err(e) = sender
         .send(WsMessage::Text(
             serde_json::to_string(&lst_proto::ServerMessage::Authenticated { success: true })
                 .unwrap()
                 .into(),
         ))
-        .await;
+        .await
+    {
+        eprintln!("Failed to send auth success: {}", e);
+        return;
+    }
 
     let user_clone = user.clone();
     let mut rx = state.tx.subscribe();
     let (tx, mut rx_local) = tokio::sync::mpsc::channel::<WsMessage>(100);
 
     let send_task = tokio::spawn(async move {
+        eprintln!("Starting send task for user: {}", user_clone);
         loop {
             tokio::select! {
                 // Handle broadcast messages
@@ -1063,6 +1071,7 @@ async fn handle_ws(stream: WebSocket, state: Arc<AppState>, user: String) {
                     if target == user_clone {
                         if let Ok(txt) = serde_json::to_string(&msg) {
                             if sender.send(WsMessage::Text(txt.into())).await.is_err() {
+                                eprintln!("Failed to send broadcast message to {}", user_clone);
                                 break;
                             }
                         }
@@ -1071,69 +1080,117 @@ async fn handle_ws(stream: WebSocket, state: Arc<AppState>, user: String) {
                 // Handle direct messages from main task
                 Some(msg) = rx_local.recv() => {
                     if sender.send(msg).await.is_err() {
+                        eprintln!("Failed to send direct message to {}", user_clone);
                         break;
                     }
                 }
-                else => break,
+                else => {
+                    eprintln!("Send task ending for user: {}", user_clone);
+                    break;
+                }
             }
         }
+        eprintln!("Send task finished for user: {}", user_clone);
     });
 
-    while let Some(Ok(msg)) = receiver.next().await {
-        if let WsMessage::Text(text) = msg {
-            if let Ok(cmsg) = serde_json::from_str::<lst_proto::ClientMessage>(&text) {
-                match cmsg {
-                    lst_proto::ClientMessage::RequestDocumentList => {
-                        if let Ok(list) = state.db.list_documents(&user).await {
-                            let resp = lst_proto::ServerMessage::DocumentList { documents: list };
-                            let _ = tx
-                                .send(WsMessage::Text(
-                                    serde_json::to_string(&resp).unwrap().into(),
-                                ))
-                                .await;
+    eprintln!("Starting message receive loop for user: {}", user);
+    while let Some(msg_result) = receiver.next().await {
+        match msg_result {
+            Ok(WsMessage::Text(text)) => {
+                eprintln!("Received message from {}: {}", user, text);
+                if let Ok(cmsg) = serde_json::from_str::<lst_proto::ClientMessage>(&text) {
+                    match cmsg {
+                        lst_proto::ClientMessage::RequestDocumentList => {
+                            eprintln!("Processing RequestDocumentList for {}", user);
+                            if let Ok(list) = state.db.list_documents(&user).await {
+                                let resp = lst_proto::ServerMessage::DocumentList { documents: list };
+                                if let Err(e) = tx
+                                    .send(WsMessage::Text(
+                                        serde_json::to_string(&resp).unwrap().into(),
+                                    ))
+                                    .await
+                                {
+                                    eprintln!("Failed to send document list: {}", e);
+                                    break;
+                                }
+                            }
                         }
-                    }
-                    lst_proto::ClientMessage::RequestSnapshot { doc_id } => {
-                        if let Ok(Some(snap)) = state.db.get_snapshot(&doc_id.to_string()).await {
-                            let resp = lst_proto::ServerMessage::Snapshot {
-                                doc_id,
-                                snapshot: snap,
-                            };
-                            let _ = tx
-                                .send(WsMessage::Text(
-                                    serde_json::to_string(&resp).unwrap().into(),
-                                ))
-                                .await;
+                        lst_proto::ClientMessage::RequestSnapshot { doc_id } => {
+                            eprintln!("Processing RequestSnapshot for {} doc: {}", user, doc_id);
+                            if let Ok(Some(snap)) = state.db.get_snapshot(&doc_id.to_string()).await {
+                                let resp = lst_proto::ServerMessage::Snapshot {
+                                    doc_id,
+                                    snapshot: snap,
+                                };
+                                if let Err(e) = tx
+                                    .send(WsMessage::Text(
+                                        serde_json::to_string(&resp).unwrap().into(),
+                                    ))
+                                    .await
+                                {
+                                    eprintln!("Failed to send snapshot: {}", e);
+                                    break;
+                                }
+                            }
                         }
-                    }
-                    lst_proto::ClientMessage::PushChanges {
-                        doc_id,
-                        device_id,
-                        changes,
-                    } => {
-                        let _ = state
-                            .db
-                            .add_changes(&doc_id.to_string(), &device_id, &changes)
-                            .await;
-                        let msg = lst_proto::ServerMessage::NewChanges {
+                        lst_proto::ClientMessage::PushChanges {
                             doc_id,
-                            from_device_id: device_id,
+                            device_id,
                             changes,
-                        };
-                        let _ = state.tx.send((user.clone(), msg));
+                        } => {
+                            eprintln!("Processing PushChanges for {} doc: {} from device: {} ({} changes)", 
+                                     user, doc_id, device_id, changes.len());
+                            if let Err(e) = state
+                                .db
+                                .add_changes(&doc_id.to_string(), &device_id, &changes)
+                                .await
+                            {
+                                eprintln!("Failed to add changes: {}", e);
+                            }
+                            let msg = lst_proto::ServerMessage::NewChanges {
+                                doc_id,
+                                from_device_id: device_id,
+                                changes,
+                            };
+                            // Broadcast to all devices of this user (they will filter out their own changes)
+                            if let Err(e) = state.tx.send((user.clone(), msg)) {
+                                eprintln!("Failed to broadcast changes: {}", e);
+                            }
+                        }
+                        lst_proto::ClientMessage::PushSnapshot { doc_id, snapshot } => {
+                            eprintln!("Processing PushSnapshot for {} doc: {} ({} bytes)", 
+                                     user, doc_id, snapshot.len());
+                            if let Err(e) = state
+                                .db
+                                .save_snapshot(&doc_id.to_string(), &user, &snapshot)
+                                .await
+                            {
+                                eprintln!("Failed to save snapshot: {}", e);
+                            }
+                        }
+                        lst_proto::ClientMessage::Authenticate { .. } => {
+                            eprintln!("Received duplicate authentication from {}", user);
+                        }
                     }
-                    lst_proto::ClientMessage::PushSnapshot { doc_id, snapshot } => {
-                        let _ = state
-                            .db
-                            .save_snapshot(&doc_id.to_string(), &user, &snapshot)
-                            .await;
-                    }
-                    lst_proto::ClientMessage::Authenticate { .. } => {}
+                } else {
+                    eprintln!("Failed to parse message from {}: {}", user, text);
                 }
+            }
+            Ok(WsMessage::Close(_)) => {
+                eprintln!("Client {} closed connection", user);
+                break;
+            }
+            Ok(_) => {
+                eprintln!("Received non-text message from {}", user);
+            }
+            Err(e) => {
+                eprintln!("WebSocket error for {}: {}", user, e);
+                break;
             }
         }
     }
 
+    eprintln!("WebSocket connection ended for user: {}", user);
     send_task.abort();
 }
 

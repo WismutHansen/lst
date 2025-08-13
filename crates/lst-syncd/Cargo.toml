@@ -50,6 +50,7 @@ reqwest = { workspace = true }
 # ring = "0.17"
 
 # Internal dependencies
+lst-core = { path = "../lst-core", version = "0.1.3" }
 lst-proto = { path = "../lst-proto", version = "0.1.3" }
 lst-cli = { path = "../lst-cli", version = "0.1.3" }
 hex = "0.4.3"
