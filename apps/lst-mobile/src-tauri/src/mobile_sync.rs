@@ -427,17 +427,34 @@ impl MobileSyncManager {
                                 for doc_info in &documents {
                                     println!("📱 Mobile sync: Server document: {} (updated: {})", doc_info.doc_id, doc_info.updated_at);
                                 }
-                                // Document discovery: fetch snapshots for unknown docs
-                                for doc_info in documents {
+                                // Document discovery: fetch snapshots for unknown server docs
+                                let mut server_ids = std::collections::HashSet::new();
+                                for doc_info in &documents {
+                                    server_ids.insert(doc_info.doc_id.to_string());
+                                }
+                                for doc_info in &documents {
                                     let doc_id_str = doc_info.doc_id.to_string();
-                                    // Skip if we already have the document
-                                    if self.db.get_document(&doc_id_str).ok().flatten().is_some() {
-                                        continue;
+                                    if self.db.get_document(&doc_id_str).ok().flatten().is_none() {
+                                        // Request snapshot for unknown doc
+                                        let req = lst_proto::ClientMessage::RequestSnapshot { doc_id: doc_info.doc_id };
+                                        if let Err(e) = write.send(Message::Text(serde_json::to_string(&req)?)).await {
+                                            println!("📱 Mobile sync: Failed requesting snapshot for {}: {}", doc_id_str, e);
+                                        }
                                     }
-                                    // Request snapshot for unknown doc
-                                    let req = lst_proto::ClientMessage::RequestSnapshot { doc_id: doc_info.doc_id };
-                                    if let Err(e) = write.send(Message::Text(serde_json::to_string(&req)?)).await {
-                                        println!("📱 Mobile sync: Failed requesting snapshot for {}: {}", doc_id_str, e);
+                                }
+                                // Seed server with local docs that are missing there
+                                if let Ok(local_docs) = self.db.list_all_documents() {
+                                    for (doc_id, _path, _typ, state, _owner, _w, _r) in local_docs {
+                                        if !server_ids.contains(&doc_id) {
+                                            if let Ok(uuid) = uuid::Uuid::parse_str(&doc_id) {
+                                                let msg = lst_proto::ClientMessage::PushSnapshot { doc_id: uuid, snapshot: state };
+                                                if let Err(e) = write.send(Message::Text(serde_json::to_string(&msg)?)).await {
+                                                    println!("📱 Mobile sync: Failed pushing snapshot for {}: {}", doc_id, e);
+                                                } else {
+                                                    println!("📱 Mobile sync: Seeded server with local doc {}", doc_id);
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }

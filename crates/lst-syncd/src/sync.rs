@@ -462,6 +462,11 @@ impl SyncManager {
         let (mut write, mut read) = ws.split();
         println!("WebSocket connection established with HTTP header auth");
 
+        // 1) Discover server docs
+        let request_list = lst_proto::ClientMessage::RequestDocumentList;
+        write.send(Message::Text(serde_json::to_string(&request_list)?)).await?;
+
+        // 2) Push local pending changes
         for (doc_id, changes) in encrypted {
             if changes.is_empty() {
                 continue;
@@ -472,30 +477,69 @@ impl SyncManager {
                 device_id: device_id.clone(),
                 changes,
             };
-            write
-                .send(Message::Text(serde_json::to_string(&msg)?))
-                .await?;
+            write.send(Message::Text(serde_json::to_string(&msg)?)).await?;
         }
 
-        // read any new changes until timeout
+        // 3) After receiving server list, request snapshots for unknown docs
+        //    Also, if we have local docs unknown to server, push snapshots to seed them.
+        //    We handle this inside the read loop when DocumentList arrives.
+
+        // read messages until small timeout
         loop {
-            match timeout(Duration::from_secs(1), read.next()).await {
-                Ok(Some(msg)) => {
-                    let msg = msg?;
-                    if let Message::Text(txt) = msg {
-                        if let Ok(server_msg) =
-                            serde_json::from_str::<lst_proto::ServerMessage>(&txt)
-                        {
-                            if let lst_proto::ServerMessage::NewChanges { doc_id, changes, .. } = server_msg
-                            {
-                                self
-                                    .apply_remote_changes(&doc_id.to_string(), changes)
-                                    .await?;
+            match timeout(Duration::from_secs(2), read.next()).await {
+                Ok(Some(Ok(Message::Text(txt)))) => {
+                    if let Ok(server_msg) = serde_json::from_str::<lst_proto::ServerMessage>(&txt) {
+                        match server_msg {
+                            lst_proto::ServerMessage::NewChanges { doc_id, changes, .. } => {
+                                self.apply_remote_changes(&doc_id.to_string(), changes).await?;
                             }
+                            lst_proto::ServerMessage::DocumentList { documents } => {
+                                // Build a set of known local docs
+                                let mut local_ids = std::collections::HashSet::new();
+                                for (doc_id, _path, _typ, _state, _owner, _w, _r) in self.db.list_all_documents()? {
+                                    local_ids.insert(doc_id);
+                                }
+                                // Request snapshots for unknown server docs
+                                for info in &documents {
+                                    let id_str = info.doc_id.to_string();
+                                    if !local_ids.contains(&id_str) {
+                                        let req = lst_proto::ClientMessage::RequestSnapshot { doc_id: info.doc_id };
+                                        let _ = write.send(Message::Text(serde_json::to_string(&req)?)).await;
+                                    }
+                                }
+                                // Push snapshots for local docs missing on server
+                                use std::collections::HashSet;
+                                let server_ids: HashSet<String> = documents.into_iter().map(|d| d.doc_id.to_string()).collect();
+                                for (doc_id, _path, _typ, state, _owner, _w, _r) in self.db.list_all_documents()? {
+                                    if !server_ids.contains(&doc_id) {
+                                        if let Ok(uuid) = Uuid::parse_str(&doc_id) {
+                                            let msg = lst_proto::ClientMessage::PushSnapshot { doc_id: uuid, snapshot: state };
+                                            let _ = write.send(Message::Text(serde_json::to_string(&msg)?)).await;
+                                        }
+                                    }
+                                }
+                            }
+                            lst_proto::ServerMessage::Snapshot { doc_id, snapshot } => {
+                                // Persist snapshot as baseline
+                                let id_str = doc_id.to_string();
+                                match self.db.get_document(&id_str)? {
+                                    Some((_path, _typ, _hash, _state, owner, writers, readers)) => {
+                                        let _ = self.db.save_document_snapshot(&id_str, &snapshot, Some(owner.as_str()), writers.as_deref(), readers.as_deref());
+                                    }
+                                    None => {
+                                        let _ = self.db.insert_new_document_from_snapshot(&id_str, &snapshot);
+                                    }
+                                }
+                            }
+                            _ => {}
                         }
                     }
                 }
-                Ok(None) | Err(_) => break,
+                Ok(Some(Ok(Message::Close(_)))) => break,
+                Ok(Some(Ok(_))) => {},
+                Ok(Some(Err(_e))) => break,
+                Ok(None) => break,
+                Err(_) => break,
             }
         }
 
