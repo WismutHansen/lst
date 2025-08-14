@@ -1,6 +1,8 @@
 # Complete configuration example for lst
-# This file should be placed at ~/.config/lst/lst.toml
-# All sections are optional and will use defaults if not specified
+# Place at ~/.config/lst/lst.toml (user config).
+# Runtime state and secrets are stored in ~/.local/share/lst/state.toml and
+# are managed by the app; do not put secrets in this file.
+# All sections are optional and will use defaults if not specified.
 
 # =============================================================================
 # UI Configuration (Desktop/Mobile Apps)
@@ -67,6 +69,7 @@ kinds = ["lists", "notes", "posts"]
 # =============================================================================
 # Server Daemon Configuration (lst-server only)
 # =============================================================================
+# Note: These are server runtime storage paths (state) used by the daemon.
 [server]
 # Network interface to bind to
 host = "127.0.0.1" # localhost only
@@ -76,11 +79,13 @@ host = "127.0.0.1" # localhost only
 port = 5673
 
 # Database configuration for lst-server daemon
+# (runtime state; not user content)
 data_dir = "~/.config/lst/lst_server_data"
 # Alternative: absolute path
 # data_dir = "/var/lib/lst"
 
 # Individual database file names (relative to data_dir unless absolute)
+# (runtime state files)
 tokens_db = "tokens.db"   # User authentication tokens
 content_db = "content.db" # Content storage
 sync_db = "sync.db"       # CRDT sync data
@@ -106,30 +111,14 @@ sender = "lst-server@yourdomain.com"
 # =============================================================================
 # Client Sync Configuration (lst CLI, lst-syncd, apps)
 # =============================================================================
+# Note: Only user-configurable settings belong here. Runtime state and secrets
+# are stored in ~/.local/share/lst/state.toml and managed by the app.
 [sync]
 # Server for syncing (if None, runs in local-only mode)
 # Simple format: "host:port" (recommended)
 server_url = "192.168.1.25:5673"
 # Alternative: full WebSocket URL
 # server_url = "ws://192.168.1.25:5673/api/sync"
-
-# Authentication token for server access
-auth_token = "your-server-auth-token-here"
-
-# JWT token (automatically managed by auth commands - don't set manually)
-# jwt_token = "auto-generated-jwt-token"
-
-# JWT expiration (automatically managed - don't set manually)  
-# jwt_expires_at = "2024-12-31T23:59:59Z"
-
-# Unique device identifier (auto-generated if not specified)
-device_id = "my-laptop-12345"
-
-# Local database path for sync state
-database_path = "~/.config/lst/sync.db"
-
-# Keychain reference for encryption key (macOS/Linux keyring)
-encryption_key_ref = "lst-master-key"
 
 # How often to check for changes (in seconds)
 interval_seconds = 30
@@ -150,6 +139,14 @@ exclude_patterns = [
   "Thumbs.db",       # Windows thumbnail cache
   ".DS_Store",       # macOS folder metadata
 ]
+
+# Managed by app state (do not set here):
+# auth_token = "..."           # stored in ~/.local/share/lst/state.toml
+# jwt_token = "..."            # stored in state.toml
+# jwt_expires_at = "..."       # stored in state.toml
+# device_id = "..."            # stored in state.toml
+# database_path = "..."        # defaults to ~/.local/share/lst/sync.db (state)
+# encryption_key_ref = "..."   # reference name; key material lives in keychain
 
 # =============================================================================
 # Storage Configuration (CRDT storage for sync)
