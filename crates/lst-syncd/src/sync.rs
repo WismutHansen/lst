@@ -392,7 +392,10 @@ impl SyncManager {
 
     /// Connect to the sync server and exchange changes
     async fn sync_with_server(&mut self, encrypted: HashMap<String, Vec<Vec<u8>>>) -> Result<()> {
-        println!("DEBUG: sync_with_server called");
+        println!("DEBUG: sync_with_server called with {} documents containing changes", encrypted.len());
+        for (doc_id, changes) in &encrypted {
+            println!("DEBUG: Document {} has {} pending changes", doc_id, changes.len());
+        }
         
         // Check if JWT needs refresh before using it
         if !self.state.is_jwt_valid() || self.state.needs_jwt_refresh() {
@@ -487,10 +490,13 @@ impl SyncManager {
         write.send(Message::Text(serde_json::to_string(&request_list)?)).await?;
 
         // 2) Push local pending changes
+        println!("DEBUG: Processing {} documents with changes", encrypted.len());
         for (doc_id, changes) in encrypted {
             if changes.is_empty() {
+                println!("DEBUG: Skipping doc {} - no changes", doc_id);
                 continue;
             }
+            println!("DEBUG: Pushing {} changes for doc {}", changes.len(), doc_id);
             let uuid = Uuid::parse_str(&doc_id)?;
             let msg = lst_proto::ClientMessage::PushChanges {
                 doc_id: uuid,
@@ -498,6 +504,7 @@ impl SyncManager {
                 changes,
             };
             write.send(Message::Text(serde_json::to_string(&msg)?)).await?;
+            println!("DEBUG: Sent PushChanges message for doc {}", doc_id);
         }
 
         // 3) After receiving server list, request snapshots for unknown docs
@@ -592,14 +599,18 @@ impl SyncManager {
             if !self.pending_changes.is_empty() {
                 let mut encrypted_total = 0;
                 let mut encrypted: HashMap<String, Vec<Vec<u8>>> = HashMap::new();
+                println!("DEBUG: Draining {} documents from pending_changes", self.pending_changes.len());
                 for (doc, changes) in self.pending_changes.drain() {
+                    println!("DEBUG: Processing {} changes for doc {} during drain", changes.len(), doc);
                     let mut enc = Vec::new();
                     for c in changes {
                         let e = crypto::encrypt(&c, &self.encryption_key)?;
                         encrypted_total += 1;
                         enc.push(e);
                     }
-                    encrypted.insert(doc, enc);
+                    let enc_len = enc.len();
+                    encrypted.insert(doc.clone(), enc);
+                    println!("DEBUG: Added {} encrypted changes for doc {}", enc_len, doc);
                 }
 
                 println!("Syncing {encrypted_total} encrypted changes");
