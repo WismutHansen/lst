@@ -40,10 +40,12 @@ fn update_list_doc(doc: &mut Automerge, content: &str) -> Result<()> {
     tx.delete(&automerge::ROOT, "items").ok(); // Ignore error if doesn't exist
     let items_id = tx.put_object(&automerge::ROOT, "items", ObjType::List)?;
 
-    for (idx, line) in content.lines().enumerate() {
+    let mut list_idx = 0;
+    for line in content.lines() {
         let line = line.trim();
         if !line.is_empty() {
-            tx.insert(&items_id, idx, ScalarValue::Str(line.into()))?;
+            tx.insert(&items_id, list_idx, ScalarValue::Str(line.into()))?;
+            list_idx += 1;
         }
     }
 
