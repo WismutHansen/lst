@@ -415,7 +415,12 @@ impl SyncManager {
         let url = match &sync.server_url {
             Some(u) => {
                 println!("DEBUG: Found server URL: {}", u);
-                u
+                // Convert HTTP URLs to WebSocket URLs
+                let ws_url = u
+                    .replace("http://", "ws://")
+                    .replace("https://", "wss://");
+                println!("DEBUG: Converted to WebSocket URL: {}", ws_url);
+                ws_url
             },
             None => {
                 println!("DEBUG: No server URL found");
@@ -449,7 +454,7 @@ impl SyncManager {
         use base64::Engine;
         let ws_request = Request::builder()
             .method("GET")
-            .uri(url.as_str())
+            .uri(&url)
             .header("Host", "192.168.1.25:5673")
             .header("Upgrade", "websocket")
             .header("Connection", "Upgrade")
