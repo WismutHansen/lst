@@ -126,6 +126,8 @@ impl SyncManager {
                 path.to_string_lossy().as_bytes(),
             )
             .to_string();
+            
+            println!("DEBUG: Processing file {} -> doc_id: {}", path.display(), doc_id);
 
             if matches!(event.kind, notify::EventKind::Remove(_)) {
                 self.db.delete_document(&doc_id)?;
@@ -175,6 +177,7 @@ impl SyncManager {
 
                 let new_state = doc.save();
 
+                println!("DEBUG: Updating existing document {} with {} bytes", doc_id, new_state.len());
                 self.db.upsert_document(
                     &doc_id,
                     &path.to_string_lossy(),
@@ -208,6 +211,7 @@ impl SyncManager {
 
                 let new_state = doc.save();
 
+                println!("DEBUG: Creating new document {} with {} bytes", doc_id, new_state.len());
                 self.db.upsert_document(
                     &doc_id,
                     &path.to_string_lossy(),
@@ -512,7 +516,10 @@ impl SyncManager {
                             lst_proto::ServerMessage::DocumentList { documents } => {
                                 // Build a set of known local docs
                                 let mut local_ids = std::collections::HashSet::new();
-                                for (doc_id, _path, _typ, _state, _owner, _w, _r) in self.db.list_all_documents()? {
+                                let local_docs = self.db.list_all_documents()?;
+                                println!("DEBUG: Found {} local documents", local_docs.len());
+                                for (doc_id, _path, _typ, _state, _owner, _w, _r) in local_docs {
+                                    println!("DEBUG: Local doc: {}", doc_id);
                                     local_ids.insert(doc_id);
                                 }
                                 // Request snapshots for unknown server docs
@@ -526,12 +533,17 @@ impl SyncManager {
                                 // Push snapshots for local docs missing on server
                                 use std::collections::HashSet;
                                 let server_ids: HashSet<String> = documents.into_iter().map(|d| d.doc_id.to_string()).collect();
-                                for (doc_id, _path, _typ, state, _owner, _w, _r) in self.db.list_all_documents()? {
+                                println!("DEBUG: Server has {} documents", server_ids.len());
+                                let local_docs_for_push = self.db.list_all_documents()?;
+                                for (doc_id, _path, _typ, state, _owner, _w, _r) in local_docs_for_push {
                                     if !server_ids.contains(&doc_id) {
+                                        println!("DEBUG: Pushing local doc {} to server (not on server)", doc_id);
                                         if let Ok(uuid) = Uuid::parse_str(&doc_id) {
                                             let msg = lst_proto::ClientMessage::PushSnapshot { doc_id: uuid, snapshot: state };
                                             let _ = write.send(Message::Text(serde_json::to_string(&msg)?)).await;
                                         }
+                                    } else {
+                                        println!("DEBUG: Doc {} already exists on server", doc_id);
                                     }
                                 }
                             }
