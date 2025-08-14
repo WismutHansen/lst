@@ -52,7 +52,7 @@ max_suggestions = 7
 [paths]
 # Root directory for all content (lists, notes, posts)
 # Supports ~ for home directory expansion
-content_dir = "~/Documents/lst-content"
+content_dir = "~/lst"
 # Alternative: absolute path
 # content_dir = "/Users/username/Documents/lst-content"
 
@@ -80,7 +80,7 @@ port = 5673
 
 # Database configuration for lst-server daemon
 # (runtime state; not user content)
-data_dir = "~/.config/lst/lst_server_data"
+data_dir = "~/.local/share/lst/lst_server_data"
 # Alternative: absolute path
 # data_dir = "/var/lib/lst"
 
@@ -153,7 +153,7 @@ exclude_patterns = [
 # =============================================================================
 [storage]
 # Directory for CRDT (Conflict-free Replicated Data Type) storage
-crdt_dir = "~/.config/lst/crdt"
+crdt_dir = "~/.local/share/lst/crdt"
 
 # Maximum number of snapshots to retain
 max_snapshots = 100
@@ -202,3 +202,4 @@ max_snapshots = 100
 # [sync]
 # server_url = "ws://localhost:5673/api/sync"
 # interval_seconds = 5  # More frequent sync for development
+
