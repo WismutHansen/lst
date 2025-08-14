@@ -511,14 +511,20 @@ impl SyncManager {
         //    Also, if we have local docs unknown to server, push snapshots to seed them.
         //    We handle this inside the read loop when DocumentList arrives.
 
-        // read messages until small timeout
+        // read messages until timeout (give server time to process changes)
         loop {
-            match timeout(Duration::from_secs(2), read.next()).await {
+            match timeout(Duration::from_secs(10), read.next()).await {
                 Ok(Some(Ok(Message::Text(txt)))) => {
                     if let Ok(server_msg) = serde_json::from_str::<lst_proto::ServerMessage>(&txt) {
                         match server_msg {
-                            lst_proto::ServerMessage::NewChanges { doc_id, changes, .. } => {
-                                self.apply_remote_changes(&doc_id.to_string(), changes).await?;
+                            lst_proto::ServerMessage::NewChanges { doc_id, from_device_id, changes } => {
+                                // Filter out our own changes to avoid infinite loops
+                                if from_device_id != device_id {
+                                    println!("DEBUG: Applying {} remote changes for doc {} from device {}", changes.len(), doc_id, from_device_id);
+                                    self.apply_remote_changes(&doc_id.to_string(), changes).await?;
+                                } else {
+                                    println!("DEBUG: Ignoring own changes for doc {} from device {}", doc_id, from_device_id);
+                                }
                             }
                             lst_proto::ServerMessage::DocumentList { documents } => {
                                 // Build a set of known local docs
@@ -570,11 +576,23 @@ impl SyncManager {
                         }
                     }
                 }
-                Ok(Some(Ok(Message::Close(_)))) => break,
+                Ok(Some(Ok(Message::Close(_)))) => {
+                    println!("DEBUG: Server closed WebSocket connection");
+                    break;
+                },
                 Ok(Some(Ok(_))) => {},
-                Ok(Some(Err(_e))) => break,
-                Ok(None) => break,
-                Err(_) => break,
+                Ok(Some(Err(e))) => {
+                    println!("DEBUG: WebSocket error: {}", e);
+                    break;
+                },
+                Ok(None) => {
+                    println!("DEBUG: WebSocket stream ended");
+                    break;
+                },
+                Err(_) => {
+                    println!("DEBUG: WebSocket read timeout after 10 seconds, closing connection");
+                    break;
+                },
             }
         }
 
