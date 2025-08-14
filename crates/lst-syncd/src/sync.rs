@@ -417,10 +417,19 @@ impl SyncManager {
         let url = match &sync.server_url {
             Some(u) => {
                 println!("DEBUG: Found server URL: {}", u);
-                // Convert HTTP URLs to WebSocket URLs
-                let ws_url = u
+                // Convert HTTP URLs to WebSocket URLs and ensure /api/sync path
+                let mut ws_url = u
                     .replace("http://", "ws://")
                     .replace("https://", "wss://");
+                
+                // Ensure the URL ends with /api/sync
+                if !ws_url.ends_with("/api/sync") {
+                    if !ws_url.ends_with("/") {
+                        ws_url.push('/');
+                    }
+                    ws_url.push_str("api/sync");
+                }
+                
                 println!("DEBUG: Converted to WebSocket URL: {}", ws_url);
                 ws_url
             },
