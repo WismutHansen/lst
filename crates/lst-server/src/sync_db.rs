@@ -4,6 +4,7 @@ use sqlx::Row;
 use std::path::PathBuf;
 use lst_proto::DocumentInfo;
 use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct SyncDb {
@@ -72,16 +73,19 @@ impl SyncDb {
         .await?;
         Ok(rows
             .into_iter()
-            .map(|row| DocumentInfo {
-                doc_id: row.get("doc_id"),
-                updated_at: row.get::<DateTime<Utc>, _>("updated_at"),
+            .map(|row| {
+                let doc_id_str: String = row.get("doc_id");
+                DocumentInfo {
+                    doc_id: Uuid::parse_str(&doc_id_str).expect("Invalid UUID in database"),
+                    updated_at: row.get::<DateTime<Utc>, _>("updated_at"),
+                }
             })
             .collect())
     }
 
-    pub async fn get_snapshot(&self, doc_id: &str) -> Result<Option<Vec<u8>>> {
+    pub async fn get_snapshot(&self, doc_id: &Uuid) -> Result<Option<Vec<u8>>> {
         let row = sqlx::query("SELECT encrypted_snapshot FROM documents WHERE doc_id = ?")
-            .bind(doc_id)
+            .bind(doc_id.to_string())
             .fetch_optional(&self.pool)
             .await?;
         Ok(row.map(|r| r.get("encrypted_snapshot")))
@@ -89,7 +93,7 @@ impl SyncDb {
 
     pub async fn save_snapshot(
         &self,
-        doc_id: &str,
+        doc_id: &Uuid,
         user_id: &str,
         snapshot: &[u8],
     ) -> Result<()> {
@@ -102,7 +106,7 @@ impl SyncDb {
                    encrypted_snapshot = excluded.encrypted_snapshot,
                    updated_at = CURRENT_TIMESTAMP"#,
         )
-        .bind(doc_id)
+        .bind(doc_id.to_string())
         .bind(&user_id.to_lowercase())
         .bind(snapshot)
         .execute(&mut *tx)
@@ -112,7 +116,7 @@ impl SyncDb {
             r#"INSERT OR IGNORE INTO document_permissions (doc_id, user_email, permission_type)
                VALUES (?, ?, 'owner')"#,
         )
-        .bind(doc_id)
+        .bind(doc_id.to_string())
         .bind(&user_id.to_lowercase())
         .execute(&mut *tx)
         .await?;
@@ -123,7 +127,7 @@ impl SyncDb {
 
     pub async fn add_changes(
         &self,
-        doc_id: &str,
+        doc_id: &Uuid,
         device_id: &str,
         changes: &[Vec<u8>],
     ) -> Result<()> {
@@ -131,7 +135,7 @@ impl SyncDb {
             sqlx::query(
                 "INSERT INTO document_changes (doc_id, device_id, encrypted_change) VALUES (?, ?, ?)",
             )
-            .bind(doc_id)
+            .bind(doc_id.to_string())
             .bind(device_id)
             .bind(c)
             .execute(&self.pool)
