@@ -511,9 +511,12 @@ impl SyncManager {
         //    Also, if we have local docs unknown to server, push snapshots to seed them.
         //    We handle this inside the read loop when DocumentList arrives.
 
-        // read messages until timeout (give server time to process changes)
+        // read messages until timeout (give server time to process changes and send snapshots)
+        let mut expected_snapshots = 0;
+        let mut received_snapshots = 0;
+        
         loop {
-            match timeout(Duration::from_secs(10), read.next()).await {
+            match timeout(Duration::from_secs(30), read.next()).await {
                 Ok(Some(Ok(Message::Text(txt)))) => {
                     if let Ok(server_msg) = serde_json::from_str::<lst_proto::ServerMessage>(&txt) {
                         match server_msg {
@@ -527,6 +530,7 @@ impl SyncManager {
                                 }
                             }
                             lst_proto::ServerMessage::DocumentList { documents } => {
+                                println!("DEBUG: Received DocumentList with {} documents from server", documents.len());
                                 // Build a set of known local docs
                                 let mut local_ids = std::collections::HashSet::new();
                                 let local_docs = self.db.list_all_documents()?;
@@ -539,10 +543,15 @@ impl SyncManager {
                                 for info in &documents {
                                     let id_str = info.doc_id.to_string();
                                     if !local_ids.contains(&id_str) {
+                                        println!("DEBUG: Requesting snapshot for missing doc: {}", id_str);
                                         let req = lst_proto::ClientMessage::RequestSnapshot { doc_id: info.doc_id };
                                         let _ = write.send(Message::Text(serde_json::to_string(&req)?)).await;
+                                        expected_snapshots += 1;
+                                    } else {
+                                        println!("DEBUG: Doc {} already exists locally, skipping snapshot request", id_str);
                                     }
                                 }
+                                println!("DEBUG: Finished processing {} server documents, expecting {} snapshots", documents.len(), expected_snapshots);
                                 // Push snapshots for local docs missing on server
                                 use std::collections::HashSet;
                                 let server_ids: HashSet<String> = documents.into_iter().map(|d| d.doc_id.to_string()).collect();
@@ -561,6 +570,8 @@ impl SyncManager {
                                 }
                             }
                             lst_proto::ServerMessage::Snapshot { doc_id, snapshot } => {
+                                received_snapshots += 1;
+                                println!("DEBUG: Received snapshot {}/{} for doc {} ({} bytes)", received_snapshots, expected_snapshots, doc_id, snapshot.len());
                                 // Persist snapshot as baseline
                                 let id_str = doc_id.to_string();
                                 match self.db.get_document(&id_str)? {
@@ -570,6 +581,12 @@ impl SyncManager {
                                     None => {
                                         let _ = self.db.insert_new_document_from_snapshot(&id_str, &snapshot);
                                     }
+                                }
+                                
+                                // Check if we've received all expected snapshots
+                                if expected_snapshots > 0 && received_snapshots >= expected_snapshots {
+                                    println!("DEBUG: Received all {} expected snapshots, closing connection", expected_snapshots);
+                                    break;
                                 }
                             }
                             _ => {}
@@ -590,7 +607,8 @@ impl SyncManager {
                     break;
                 },
                 Err(_) => {
-                    println!("DEBUG: WebSocket read timeout after 10 seconds, closing connection");
+                    println!("DEBUG: WebSocket read timeout after 30 seconds, closing connection");
+                    println!("DEBUG: Received {}/{} expected snapshots before timeout", received_snapshots, expected_snapshots);
                     break;
                 },
             }
