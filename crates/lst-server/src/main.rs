@@ -867,7 +867,7 @@ async fn auth_verify_handler(
         Ok(true) => {
             let exp = (chrono::Utc::now() + chrono::Duration::hours(1)).timestamp() as usize;
             let claims = Claims {
-                sub: req.email.clone(),
+                sub: req.email.to_lowercase(),
                 exp,
             };
             let jwt = encode(
@@ -878,7 +878,7 @@ async fn auth_verify_handler(
             .unwrap();
             Ok(Json(VerifyResponse {
                 jwt,
-                user: req.email,
+                user: req.email.to_lowercase(),
             }))
         }
         Ok(false) | Err(_) => Err((StatusCode::UNAUTHORIZED, "Invalid or expired token".into())),
@@ -1033,7 +1033,7 @@ async fn ws_handler(
         let decoding_key = DecodingKey::from_secret(JWT_SECRET);
         let validation = Validation::default();
         if let Ok(token_data) = decode::<Claims>(auth, &decoding_key, &validation) {
-            let user = token_data.claims.sub;
+            let user = token_data.claims.sub.to_lowercase();
             return ws.on_upgrade(move |socket| handle_ws(socket, state, user));
         }
     }

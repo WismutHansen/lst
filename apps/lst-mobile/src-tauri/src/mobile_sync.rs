@@ -427,10 +427,39 @@ impl MobileSyncManager {
                                 for doc_info in &documents {
                                     println!("📱 Mobile sync: Server document: {} (updated: {})", doc_info.doc_id, doc_info.updated_at);
                                 }
-                                // TODO: Handle document discovery and sync unknown documents
+                                // Document discovery: fetch snapshots for unknown docs
+                                for doc_info in documents {
+                                    let doc_id_str = doc_info.doc_id.to_string();
+                                    // Skip if we already have the document
+                                    if self.db.get_document(&doc_id_str).ok().flatten().is_some() {
+                                        continue;
+                                    }
+                                    // Request snapshot for unknown doc
+                                    let req = lst_proto::ClientMessage::RequestSnapshot { doc_id: doc_info.doc_id };
+                                    if let Err(e) = write.send(Message::Text(serde_json::to_string(&req)?)).await {
+                                        println!("📱 Mobile sync: Failed requesting snapshot for {}: {}", doc_id_str, e);
+                                    }
+                                }
                             }
                             lst_proto::ServerMessage::Authenticated { success } => {
                                 println!("📱 Mobile sync: Auth response: {}", success);
+                            }
+                            lst_proto::ServerMessage::Snapshot { doc_id, snapshot } => {
+                                // Persist snapshot as baseline document
+                                let doc_id_str = doc_id.to_string();
+                                match self.db.get_document(&doc_id_str) {
+                                    Ok(Some((_path, _typ, _hash, _state, owner, writers, readers))) => {
+                                        // Already exists; update snapshot
+                                        if let Err(e) = self.db.save_document_snapshot(&doc_id_str, &snapshot, Some(owner.as_str()), writers.as_deref(), readers.as_deref()) {
+                                            println!("📱 Mobile sync: Failed to save snapshot for {}: {}", doc_id_str, e);
+                                        }
+                                    }
+                                    _ => {
+                                        if let Err(e) = self.db.insert_new_document_from_snapshot(&doc_id_str, &snapshot) {
+                                            println!("📱 Mobile sync: Failed to insert new doc from snapshot {}: {}", doc_id_str, e);
+                                        }
+                                    }
+                                }
                             }
                             _ => {} // Ignore other message types
                         }

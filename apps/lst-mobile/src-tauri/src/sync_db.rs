@@ -93,6 +93,64 @@ impl LocalDb {
         }
     }
 
+    /// Convenience alias used by mobile_sync code to check presence/state
+    pub fn get_document_state(&self, doc_id: &str) -> Result<Option<Vec<u8>>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT automerge_state FROM documents WHERE doc_id = ?1")?;
+        let mut rows = stmt.query(params![doc_id])?;
+        if let Some(row) = rows.next()? {
+            let state: Vec<u8> = row.get(0)?;
+            Ok(Some(state))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Save/overwrite the local snapshot (automerge_state) and optionally update ACL metadata.
+    pub fn save_document_snapshot(
+        &self,
+        doc_id: &str,
+        snapshot: &[u8],
+        owner: Option<&str>,
+        writers: Option<&str>,
+        readers: Option<&str>,
+    ) -> Result<()> {
+        // Update existing row if present, otherwise insert a minimal one.
+        let exists: bool = {
+            let mut stmt = self
+                .conn
+                .prepare("SELECT 1 FROM documents WHERE doc_id = ?1 LIMIT 1")?;
+            let mut rows = stmt.query(params![doc_id])?;
+            rows.next()?.is_some()
+        };
+
+        if exists {
+            self.conn.execute(
+                "UPDATE documents SET automerge_state = ?2, owner = COALESCE(?3, owner), writers = COALESCE(?4, writers), readers = COALESCE(?5, readers) WHERE doc_id = ?1",
+                params![doc_id, snapshot, owner, writers, readers],
+            )?;
+        } else {
+            // Provide sane defaults for missing columns; caller can backfill later via upsert.
+            self.conn.execute(
+                "INSERT INTO documents (doc_id, file_path, doc_type, last_sync_hash, automerge_state, owner, writers, readers)
+                 VALUES (?1, '', 'unknown', '', ?2, COALESCE(?3, ''), ?4, ?5)",
+                params![doc_id, snapshot, owner, writers, readers],
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Insert a new document from a snapshot if it doesn't already exist; no-op if present.
+    pub fn insert_new_document_from_snapshot(&self, doc_id: &str, snapshot: &[u8]) -> Result<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO documents (doc_id, file_path, doc_type, last_sync_hash, automerge_state, owner, writers, readers)
+             VALUES (?1, '', 'unknown', '', ?2, '', NULL, NULL)",
+            params![doc_id, snapshot],
+        )?;
+        Ok(())
+    }
+
     /// Delete a document by id
     #[allow(dead_code)]
     pub fn delete_document(&self, doc_id: &str) -> Result<()> {

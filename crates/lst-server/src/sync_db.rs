@@ -67,7 +67,7 @@ impl SyncDb {
                JOIN document_permissions p ON d.doc_id = p.doc_id
                WHERE p.user_email = ?"#,
         )
-        .bind(user_email)
+        .bind(&user_email.to_lowercase())
         .fetch_all(&self.pool)
         .await?;
         Ok(rows
@@ -103,7 +103,7 @@ impl SyncDb {
                    updated_at = CURRENT_TIMESTAMP"#,
         )
         .bind(doc_id)
-        .bind(user_id)
+        .bind(&user_id.to_lowercase())
         .bind(snapshot)
         .execute(&mut *tx)
         .await?;
@@ -113,7 +113,7 @@ impl SyncDb {
                VALUES (?, ?, 'owner')"#,
         )
         .bind(doc_id)
-        .bind(user_id)
+        .bind(&user_id.to_lowercase())
         .execute(&mut *tx)
         .await?;
         
