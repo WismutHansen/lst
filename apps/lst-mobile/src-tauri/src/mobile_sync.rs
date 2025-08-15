@@ -320,6 +320,14 @@ impl MobileSyncManager {
                 }
             };
 
+            // Ensure directory structure exists before writing
+            let file_path_obj = std::path::Path::new(&file_path);
+            if let Some(parent) = file_path_obj.parent() {
+                tokio::fs::create_dir_all(parent)
+                    .await
+                    .with_context(|| format!("Failed to create directory structure: {}", parent.display()))?;
+            }
+
             tokio::fs::write(&file_path, &content)
                 .await
                 .with_context(|| format!("Failed to write updated file: {}", file_path))?;
@@ -338,6 +346,8 @@ impl MobileSyncManager {
                 writers.as_deref(),
                 readers.as_deref(),
             )?;
+
+            println!("📱 Mobile sync: Applied remote changes to {} ({})", doc_id, file_path);
         }
 
         Ok(())
@@ -444,14 +454,35 @@ impl MobileSyncManager {
                                 }
                                 // Seed server with local docs that are missing there
                                 if let Ok(local_docs) = self.db.list_all_documents() {
-                                    for (doc_id, _path, _typ, state, _owner, _w, _r) in local_docs {
+                                    for (doc_id, path, _typ, state, _owner, _w, _r) in local_docs {
                                         if !server_ids.contains(&doc_id) {
                                             if let Ok(uuid) = uuid::Uuid::parse_str(&doc_id) {
-                                                let msg = lst_proto::ClientMessage::PushSnapshot { doc_id: uuid, snapshot: state };
+                                                // Extract relative path from mobile content directory to preserve structure
+                                                let content_dir = dirs::home_dir()
+                                                    .map(|h| h.join("Documents").join("lst"))
+                                                    .unwrap_or_else(|| std::path::PathBuf::from("."));
+                                                
+                                                let relative_path = std::path::Path::new(&path)
+                                                    .strip_prefix(&content_dir)
+                                                    .unwrap_or(std::path::Path::new("unknown.md"))
+                                                    .to_string_lossy()
+                                                    .to_string();
+                                                
+                                                // Encrypt relative path before sending
+                                                let encrypted_filename = crypto::encrypt(relative_path.as_bytes(), &self.encryption_key)?;
+                                                let encoded_filename = base64::engine::general_purpose::STANDARD.encode(&encrypted_filename);
+                                                
+                                                println!("📱 Mobile sync: Encrypting relative path: {} for doc {}", relative_path, doc_id);
+                                                
+                                                let msg = lst_proto::ClientMessage::PushSnapshot { 
+                                                    doc_id: uuid, 
+                                                    filename: encoded_filename,
+                                                    snapshot: state 
+                                                };
                                                 if let Err(e) = write.send(Message::Text(serde_json::to_string(&msg)?)).await {
                                                     println!("📱 Mobile sync: Failed pushing snapshot for {}: {}", doc_id, e);
                                                 } else {
-                                                    println!("📱 Mobile sync: Seeded server with local doc {}", doc_id);
+                                                    println!("📱 Mobile sync: Seeded server with local doc {} ({})", doc_id, relative_path);
                                                 }
                                             }
                                         }
@@ -461,7 +492,20 @@ impl MobileSyncManager {
                             lst_proto::ServerMessage::Authenticated { success } => {
                                 println!("📱 Mobile sync: Auth response: {}", success);
                             }
-                            lst_proto::ServerMessage::Snapshot { doc_id, snapshot } => {
+                            lst_proto::ServerMessage::Snapshot { doc_id, filename, snapshot } => {
+                                // Decrypt filename
+                                let decrypted_filename = if let Ok(encrypted_bytes) = base64::engine::general_purpose::STANDARD.decode(&filename) {
+                                    if let Ok(decrypted_bytes) = crypto::decrypt(&encrypted_bytes, &self.encryption_key) {
+                                        String::from_utf8(decrypted_bytes).unwrap_or_else(|_| format!("{}.md", &doc_id.to_string()[..8]))
+                                    } else {
+                                        format!("{}.md", &doc_id.to_string()[..8])
+                                    }
+                                } else {
+                                    format!("{}.md", &doc_id.to_string()[..8])
+                                };
+                                
+                                println!("📱 Mobile sync: Decrypted filename: {}", decrypted_filename);
+                                
                                 // Persist snapshot as baseline document
                                 let doc_id_str = doc_id.to_string();
                                 match self.db.get_document(&doc_id_str) {
@@ -472,8 +516,11 @@ impl MobileSyncManager {
                                         }
                                     }
                                     _ => {
-                                        if let Err(e) = self.db.insert_new_document_from_snapshot(&doc_id_str, &snapshot) {
+                                        // Use the enhanced method that preserves filename/directory structure
+                                        if let Err(e) = self.db.insert_new_document_from_snapshot_with_filename(&doc_id_str, &decrypted_filename, &snapshot) {
                                             println!("📱 Mobile sync: Failed to insert new doc from snapshot {}: {}", doc_id_str, e);
+                                        } else {
+                                            println!("📱 Mobile sync: Created new document from snapshot: {} -> {}", doc_id_str, decrypted_filename);
                                         }
                                     }
                                 }

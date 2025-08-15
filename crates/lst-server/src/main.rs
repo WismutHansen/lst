@@ -1117,9 +1117,10 @@ async fn handle_ws(stream: WebSocket, state: Arc<AppState>, user: String) {
                         }
                         lst_proto::ClientMessage::RequestSnapshot { doc_id } => {
                             eprintln!("Processing RequestSnapshot for {} doc: {}", user, doc_id);
-                            if let Ok(Some(snap)) = state.db.get_snapshot(&doc_id).await {
+                            if let Ok(Some((filename, snap))) = state.db.get_snapshot(&doc_id).await {
                                 let resp = lst_proto::ServerMessage::Snapshot {
                                     doc_id,
+                                    filename,
                                     snapshot: snap,
                                 };
                                 if let Err(e) = tx
@@ -1157,12 +1158,12 @@ async fn handle_ws(stream: WebSocket, state: Arc<AppState>, user: String) {
                                 eprintln!("Failed to broadcast changes: {}", e);
                             }
                         }
-                        lst_proto::ClientMessage::PushSnapshot { doc_id, snapshot } => {
-                            eprintln!("Processing PushSnapshot for {} doc: {} ({} bytes)", 
-                                     user, doc_id, snapshot.len());
+                        lst_proto::ClientMessage::PushSnapshot { doc_id, filename, snapshot } => {
+                            eprintln!("Processing PushSnapshot for {} doc: {} filename: {} ({} bytes)", 
+                                     user, doc_id, filename, snapshot.len());
                             if let Err(e) = state
                                 .db
-                                .save_snapshot(&doc_id, &user, &snapshot)
+                                .save_snapshot(&doc_id, &user, &filename, &snapshot)
                                 .await
                             {
                                 eprintln!("Failed to save snapshot: {}", e);

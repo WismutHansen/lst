@@ -28,6 +28,7 @@ impl SyncDb {
             r#"CREATE TABLE IF NOT EXISTS documents (
                 doc_id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
+                encrypted_filename TEXT NOT NULL DEFAULT '',
                 encrypted_snapshot BLOB NOT NULL,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )"#,
@@ -63,7 +64,7 @@ impl SyncDb {
 
     pub async fn list_documents(&self, user_email: &str) -> Result<Vec<DocumentInfo>> {
         let rows = sqlx::query(
-            r#"SELECT DISTINCT d.doc_id, d.updated_at 
+            r#"SELECT DISTINCT d.doc_id, d.encrypted_filename, d.updated_at 
                FROM documents d
                JOIN document_permissions p ON d.doc_id = p.doc_id
                WHERE p.user_email = ?"#,
@@ -77,37 +78,41 @@ impl SyncDb {
                 let doc_id_str: String = row.get("doc_id");
                 DocumentInfo {
                     doc_id: Uuid::parse_str(&doc_id_str).expect("Invalid UUID in database"),
+                    filename: row.get("encrypted_filename"),
                     updated_at: row.get::<DateTime<Utc>, _>("updated_at"),
                 }
             })
             .collect())
     }
 
-    pub async fn get_snapshot(&self, doc_id: &Uuid) -> Result<Option<Vec<u8>>> {
-        let row = sqlx::query("SELECT encrypted_snapshot FROM documents WHERE doc_id = ?")
+    pub async fn get_snapshot(&self, doc_id: &Uuid) -> Result<Option<(String, Vec<u8>)>> {
+        let row = sqlx::query("SELECT encrypted_filename, encrypted_snapshot FROM documents WHERE doc_id = ?")
             .bind(doc_id.to_string())
             .fetch_optional(&self.pool)
             .await?;
-        Ok(row.map(|r| r.get("encrypted_snapshot")))
+        Ok(row.map(|r| (r.get("encrypted_filename"), r.get("encrypted_snapshot"))))
     }
 
     pub async fn save_snapshot(
         &self,
         doc_id: &Uuid,
         user_id: &str,
+        encrypted_filename: &str,
         snapshot: &[u8],
     ) -> Result<()> {
         let mut tx = self.pool.begin().await?;
         
         sqlx::query(
-            r#"INSERT INTO documents (doc_id, user_id, encrypted_snapshot)
-               VALUES (?, ?, ?)
+            r#"INSERT INTO documents (doc_id, user_id, encrypted_filename, encrypted_snapshot)
+               VALUES (?, ?, ?, ?)
                ON CONFLICT(doc_id) DO UPDATE SET
+                   encrypted_filename = excluded.encrypted_filename,
                    encrypted_snapshot = excluded.encrypted_snapshot,
                    updated_at = CURRENT_TIMESTAMP"#,
         )
         .bind(doc_id.to_string())
         .bind(&user_id.to_lowercase())
+        .bind(encrypted_filename)
         .bind(snapshot)
         .execute(&mut *tx)
         .await?;

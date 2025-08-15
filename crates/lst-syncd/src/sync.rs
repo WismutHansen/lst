@@ -14,6 +14,7 @@ use tokio::time::{Instant, timeout};
 use std::time::Duration;
 use futures_util::{StreamExt, SinkExt};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
+use base64::{Engine, engine::general_purpose};
 use uuid::Uuid;
 
 fn detect_doc_type(path: &std::path::Path) -> &str {
@@ -557,11 +558,29 @@ impl SyncManager {
                                 let server_ids: HashSet<String> = documents.into_iter().map(|d| d.doc_id.to_string()).collect();
                                 println!("DEBUG: Server has {} documents", server_ids.len());
                                 let local_docs_for_push = self.db.list_all_documents()?;
-                                for (doc_id, _path, _typ, state, _owner, _w, _r) in local_docs_for_push {
+                                for (doc_id, path, _typ, state, _owner, _w, _r) in local_docs_for_push {
                                     if !server_ids.contains(&doc_id) {
                                         println!("DEBUG: Pushing local doc {} to server (not on server)", doc_id);
                                         if let Ok(uuid) = Uuid::parse_str(&doc_id) {
-                                            let msg = lst_proto::ClientMessage::PushSnapshot { doc_id: uuid, snapshot: state };
+                                            // Extract relative path from content directory to preserve structure
+                                            let content_dir = lst_core::storage::get_content_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+                                            let relative_path = std::path::Path::new(&path)
+                                                .strip_prefix(&content_dir)
+                                                .unwrap_or(std::path::Path::new("unknown.md"))
+                                                .to_string_lossy()
+                                                .to_string();
+                                            
+                                            // Encrypt relative path before sending
+                                            let encrypted_filename = crypto::encrypt(relative_path.as_bytes(), &self.encryption_key)?;
+                                            let encoded_filename = general_purpose::STANDARD.encode(&encrypted_filename);
+                                            
+                                            println!("DEBUG: Encrypting relative path: {} for doc {}", relative_path, doc_id);
+                                            
+                                            let msg = lst_proto::ClientMessage::PushSnapshot { 
+                                                doc_id: uuid, 
+                                                filename: encoded_filename,
+                                                snapshot: state 
+                                            };
                                             let _ = write.send(Message::Text(serde_json::to_string(&msg)?)).await;
                                         }
                                     } else {
@@ -569,9 +588,23 @@ impl SyncManager {
                                     }
                                 }
                             }
-                            lst_proto::ServerMessage::Snapshot { doc_id, snapshot } => {
+                            lst_proto::ServerMessage::Snapshot { doc_id, filename, snapshot } => {
                                 received_snapshots += 1;
                                 println!("DEBUG: Received snapshot {}/{} for doc {} ({} bytes)", received_snapshots, expected_snapshots, doc_id, snapshot.len());
+                                
+                                // Decrypt filename
+                                let decrypted_filename = if let Ok(encrypted_bytes) = general_purpose::STANDARD.decode(&filename) {
+                                    if let Ok(decrypted_bytes) = crypto::decrypt(&encrypted_bytes, &self.encryption_key) {
+                                        String::from_utf8(decrypted_bytes).unwrap_or_else(|_| format!("{}.md", &doc_id.to_string()[..8]))
+                                    } else {
+                                        format!("{}.md", &doc_id.to_string()[..8])
+                                    }
+                                } else {
+                                    format!("{}.md", &doc_id.to_string()[..8])
+                                };
+                                
+                                println!("DEBUG: Decrypted filename: {}", decrypted_filename);
+                                
                                 // Persist snapshot as baseline
                                 let id_str = doc_id.to_string();
                                 match self.db.get_document(&id_str)? {
@@ -579,7 +612,7 @@ impl SyncManager {
                                         let _ = self.db.save_document_snapshot(&id_str, &snapshot, Some(owner.as_str()), writers.as_deref(), readers.as_deref());
                                     }
                                     None => {
-                                        let _ = self.db.insert_new_document_from_snapshot(&id_str, &snapshot);
+                                        let _ = self.db.insert_new_document_from_snapshot_with_filename(&id_str, &decrypted_filename, &snapshot);
                                     }
                                 }
                                 

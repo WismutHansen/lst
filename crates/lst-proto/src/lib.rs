@@ -6,6 +6,7 @@ use chrono::{DateTime, Utc};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DocumentInfo {
     pub doc_id: Uuid,
+    pub filename: String, // Encrypted filename
     pub updated_at: DateTime<Utc>,
 }
 
@@ -16,7 +17,7 @@ pub enum ClientMessage {
     RequestDocumentList,
     RequestSnapshot { doc_id: Uuid },
     PushChanges { doc_id: Uuid, device_id: String, changes: Vec<Vec<u8>> },
-    PushSnapshot { doc_id: Uuid, snapshot: Vec<u8> },
+    PushSnapshot { doc_id: Uuid, filename: String, snapshot: Vec<u8> },
 }
 
 /// Messages sent from the server to the client
@@ -24,7 +25,7 @@ pub enum ClientMessage {
 pub enum ServerMessage {
     Authenticated { success: bool },
     DocumentList { documents: Vec<DocumentInfo> },
-    Snapshot { doc_id: Uuid, snapshot: Vec<u8> },
+    Snapshot { doc_id: Uuid, filename: String, snapshot: Vec<u8> },
     NewChanges { doc_id: Uuid, from_device_id: String, changes: Vec<Vec<u8>> },
     RequestCompaction { doc_id: Uuid },
 }
