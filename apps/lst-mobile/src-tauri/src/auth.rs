@@ -292,7 +292,7 @@ pub async fn register_account(email: String, server_url: String, password: Strin
             .await
             .unwrap_or_else(|_| serde_json::json!({"status":"ok"}));
 
-        Ok("Registration request sent successfully!\n\n🔐 Security Notice:\nThe auth token is displayed on the SERVER CONSOLE for security reasons.\nCheck the server logs or scan the QR code displayed on the server.\n\nOnce you have the auth token, use the Login option to complete authentication.".to_string())
+        Ok("New account registered successfully!\n\n🔐 Security Notice:\nYour auth token is displayed on the SERVER CONSOLE for security reasons.\nCheck the server logs or scan the QR code displayed on the server.\n\nIMPORTANT: Save your auth token safely! You'll need it to login and access your encrypted data.\n\nOnce you have the auth token, use the Login option to complete authentication.".to_string())
     } else {
         let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
         Err(anyhow::anyhow!("Registration failed: {}", error_text))

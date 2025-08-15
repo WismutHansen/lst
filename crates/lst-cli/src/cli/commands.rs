@@ -10,7 +10,7 @@ use lst_core::config::State;
 use crate::storage;
 use crate::{models::ItemStatus, storage::notes::delete_note};
 use lst_core::models::Category;
-use lst_core::theme::{ThemeLoader, ThemeInfo};
+use lst_core::theme::ThemeLoader;
 use chrono::{Local, Utc};
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -654,7 +654,7 @@ pub fn handle_sync_command(cmd: SyncCommands, json: bool) -> Result<()> {
 
 /// Setup sync configuration (first login flow)
 pub fn sync_setup(server: Option<String>, json: bool) -> Result<()> {
-    use dialoguer::{Confirm, Input};
+    use dialoguer::Input;
 
     let mut config = Config::load()?;
     config.init_sync()?;
@@ -1346,11 +1346,15 @@ pub async fn auth_register(email: &str, host: Option<&str>, json: bool) -> Resul
         if json {
             println!("{}", serde_json::to_string_pretty(&auth_response)?);
         } else {
-            println!("Registration request sent successfully for {}", email.green());
+            println!("New account registered successfully for {}", email.green());
             println!("");
             println!("🔐 Security Notice:");
-            println!("  The auth token is displayed on the SERVER CONSOLE for security reasons.");
+            println!("  Your auth token is displayed on the SERVER CONSOLE for security reasons.");
             println!("  Check the server logs or scan the QR code displayed on the server.");
+            println!("");
+            println!("⚠️  IMPORTANT: Save your auth token safely!");
+            println!("  You'll need it to login and access your encrypted data.");
+            println!("  If you lose it, your encrypted data cannot be recovered.");
             println!("");
             println!("Once you have the auth token, complete login with:");
             println!("  lst auth login {} <auth-token>", email.cyan());
@@ -1523,57 +1527,7 @@ pub async fn auth_request(email: &str, host: Option<&str>, json: bool) -> Result
     Ok(())
 }
 
-/// Verify authentication token and store JWT
-pub async fn auth_verify(email: &str, token: &str, json: bool) -> Result<()> {
-    let config = Config::load()?;
-    let mut state = State::load()?;
-    let server_url = config
-        .sync
-        .as_ref()
-        .and_then(|s| s.server_url.as_ref())
-        .context("No server URL configured. Run 'lst sync setup' first.")?;
 
-    let (host, port) = parse_server_config(server_url)?;
-    let http_base_url = build_http_url(&host, port);
-
-    let client = reqwest::Client::new();
-    let payload = serde_json::json!({
-        "email": email,
-        "token": token
-    });
-
-    let response = client
-        .post(format!("{}/api/auth/verify", http_base_url))
-        .json(&payload)
-        .send()
-        .await?;
-
-    if response.status().is_success() {
-        let verify_response: serde_json::Value = response.json().await?;
-
-        if let Some(jwt) = verify_response.get("jwt").and_then(|j| j.as_str()) {
-            // Parse JWT to get expiration (basic extraction without validation)
-            let expires_at = chrono::Utc::now() + chrono::Duration::hours(1); // Default 1 hour
-
-            state.store_jwt(jwt.to_string(), expires_at);
-            state.save()?;
-
-            if json {
-                println!("{}", serde_json::to_string_pretty(&verify_response)?);
-            } else {
-                println!("Successfully authenticated as {}", email.green());
-                println!("JWT token stored and ready for use");
-            }
-        } else {
-            bail!("Invalid response: missing JWT token");
-        }
-    } else {
-        let error_text = response.text().await?;
-        bail!("Failed to verify token: {}", error_text);
-    }
-
-    Ok(())
-}
 
 /// Show current authentication status
 pub fn auth_status(json: bool) -> Result<()> {

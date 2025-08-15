@@ -46,6 +46,7 @@ interface SyncStatus {
 }
 
 interface AuthState {
+  mode: "choose" | "register" | "login";
   step: "idle" | "requesting" | "verifying" | "authenticated";
   email: string;
   password: string;
@@ -76,6 +77,7 @@ export function SettingsPanel() {
   });
 
   const [auth, setAuth] = useState<AuthState>({
+    mode: "choose",
     step: "idle",
     email: "",
     password: "",
@@ -201,6 +203,47 @@ export function SettingsPanel() {
         ...prev,
         step: "idle",
         error: error instanceof Error ? error.message : "Failed to request token"
+      }));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const secureLogin = async () => {
+    if (!config.email || !auth.token || !auth.password || !serverConnection.ip) {
+      setAuth(prev => ({ ...prev, error: "Please enter email, password, auth token, and server IP address" }));
+      return;
+    }
+
+    setAuth(prev => ({ ...prev, step: "requesting", error: null }));
+    setLoading(true);
+
+    try {
+      // Construct the full server URL
+      const fullServerUrl = constructServerUrl(serverConnection.ip, serverConnection.port);
+      const updatedConfig = { ...config, serverUrl: fullServerUrl };
+
+      // First save the server URL to config so it's available
+      await saveSyncConfig(updatedConfig);
+
+      const result = await commands.secureLogin(
+        config.email,
+        auth.token,
+        auth.password,
+        fullServerUrl
+      );
+      if (result.status === "ok") {
+        setAuth(prev => ({ ...prev, step: "authenticated", error: null }));
+        setConfig(prev => ({ ...prev, syncEnabled: true }));
+        await saveSyncConfig({ ...config, syncEnabled: true });
+      } else {
+        setAuth(prev => ({ ...prev, step: "idle", error: result.error }));
+      }
+    } catch (error) {
+      setAuth(prev => ({
+        ...prev,
+        step: "idle",
+        error: error instanceof Error ? error.message : "Failed to login"
       }));
     } finally {
       setLoading(false);
@@ -364,6 +407,7 @@ export function SettingsPanel() {
 
   const resetAuth = () => {
     setAuth({
+      mode: "choose",
       step: "idle",
       email: config.email,
       password: "",
@@ -500,34 +544,139 @@ export function SettingsPanel() {
               {!serverConfigSaved && (
                 <Alert>
                   <AlertDescription>
-                    Please save your server configuration above before requesting an auth token.
+                    Please save your server configuration above before authenticating.
                   </AlertDescription>
                 </Alert>
               )}
 
-              {auth.step === "idle" && (
-                <Button
-                  onClick={requestAuthToken}
-                  disabled={loading || !config.email || !serverConnection.ip || !serverConfigSaved}
-                  className="text-wrap w-full"
-                >
-                  {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Request Auth Token
-                </Button>
+              {/* Choose between Register and Login */}
+              {auth.mode === "choose" && auth.step === "idle" && (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">Choose your authentication method:</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      onClick={() => setAuth(prev => ({ ...prev, mode: "register" }))}
+                      disabled={!serverConfigSaved}
+                      variant="outline"
+                      className="h-auto flex-col p-4"
+                    >
+                      <span className="font-medium">Register New Account</span>
+                      <span className="text-xs text-muted-foreground mt-1">First-time users only</span>
+                    </Button>
+                    <Button
+                      onClick={() => setAuth(prev => ({ ...prev, mode: "login" }))}
+                      disabled={!serverConfigSaved}
+                      variant="outline"
+                      className="h-auto flex-col p-4"
+                    >
+                      <span className="font-medium">Login Existing</span>
+                      <span className="text-xs text-muted-foreground mt-1">I have an auth token</span>
+                    </Button>
+                  </div>
+                </div>
               )}
 
+              {/* Register Flow */}
+              {auth.mode === "register" && auth.step === "idle" && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAuth(prev => ({ ...prev, mode: "choose" }))}
+                      className="p-1 h-auto"
+                    >
+                      ← Back
+                    </Button>
+                    <span className="font-medium">Register New Account</span>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="register-password">Account Password</Label>
+                    <Input
+                      id="register-password"
+                      type="password"
+                      placeholder="Enter password for new account"
+                      value={auth.password}
+                      onChange={(e) => setAuth(prev => ({ ...prev, password: e.target.value }))}
+                    />
+                  </div>
+                  <Button
+                    onClick={requestAuthToken}
+                    disabled={loading || !config.email || !auth.password || !serverConnection.ip}
+                    className="w-full"
+                  >
+                    {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    Register Account
+                  </Button>
+                </div>
+              )}
+
+              {/* Login Flow */}
+              {auth.mode === "login" && auth.step === "idle" && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAuth(prev => ({ ...prev, mode: "choose" }))}
+                      className="p-1 h-auto"
+                    >
+                      ← Back
+                    </Button>
+                    <span className="font-medium">Login with Existing Account</span>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="login-password">Account Password</Label>
+                    <Input
+                      id="login-password"
+                      type="password"
+                      placeholder="Enter your account password"
+                      value={auth.password}
+                      onChange={(e) => setAuth(prev => ({ ...prev, password: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="auth-token">Auth Token</Label>
+                    <Input
+                      id="auth-token"
+                      placeholder="LEAF-DAWN-LARK-7114"
+                      value={auth.token}
+                      onChange={(e) => setAuth(prev => ({ ...prev, token: e.target.value.toUpperCase() }))}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Enter the auth token from server console or QR code
+                    </p>
+                  </div>
+                  <Button
+                    onClick={secureLogin}
+                    disabled={loading || !config.email || !auth.password || !auth.token || !serverConnection.ip}
+                    className="w-full"
+                  >
+                    {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    Login Securely
+                  </Button>
+                </div>
+              )}
+
+              {/* Processing States */}
               {auth.step === "requesting" && (
                 <div className="text-center">
                   <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin" />
-                  <p className="text-sm text-muted-foreground break-words">Requesting authentication token...</p>                </div>
+                  <p className="text-sm text-muted-foreground break-words">
+                    {auth.mode === "register" ? "Registering account..." : "Logging in..."}
+                  </p>
+                </div>
               )}
 
-              {auth.step === "verifying" && (
+              {/* Register verification step */}
+              {auth.mode === "register" && auth.step === "verifying" && (
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground break-words">
-                    Check your email for the verification token and enter it below:
-                  </p>                  <Input
-                    placeholder="TOKEN-FROM-EMAIL"
+                    🔐 Registration successful! The auth token is displayed on the SERVER CONSOLE.
+                    Check the server logs or scan the QR code, then enter the token below:
+                  </p>
+                  <Input
+                    placeholder="LEAF-DAWN-LARK-7114"
                     value={auth.token}
                     onChange={(e) => setAuth(prev => ({ ...prev, token: e.target.value.toUpperCase() }))}
                   />
@@ -536,18 +685,22 @@ export function SettingsPanel() {
                       {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                       Verify Token
                     </Button>
-                    <Button variant="outline" onClick={resetAuth}>Cancel</Button>
+                    <Button variant="outline" onClick={() => setAuth(prev => ({ ...prev, mode: "choose", step: "idle" }))}>
+                      Cancel
+                    </Button>
                   </div>
                 </div>
               )}
 
+              {/* Success State */}
               {auth.step === "authenticated" && (
                 <div className="text-center text-primary">
                   <CheckCircle className="w-6 h-6 mx-auto mb-2" />
-                  <p className="text-sm">Successfully authenticated! Sync is now enabled.</p>
+                  <p className="text-sm">Successfully authenticated! Secure sync is now enabled.</p>
                 </div>
               )}
 
+              {/* Error Display */}
               {auth.error && (
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />

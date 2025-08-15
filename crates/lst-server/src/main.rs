@@ -18,6 +18,7 @@ use config::Settings;
 use futures_util::{SinkExt, StreamExt};
 use hex;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use sha2::{Sha256, Digest};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{
     message::Message as EmailMessage, AsyncSmtpTransport, AsyncTransport, Tokio1Executor,
@@ -129,11 +130,17 @@ impl SqliteTokenStore {
         expires_at: SystemTime,
     ) -> Result<(), sqlx::Error> {
         let expires_at_chrono: chrono::DateTime<chrono::Utc> = expires_at.into();
+        
+        // Hash the token before storing for security
+        let mut hasher = Sha256::new();
+        hasher.update(token.as_bytes());
+        let token_hash = hex::encode(hasher.finalize());
+        
         sqlx::query(
             "INSERT OR REPLACE INTO tokens (email, token_value, expires_at) VALUES (?, ?, ?)",
         )
         .bind(email)
-        .bind(token)
+        .bind(token_hash)  // Store hash instead of plaintext
         .bind(expires_at_chrono)
         .execute(&self.pool)
         .await?;
@@ -153,7 +160,13 @@ impl SqliteTokenStore {
         match result {
             Some(stored_token) => {
                 let expires_at_system: SystemTime = stored_token.expires_at.into();
-                let is_valid = stored_token.token_value == token_to_check
+                
+                // Hash the provided token to compare with stored hash
+                let mut hasher = Sha256::new();
+                hasher.update(token_to_check.as_bytes());
+                let token_hash = hex::encode(hasher.finalize());
+                
+                let is_valid = stored_token.token_value == token_hash  // Compare hashes
                     && expires_at_system > SystemTime::now();
                 sqlx::query("DELETE FROM tokens WHERE email = ?")
                     .bind(email)
@@ -723,7 +736,8 @@ async fn auth_request_handler(
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
     if let Ok(Some((stored, _salt))) = token_store.get_user(&req.email).await {
-        // For existing users, compare the client-hashed password with stored server-hashed version
+        // For existing users, verify password but DO NOT issue new auth token
+        // This prevents data loss from encryption key changes
         let parsed = PasswordHash::new(&stored).map_err(|_| {
             (StatusCode::INTERNAL_SERVER_ERROR, "Corrupt password hash".into())
         })?;
@@ -733,6 +747,12 @@ async fn auth_request_handler(
         {
             return Err((StatusCode::UNAUTHORIZED, "Invalid password".into()));
         }
+        
+        // User exists and password is correct, but we cannot issue a new token
+        return Err((
+            StatusCode::CONFLICT, 
+            "Account already exists. Use your existing auth token to login. If you lost your auth token, contact the server administrator.".into()
+        ));
     } else {
         // For new users, store the client-hashed password with additional server-side hashing
         let salt = SaltString::encode_b64(&rand::random::<[u8; 16]>())

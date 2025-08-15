@@ -451,16 +451,16 @@ pub enum AuthCommands {
         host: Option<String>,
     },
 
-    /// Login with email and auth token (prompts for password securely)
+    /// Login with email and auth token (prompts for password securely to complete auth)
     #[clap(name = "login")]
     Login {
         /// Email address for login
         email: String,
-        /// Authentication token from server
+        /// Authentication token received from register command
         auth_token: String,
     },
 
-    /// Request authentication token from server (legacy - use register instead)
+    /// Request authentication token from server (legacy - use register/login flow instead)
     #[clap(name = "request")]
     Request {
         /// Email address for authentication
@@ -470,14 +470,7 @@ pub enum AuthCommands {
         host: Option<String>,
     },
 
-    /// Verify authentication token and store JWT (legacy - use login instead)
-    #[clap(name = "verify")]
-    Verify {
-        /// Email address used for authentication
-        email: String,
-        /// Token received via email or displayed by server
-        token: String,
-    },
+
 
     /// Show current authentication status
     #[clap(name = "status")]

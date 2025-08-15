@@ -156,9 +156,7 @@ async fn main() -> Result<()> {
             AuthCommands::Request { email, host } => {
                 cli::commands::auth_request(email, host.as_deref(), cli.json).await?;
             }
-            AuthCommands::Verify { email, token } => {
-                cli::commands::auth_verify(email, token, cli.json).await?;
-            }
+
             AuthCommands::Status => {
                 cli::commands::auth_status(cli.json)?;
             }
