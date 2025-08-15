@@ -36,7 +36,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::path::Path as StdPath;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+// Time imports removed - auth tokens no longer expire
 use tokio::sync::broadcast;
 
 // --- Structs for API Payloads and Responses ---
@@ -69,7 +69,6 @@ pub struct SqliteTokenStore {
 struct StoredToken {
     email: String,
     token_value: String,
-    expires_at: chrono::DateTime<chrono::Utc>,
 }
 
 impl SqliteTokenStore {
@@ -95,8 +94,7 @@ impl SqliteTokenStore {
             r#"
             CREATE TABLE IF NOT EXISTS tokens (
                 email TEXT PRIMARY KEY NOT NULL,
-                token_value TEXT NOT NULL,
-                expires_at TIMESTAMP NOT NULL
+                token_value TEXT NOT NULL
             )
             "#,
         )
@@ -128,51 +126,41 @@ impl SqliteTokenStore {
         &self,
         email: String,
         token: String,
-        expires_at: SystemTime,
     ) -> Result<(), sqlx::Error> {
-        let expires_at_chrono: chrono::DateTime<chrono::Utc> = expires_at.into();
-        
         // Hash the token before storing for security
         let mut hasher = Sha256::new();
         hasher.update(token.as_bytes());
         let token_hash = hex::encode(hasher.finalize());
         
         sqlx::query(
-            "INSERT OR REPLACE INTO tokens (email, token_value, expires_at) VALUES (?, ?, ?)",
+            "INSERT OR REPLACE INTO tokens (email, token_value) VALUES (?, ?)",
         )
         .bind(email)
         .bind(token_hash)  // Store hash instead of plaintext
-        .bind(expires_at_chrono)
         .execute(&self.pool)
         .await?;
         Ok(())
     }
 
-    pub async fn verify_and_remove(
+    pub async fn verify(
         &self,
         email: &str,
         token_to_check: &str,
     ) -> Result<bool, sqlx::Error> {
         let result: Option<StoredToken> =
-            sqlx::query_as("SELECT email, token_value, expires_at FROM tokens WHERE email = ?")
+            sqlx::query_as("SELECT email, token_value FROM tokens WHERE email = ?")
                 .bind(email)
                 .fetch_optional(&self.pool)
                 .await?;
         match result {
             Some(stored_token) => {
-                let expires_at_system: SystemTime = stored_token.expires_at.into();
-                
                 // Hash the provided token to compare with stored hash
                 let mut hasher = Sha256::new();
                 hasher.update(token_to_check.as_bytes());
                 let token_hash = hex::encode(hasher.finalize());
                 
-                let is_valid = stored_token.token_value == token_hash  // Compare hashes
-                    && expires_at_system > SystemTime::now();
-                sqlx::query("DELETE FROM tokens WHERE email = ?")
-                    .bind(email)
-                    .execute(&self.pool)
-                    .await?;
+                let is_valid = stored_token.token_value == token_hash;  // Compare hashes only - no expiration
+                // Don't delete the token - it's permanent and reusable
                 Ok(is_valid)
             }
             None => Ok(false),
@@ -355,7 +343,7 @@ impl SqliteTokenStore {
 }
 
 type TokenStore = Arc<SqliteTokenStore>;
-const TOKEN_VALID_FOR_SECS: u64 = 15 * 60;
+// Auth tokens are now permanent - they're part of the encryption key derivation
 const JWT_SECRET: &[u8] = b"lst-jwt-demo-secret-goes-here";
 
 // --- SQLite Content Store ---
@@ -811,9 +799,8 @@ async fn auth_request_handler(
             })?;
     }
     let token = generate_token();
-    let expiry = SystemTime::now() + Duration::from_secs(TOKEN_VALID_FOR_SECS);
     if let Err(e) = token_store
-        .insert(req.email.clone(), token.clone(), expiry)
+        .insert(req.email.clone(), token.clone())
         .await
     {
         eprintln!("Failed to store token: {}", e);
@@ -918,7 +905,7 @@ async fn auth_verify_handler(
     Json(req): Json<VerifyRequest>,
     token_store: TokenStore,
 ) -> Result<Json<VerifyResponse>, (StatusCode, String)> {
-    match token_store.verify_and_remove(&req.email, &req.token).await {
+    match token_store.verify(&req.email, &req.token).await {
         Ok(true) => {
             let exp = (chrono::Utc::now() + chrono::Duration::hours(1)).timestamp() as usize;
             let claims = Claims {
