@@ -89,6 +89,99 @@ pub fn store_jwt_token_to_db(db: &crate::database::Database, email: &str, token:
     Ok(())
 }
 
+/// Store auth credentials (email and auth token) in database for secure key derivation
+pub fn store_auth_credentials_to_db(db: &crate::database::Database, email: &str, auth_token: &str) -> Result<()> {
+    db.save_sync_config("email", email)?;
+    db.save_sync_config("auth_token", auth_token)?;
+    Ok(())
+}
+
+/// Secure login with email, auth token, and password (derives encryption key)
+pub async fn secure_login_with_credentials(
+    email: String, 
+    auth_token: String, 
+    password: String, 
+    server_url: String, 
+    db: &crate::database::Database
+) -> Result<String> {
+    // Validate inputs
+    if email.is_empty() || !email.contains('@') {
+        return Err(anyhow::anyhow!("Invalid email address"));
+    }
+    
+    if auth_token.is_empty() || auth_token.len() < 4 {
+        return Err(anyhow::anyhow!("Invalid auth token format"));
+    }
+    
+    if password.is_empty() {
+        return Err(anyhow::anyhow!("Password is required"));
+    }
+    
+    if server_url.is_empty() {
+        return Err(anyhow::anyhow!("Server URL is required"));
+    }
+
+    // 1. First verify the auth token with the server to get JWT
+    let verify_request = AuthVerifyRequest {
+        email: email.clone(),
+        token: auth_token.clone(),
+    };
+
+    let base_url = server_url
+        .replace("ws://", "http://")
+        .replace("wss://", "https://")
+        .replace("/api/sync", "");
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .context("Failed to create HTTP client")?;
+        
+    let response = client
+        .post(&format!("{}/api/auth/verify", base_url))
+        .json(&verify_request)
+        .send()
+        .await
+        .context("Failed to send token verification request")?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(anyhow::anyhow!("Auth token verification failed: {}", error_text));
+    }
+
+    let verify_response: VerifyResponse = response
+        .json()
+        .await
+        .context("Failed to parse authentication response")?;
+
+    // 2. Store JWT token in database
+    store_jwt_token_to_db(db, &email, &verify_response.jwt)?;
+    
+    // 3. Store auth credentials for future key derivation
+    store_auth_credentials_to_db(db, &email, &auth_token)?;
+    
+    // 4. Derive and save the secure encryption key
+    let key_path = std::path::PathBuf::from("lst-master-key");
+    match lst_core::crypto::derive_key_from_credentials(&email, &password, &auth_token) {
+        Ok(derived_key) => {
+            // Save the derived key
+            if let Err(e) = lst_core::crypto::save_derived_key(&key_path, &derived_key) {
+                eprintln!("Warning: Failed to save encryption key: {}", e);
+                return Err(anyhow::anyhow!("Failed to save encryption key: {}", e));
+            }
+            
+            // 5. Update mobile config with JWT token (expires in 1 hour by default)
+            let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
+            update_config_with_jwt(verify_response.jwt, expires_at, server_url, email)?;
+            
+            Ok("Secure login successful! Encryption key derived and sync enabled.".to_string())
+        }
+        Err(e) => {
+            Err(anyhow::anyhow!("Failed to derive encryption key: {}", e))
+        }
+    }
+}
+
 /// Retrieve JWT token from database
 pub fn get_jwt_token_from_db(db: &crate::database::Database) -> Result<Option<(String, String)>> {
     let token = match db.load_sync_config("jwt_token")? {
@@ -236,6 +329,10 @@ pub async fn verify_auth_token_with_db(email: String, token: String, server_url:
 
         // Store JWT token in database
         store_jwt_token_to_db(db, &email, &verify_response.jwt)?;
+        
+        // Store email and auth token for secure key derivation
+        // Note: We'll need the password from the UI to derive the encryption key
+        store_auth_credentials_to_db(db, &email, &token)?;
         
         // Update config with JWT token (expires in 1 hour by default)
         let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);

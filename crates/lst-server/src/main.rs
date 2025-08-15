@@ -675,6 +675,7 @@ async fn start_server(config_file_path: PathBuf) {
                     move |j| auth_request_handler(j, ts, s)
                 }),
             )
+
             .route(
                 "/auth/verify",
                 post({

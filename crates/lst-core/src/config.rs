@@ -148,7 +148,10 @@ pub struct State {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "tauri", derive(Type))]
 pub struct AuthState {
-    /// Authentication token for server (used for refresh)
+    /// User email address for authentication
+    pub email: Option<String>,
+    
+    /// Authentication token for server (used for refresh and encryption key derivation)
     pub auth_token: Option<String>,
     
     /// JWT token for authentication (stored after successful login)
@@ -268,6 +271,7 @@ impl Default for State {
 impl Default for AuthState {
     fn default() -> Self {
         Self {
+            email: None,
             auth_token: None,
             jwt_token: None,
             jwt_expires_at: None,
@@ -517,6 +521,12 @@ impl State {
         }
     }
 
+    /// Store email and auth token for authentication
+    pub fn store_auth_credentials(&mut self, email: String, auth_token: String) {
+        self.auth.email = Some(email);
+        self.auth.auth_token = Some(auth_token);
+    }
+
     /// Store auth token for refresh
     pub fn store_auth_token(&mut self, auth_token: String) {
         self.auth.auth_token = Some(auth_token);
@@ -525,6 +535,16 @@ impl State {
     /// Get auth token for refresh
     pub fn get_auth_token(&self) -> Option<&str> {
         self.auth.auth_token.as_deref()
+    }
+
+    /// Get stored email address
+    pub fn get_email(&self) -> Option<&str> {
+        self.auth.email.as_deref()
+    }
+
+    /// Get stored credentials for key derivation
+    pub fn get_credentials(&self) -> (Option<&str>, Option<&str>) {
+        (self.auth.email.as_deref(), self.auth.auth_token.as_deref())
     }
 
     /// Get device ID, generating one if it doesn't exist

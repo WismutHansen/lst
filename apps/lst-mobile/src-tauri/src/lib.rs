@@ -280,6 +280,18 @@ async fn verify_auth_token(email: String, token: String, server_url: String, db:
 
 #[tauri::command]
 #[specta::specta]
+async fn secure_login(email: String, auth_token: String, password: String, server_url: String, db: tauri::State<'_, Database>) -> Result<String, String> {
+    if server_url.is_empty() {
+        return Err("Server URL not configured".to_string());
+    }
+    
+    auth::secure_login_with_credentials(email, auth_token, password, server_url, &db)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
 fn toggle_sync(enabled: bool) -> Result<(), String> {
     println!("Toggling sync: {}", enabled);
     
@@ -421,6 +433,7 @@ pub fn run() {
             get_sync_status,
             request_auth_token,
             verify_auth_token,
+            secure_login,
             toggle_sync,
             trigger_sync,
             test_sync_connection,
@@ -584,6 +597,7 @@ pub fn run() {
             get_sync_status,
             request_auth_token,
             verify_auth_token,
+            secure_login,
             toggle_sync,
             trigger_sync,
             test_sync_connection,

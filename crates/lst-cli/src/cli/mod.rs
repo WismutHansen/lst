@@ -441,7 +441,26 @@ pub enum CategoryCommands {
 /// Authentication subcommands
 #[derive(Subcommand)]
 pub enum AuthCommands {
-    /// Request authentication token from server
+    /// Register new account and get auth token (prompts for password securely)
+    #[clap(name = "register")]
+    Register {
+        /// Email address for registration
+        email: String,
+        /// Server hostname (optional, defaults to server URL from config)
+        #[clap(long)]
+        host: Option<String>,
+    },
+
+    /// Login with email and auth token (prompts for password securely)
+    #[clap(name = "login")]
+    Login {
+        /// Email address for login
+        email: String,
+        /// Authentication token from server
+        auth_token: String,
+    },
+
+    /// Request authentication token from server (legacy - use register instead)
     #[clap(name = "request")]
     Request {
         /// Email address for authentication
@@ -451,7 +470,7 @@ pub enum AuthCommands {
         host: Option<String>,
     },
 
-    /// Verify authentication token and store JWT
+    /// Verify authentication token and store JWT (legacy - use login instead)
     #[clap(name = "verify")]
     Verify {
         /// Email address used for authentication

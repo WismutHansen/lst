@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod config;
+pub mod crypto;
 pub mod models;
 pub mod storage;
 pub mod theme;

@@ -3345,6 +3345,8 @@ version = "0.1.3"
 dependencies = [
  "anyhow",
  "argon2",
+ "base64 0.22.1",
+ "chacha20poly1305",
  "chrono",
  "dirs 5.0.1",
  "hex",
@@ -3494,6 +3496,7 @@ name = "lst-syncd"
 version = "0.1.3"
 dependencies = [
  "anyhow",
+ "argon2",
  "automerge",
  "base64 0.22.1",
  "chacha20poly1305",

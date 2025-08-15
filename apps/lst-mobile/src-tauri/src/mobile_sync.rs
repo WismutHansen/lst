@@ -110,7 +110,29 @@ impl MobileSyncManager {
             tokio::fs::create_dir_all(parent).await?;
         }
 
-        let encryption_key = crypto::load_key(key_path)?;
+        // Use secure credential-based key derivation 
+        // Get stored credentials from mobile config
+        let (email, auth_token) = config.sync.get_credentials();
+        let encryption_key = if let (Some(_email), Some(_auth_token)) = (email, auth_token) {
+            // Try to load the key that was saved during login
+            match lst_core::crypto::load_key(key_path) {
+                Ok(key) => {
+                    println!("DEBUG: Mobile sync using encryption key from file (derived during login)");
+                    key
+                }
+                Err(_) => {
+                    // Key file doesn't exist yet - this means the user needs to login
+                    eprintln!("ERROR: No encryption key file found");
+                    eprintln!("       Please complete authentication in the mobile app to derive and save the key");
+                    return Err(anyhow::anyhow!("Authentication required: no encryption key available"));
+                }
+            }
+        } else {
+            eprintln!("WARNING: No stored credentials found in mobile config");
+            eprintln!("         Please complete authentication in the mobile app first");
+            // Fall back to legacy key derivation for compatibility
+            crypto::load_or_derive_key(key_path, auth_token)?
+        };
 
         Ok(Self {
             config,
@@ -265,10 +287,29 @@ impl MobileSyncManager {
             let mut doc = Automerge::load(&state)?;
 
             let mut change_objs = Vec::new();
-            for raw in changes {
-                let decrypted = crypto::decrypt(&raw, &self.encryption_key)?;
-                let change = Change::from_bytes(decrypted)?;
-                change_objs.push(change);
+            for (i, raw) in changes.iter().enumerate() {
+                match crypto::decrypt(raw, &self.encryption_key) {
+                    Ok(decrypted) => {
+                        match Change::from_bytes(decrypted) {
+                            Ok(change) => change_objs.push(change),
+                            Err(e) => {
+                                println!("📱 WARNING: Failed to parse change {} for doc {}: {}", i, doc_id, e);
+                                continue;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        println!("📱 WARNING: Failed to decrypt change {} for doc {} - likely different encryption key: {}", i, doc_id, e);
+                        println!("📱   This typically happens when different devices use different encryption keys");
+                        println!("📱   Skipping this change to prevent crash");
+                        continue;
+                    }
+                }
+            }
+            
+            if change_objs.is_empty() {
+                println!("📱 WARNING: No valid changes could be decrypted for doc {}, skipping", doc_id);
+                return Ok(());
             }
 
             doc.apply_changes(change_objs)?;

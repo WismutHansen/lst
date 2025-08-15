@@ -1276,6 +1276,185 @@ fn build_websocket_url(host: &str, port: u16) -> String {
     format!("ws://{}:{}/api/sync", host, port)
 }
 
+/// Register new account with secure password handling (shows auth token)
+pub async fn auth_register(email: &str, host: Option<&str>, json: bool) -> Result<()> {
+    let config = get_config();
+    let mut state = State::load()?;
+    let server_url = config
+        .sync
+        .as_ref()
+        .and_then(|s| s.server_url.as_ref())
+        .context("No server URL configured. Run 'lst sync setup' first.")?;
+
+    let (host, port) = if let Some(h) = host {
+        // If host override is provided, assume default port
+        (h.to_string(), 5673)
+    } else {
+        parse_server_config(server_url)?
+    };
+
+    let http_base_url = build_http_url(&host, port);
+
+    use dialoguer::Password;
+    use argon2::{Argon2, PasswordHasher};
+    use argon2::password_hash::SaltString;
+    use std::hash::Hasher;
+
+    // Securely prompt for password
+    let password = Password::new()
+        .with_prompt("Create account password")
+        .with_confirmation("Confirm password", "Passwords don't match, try again")
+        .interact()?;
+
+    // Create deterministic salt from email for client-side hashing (same as existing code)
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    hasher.write(email.as_bytes());
+    hasher.write(b"lst-client-salt"); // Add app-specific salt component
+    let email_hash = hasher.finish();
+    
+    // Convert hash to 16-byte array for salt
+    let salt_bytes = email_hash.to_le_bytes();
+    let mut full_salt = [0u8; 16];
+    full_salt[..8].copy_from_slice(&salt_bytes);
+    full_salt[8..].copy_from_slice(&salt_bytes); // Repeat to fill 16 bytes
+    
+    let salt = SaltString::encode_b64(&full_salt).expect("Failed to encode salt");
+    let argon2 = Argon2::default(); // Use default params like mobile app
+    let password_hash = argon2
+        .hash_password(password.as_bytes(), &salt)
+        .expect("hashing failed")
+        .to_string();
+
+    let client = reqwest::Client::new();
+    let payload = serde_json::json!({
+        "email": email,
+        "host": host,
+        "password_hash": password_hash
+    });
+
+    let response = client
+        .post(format!("{}/api/auth/request", http_base_url))
+        .json(&payload)
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        let auth_response: serde_json::Value = response
+            .json()
+            .await
+            .unwrap_or_else(|_| serde_json::json!({"status":"ok"}));
+
+        // Check for auth token in response
+        if let Some(auth_token) = auth_response.get("auth_token").and_then(|t| t.as_str()) {
+            // Store email and auth token for later login
+            state.store_auth_credentials(email.to_string(), auth_token.to_string());
+            state.save()?;
+
+            if json {
+                println!("{}", serde_json::to_string_pretty(&auth_response)?);
+            } else {
+                println!("Account registered successfully for {}", email.green());
+                println!("Auth token: {}", auth_token.cyan());
+                println!("");
+                println!("To complete setup, run:");
+                println!("  lst auth login {} {}", email.cyan(), auth_token.cyan());
+            }
+        } else {
+            // Legacy server response - show instructions
+            if json {
+                println!("{}", serde_json::to_string_pretty(&auth_response)?);
+            } else {
+                println!("Registration requested for {}", email.cyan());
+                println!("Check your email or server logs for the auth token, then run:");
+                println!("  lst auth login {} <auth-token>", email.cyan());
+            }
+        }
+    } else {
+        let error_text = response.text().await?;
+        bail!("Failed to register account: {}", error_text);
+    }
+
+    Ok(())
+}
+
+/// Login with email, auth token, and password (derives secure encryption key)
+pub async fn auth_login(email: &str, auth_token: &str, json: bool) -> Result<()> {
+    let config = get_config();
+    let mut state = State::load()?;
+    let server_url = config
+        .sync
+        .as_ref()
+        .and_then(|s| s.server_url.as_ref())
+        .context("No server URL configured. Run 'lst sync setup' first.")?;
+
+    let (host, port) = parse_server_config(server_url)?;
+    let http_base_url = build_http_url(&host, port);
+
+    use dialoguer::Password;
+    
+    // Securely prompt for password (never print it)
+    let password = Password::new()
+        .with_prompt("Account password")
+        .interact()?;
+
+    // Derive secure encryption key using all three components
+    let key_path = std::path::PathBuf::from("lst-master-key");
+    match lst_core::crypto::derive_key_from_credentials(email, &password, auth_token) {
+        Ok(derived_key) => {
+            // Save the derived key
+            if let Err(e) = lst_core::crypto::save_derived_key(&key_path, &derived_key) {
+                eprintln!("Warning: Failed to save encryption key: {}", e);
+            }
+            
+            // Store credentials for future use
+            state.store_auth_credentials(email.to_string(), auth_token.to_string());
+            
+            // Get JWT token for server authentication
+            let client = reqwest::Client::new();
+            let payload = serde_json::json!({
+                "email": email,
+                "token": auth_token
+            });
+
+            let response = client
+                .post(format!("{}/api/auth/verify", http_base_url))
+                .json(&payload)
+                .send()
+                .await?;
+
+            if response.status().is_success() {
+                let verify_response: serde_json::Value = response.json().await?;
+
+                if let Some(jwt) = verify_response.get("jwt").and_then(|j| j.as_str()) {
+                    // Parse JWT to get expiration (basic extraction without validation)
+                    let expires_at = chrono::Utc::now() + chrono::Duration::hours(1); // Default 1 hour
+
+                    state.store_jwt(jwt.to_string(), expires_at);
+                    state.save()?;
+
+                    if json {
+                        println!("{}", serde_json::to_string_pretty(&verify_response)?);
+                    } else {
+                        println!("Successfully logged in as {}", email.green());
+                        println!("Secure encryption key derived and stored");
+                        println!("JWT token stored and ready for sync");
+                    }
+                } else {
+                    bail!("Invalid response: missing JWT token");
+                }
+            } else {
+                let error_text = response.text().await?;
+                bail!("Failed to verify auth token: {}", error_text);
+            }
+        }
+        Err(e) => {
+            bail!("Failed to derive encryption key: {}", e);
+        }
+    }
+
+    Ok(())
+}
+
 pub async fn auth_request(email: &str, host: Option<&str>, json: bool) -> Result<()> {
     let config = get_config();
     let mut state = State::load()?;

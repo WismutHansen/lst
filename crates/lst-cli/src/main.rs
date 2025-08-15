@@ -147,6 +147,12 @@ async fn main() -> Result<()> {
             }
         },
         Commands::Auth(auth_cmd) => match auth_cmd {
+            AuthCommands::Register { email, host } => {
+                cli::commands::auth_register(email, host.as_deref(), cli.json).await?;
+            }
+            AuthCommands::Login { email, auth_token } => {
+                cli::commands::auth_login(email, auth_token, cli.json).await?;
+            }
             AuthCommands::Request { email, host } => {
                 cli::commands::auth_request(email, host.as_deref(), cli.json).await?;
             }

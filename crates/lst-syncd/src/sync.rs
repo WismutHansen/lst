@@ -101,7 +101,29 @@ impl SyncManager {
             .as_ref()
             .and_then(|s| s.encryption_key_ref.as_ref())
             .expect("encryption_key_ref must be set in sync config");
-        let encryption_key = crypto::load_key(std::path::Path::new(key_path))?;
+        
+        // Use the key file that was saved during 'lst auth login'
+        // The login command already derived the secure key using credentials and saved it
+        let (email, auth_token) = state.get_credentials();
+        let encryption_key = if let (Some(_email), Some(_auth_token)) = (email, auth_token) {
+            // Try to load the key that was saved during login
+            match crypto::load_key(std::path::Path::new(key_path)) {
+                Ok(key) => {
+                    println!("DEBUG: Sync daemon using encryption key from file (derived during login)");
+                    key
+                }
+                Err(e) => {
+                    eprintln!("ERROR: Failed to load encryption key: {}", e);
+                    eprintln!("       Please run 'lst auth login <email> <auth-token>' to derive and save the key");
+                    return Err(e);
+                }
+            }
+        } else {
+            eprintln!("WARNING: No stored credentials found");
+            eprintln!("         Please run 'lst auth register <email>' followed by 'lst auth login <email> <auth-token>'");
+            eprintln!("         Falling back to legacy key derivation for compatibility");
+            crypto::load_or_derive_key(std::path::Path::new(key_path), auth_token)?
+        };
 
         Ok(Self {
             config,
@@ -272,10 +294,29 @@ impl SyncManager {
             let mut doc = Automerge::load(&state)?;
 
             let mut change_objs = Vec::new();
-            for raw in changes {
-                let decrypted = crypto::decrypt(&raw, &self.encryption_key)?;
-                let change = Change::from_bytes(decrypted)?;
-                change_objs.push(change);
+            for (i, raw) in changes.iter().enumerate() {
+                match crypto::decrypt(raw, &self.encryption_key) {
+                    Ok(decrypted) => {
+                        match Change::from_bytes(decrypted) {
+                            Ok(change) => change_objs.push(change),
+                            Err(e) => {
+                                eprintln!("WARNING: Failed to parse change {} for doc {}: {}", i, doc_id, e);
+                                continue;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("WARNING: Failed to decrypt change {} for doc {} - likely different encryption key: {}", i, doc_id, e);
+                        eprintln!("  This typically happens when different devices use different encryption keys");
+                        eprintln!("  Skipping this change to prevent crash");
+                        continue;
+                    }
+                }
+            }
+            
+            if change_objs.is_empty() {
+                eprintln!("WARNING: No valid changes could be decrypted for doc {}, skipping", doc_id);
+                return Ok(());
             }
 
             doc.apply_changes(change_objs)?;

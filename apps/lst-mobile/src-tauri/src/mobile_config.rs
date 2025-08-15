@@ -47,6 +47,8 @@ impl MobileConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MobileSyncConfig {
     pub server_url: Option<String>,
+    pub email: Option<String>,
+    pub auth_token: Option<String>,
     pub jwt_token: Option<String>,
     pub jwt_expires_at: Option<chrono::DateTime<chrono::Utc>>,
     pub device_id: Option<String>,
@@ -57,6 +59,8 @@ impl MobileSyncConfig {
     pub fn new() -> Self {
         MobileSyncConfig {
             server_url: None,
+            email: None,
+            auth_token: None,
             jwt_token: None,
             device_id: Some(uuid::Uuid::new_v4().to_string()),
             jwt_expires_at: None,
@@ -66,6 +70,8 @@ impl MobileSyncConfig {
     /// Load mobile sync config from database
     pub fn load_from_db(db: &crate::database::Database) -> Result<Self> {
         let server_url = db.load_sync_config("server_url")?;
+        let email = db.load_sync_config("email")?;
+        let auth_token = db.load_sync_config("auth_token")?;
         let jwt_token = db.load_sync_config("jwt_token")?;
         let device_id = db.load_sync_config("device_id")?;
         
@@ -79,6 +85,8 @@ impl MobileSyncConfig {
 
         Ok(Self {
             server_url,
+            email,
+            auth_token,
             jwt_token,
             jwt_expires_at,
             device_id,
@@ -89,6 +97,12 @@ impl MobileSyncConfig {
     pub fn save_to_db(&self, db: &crate::database::Database) -> Result<()> {
         if let Some(ref url) = self.server_url {
             db.save_sync_config("server_url", url)?;
+        }
+        if let Some(ref email) = self.email {
+            db.save_sync_config("email", email)?;
+        }
+        if let Some(ref auth_token) = self.auth_token {
+            db.save_sync_config("auth_token", auth_token)?;
         }
         if let Some(ref token) = self.jwt_token {
             db.save_sync_config("jwt_token", token)?;
@@ -121,6 +135,27 @@ impl MobileSyncConfig {
     pub fn store_jwt(&mut self, token: String, expires_at: chrono::DateTime<chrono::Utc>) {
         self.jwt_token = Some(token);
         self.jwt_expires_at = Some(expires_at);
+    }
+
+    /// Store email and auth token for credential-based key derivation
+    pub fn store_auth_credentials(&mut self, email: String, auth_token: String) {
+        self.email = Some(email);
+        self.auth_token = Some(auth_token);
+    }
+
+    /// Get stored credentials for key derivation
+    pub fn get_credentials(&self) -> (Option<&str>, Option<&str>) {
+        (self.email.as_deref(), self.auth_token.as_deref())
+    }
+
+    /// Get stored email address
+    pub fn get_email(&self) -> Option<&str> {
+        self.email.as_deref()
+    }
+
+    /// Get stored auth token
+    pub fn get_auth_token(&self) -> Option<&str> {
+        self.auth_token.as_deref()
     }
 }
 
