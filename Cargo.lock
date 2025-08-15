@@ -3476,6 +3476,7 @@ dependencies = [
  "image",
  "jsonwebtoken",
  "lettre",
+ "lst-core",
  "lst-proto",
  "qrcode",
  "rand 0.8.5",

@@ -15,6 +15,7 @@ use axum::{
 };
 use clap::{Parser, Subcommand};
 use config::Settings;
+use lst_core::config::Config as CliConfig;
 use futures_util::{SinkExt, StreamExt};
 use hex;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
@@ -611,8 +612,41 @@ async fn main() {
     }
 }
 
+/// Load and merge CLI config with server-specific settings
+fn load_merged_settings(config_file_path: &PathBuf) -> anyhow::Result<Settings> {
+    // First try to load server-specific config from the provided path
+    let mut settings = if config_file_path.exists() {
+        Settings::from_file(config_file_path)?
+    } else {
+        Settings::default()
+    };
+
+    // Load CLI config to get server.data_dir setting
+    let cli_config = if config_file_path.exists() {
+        CliConfig::load_from(config_file_path)?
+    } else {
+        // Fallback to loading from default CLI location
+        CliConfig::load()?
+    };
+
+    // Override server data_dir if specified in CLI config
+    if let Some(ref data_dir) = cli_config.server.data_dir {
+        settings.database.data_dir = data_dir.to_string_lossy().to_string();
+    }
+
+    // Override server host/port if specified in CLI config  
+    if let Some(ref host) = cli_config.server.host {
+        settings.server.host = host.clone();
+    }
+    if let Some(port) = cli_config.server.port {
+        settings.server.port = port;
+    }
+
+    Ok(settings)
+}
+
 async fn start_server(config_file_path: PathBuf) {
-    let settings = Arc::new(Settings::from_file(&config_file_path).unwrap());
+    let settings = Arc::new(load_merged_settings(&config_file_path).unwrap());
 
     // Get database paths from configuration
     let tokens_db_path = settings
@@ -1243,7 +1277,7 @@ async fn jwt_auth_middleware(req: Request, next: Next) -> Result<Response, Statu
 
 // User management command handlers
 async fn handle_user_command(command: UserCommands, config_file_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    let settings = Settings::from_file(config_file_path)?;
+    let settings = load_merged_settings(config_file_path)?;
     let tokens_db_path = settings.database.tokens_db_path()?;
     let token_store = SqliteTokenStore::new(tokens_db_path).await?;
 

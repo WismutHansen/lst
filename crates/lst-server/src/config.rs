@@ -76,7 +76,7 @@ pub struct DatabaseSettings {
 }
 
 fn default_database_dir() -> String {
-    "~/.config/lst/lst_server_data".to_string()
+    "~/.local/share/lst/lst_server_data".to_string()
 }
 
 fn default_tokens_db() -> String {
@@ -117,6 +117,17 @@ impl Default for DatabaseSettings {
             tokens_db: default_tokens_db(),
             content_db: default_content_db(),
             sync_db: default_sync_db(),
+        }
+    }
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            server: ServerSettings::default(),
+            email: None,
+            paths: PathsSettings::default(),
+            database: DatabaseSettings::default(),
         }
     }
 }
