@@ -1,7 +1,7 @@
 // Mobile-specific sync manager that uses mobile configuration
 // This replaces the desktop sync.rs with mobile-only functionality
 
-use crate::crypto;
+use lst_core::crypto;
 use crate::mobile_config::MobileConfig;
 use crate::sync_db::LocalDb;
 use crate::sync_status;
@@ -115,23 +115,21 @@ impl MobileSyncManager {
         let (email, auth_token) = config.sync.get_credentials();
         let encryption_key = if let (Some(_email), Some(_auth_token)) = (email, auth_token) {
             // Try to load the key that was saved during login
-            match lst_core::crypto::load_key(key_path) {
+            match crypto::load_key(key_path) {
                 Ok(key) => {
                     println!("DEBUG: Mobile sync using encryption key from file (derived during login)");
                     key
                 }
-                Err(_) => {
-                    // Key file doesn't exist yet - this means the user needs to login
-                    eprintln!("ERROR: No encryption key file found");
+                Err(e) => {
+                    eprintln!("ERROR: No encryption key file found: {}", e);
                     eprintln!("       Please complete authentication in the mobile app to derive and save the key");
                     return Err(anyhow::anyhow!("Authentication required: no encryption key available"));
                 }
             }
         } else {
-            eprintln!("WARNING: No stored credentials found in mobile config");
-            eprintln!("         Please complete authentication in the mobile app first");
-            // Fall back to legacy key derivation for compatibility
-            crypto::load_or_derive_key(key_path, auth_token)?
+            eprintln!("ERROR: No stored credentials found in mobile config");
+            eprintln!("       Please complete authentication in the mobile app first");
+            return Err(anyhow::anyhow!("Authentication required: no stored credentials found"));
         };
 
         Ok(Self {

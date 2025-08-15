@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 mod auth;
-mod crypto;
 mod database;
 mod mobile_config;
 mod mobile_sync;
@@ -260,6 +259,14 @@ fn get_sync_status() -> Result<SyncStatus, String> {
 
 #[tauri::command]
 #[specta::specta]
+async fn register_account(email: String, server_url: String, password: String) -> Result<String, String> {
+    auth::register_account(email, server_url, password)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
 async fn request_auth_token(email: String, server_url: String, password: Option<String>) -> Result<String, String> {
     auth::request_auth_token(email, server_url, password)
         .await
@@ -431,6 +438,7 @@ pub fn run() {
             get_sync_config,
             save_sync_config,
             get_sync_status,
+            register_account,
             request_auth_token,
             verify_auth_token,
             secure_login,
@@ -595,6 +603,7 @@ pub fn run() {
             get_sync_config,
             save_sync_config,
             get_sync_status,
+            register_account,
             request_auth_token,
             verify_auth_token,
             secure_login,

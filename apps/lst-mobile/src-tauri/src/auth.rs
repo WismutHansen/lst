@@ -243,7 +243,63 @@ pub fn clear_jwt_token(email: &str) -> Result<()> {
     }
 }
 
-/// Request authentication token from server
+/// Register new account and get auth token (mobile version) 
+pub async fn register_account(email: String, server_url: String, password: String) -> Result<String> {
+    // Validate inputs
+    if email.is_empty() || !email.contains('@') {
+        return Err(anyhow::anyhow!("Invalid email address"));
+    }
+    
+    if server_url.is_empty() {
+        return Err(anyhow::anyhow!("Server URL is required"));
+    }
+
+    if password.is_empty() {
+        return Err(anyhow::anyhow!("Password is required"));
+    }
+
+    // Hash password with email-based salt for secure transmission
+    let client_password_hash = hash_password_with_email(&password, &email)?;
+
+    // Prepare request
+    let auth_request = AuthRequest {
+        email: email.clone(),
+        host: server_url.clone(),
+        password_hash: client_password_hash,
+    };
+
+    // Extract base URL from WebSocket URL
+    let base_url = server_url
+        .replace("ws://", "http://")
+        .replace("wss://", "https://")
+        .replace("/api/sync", "");
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .context("Failed to create HTTP client")?;
+        
+    let response = client
+        .post(&format!("{}/api/auth/request", base_url))
+        .json(&auth_request)
+        .send()
+        .await
+        .context("Failed to send registration request")?;
+
+    if response.status().is_success() {
+        let _auth_response: serde_json::Value = response
+            .json()
+            .await
+            .unwrap_or_else(|_| serde_json::json!({"status":"ok"}));
+
+        Ok("Registration request sent successfully!\n\n🔐 Security Notice:\nThe auth token is displayed on the SERVER CONSOLE for security reasons.\nCheck the server logs or scan the QR code displayed on the server.\n\nOnce you have the auth token, use the Login option to complete authentication.".to_string())
+    } else {
+        let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        Err(anyhow::anyhow!("Registration failed: {}", error_text))
+    }
+}
+
+/// Request authentication token from server (legacy version - use register_account instead)
 pub async fn request_auth_token(email: String, server_url: String, password: Option<String>) -> Result<String> {
     // Validate inputs
     if email.is_empty() || !email.contains('@') {
@@ -283,7 +339,7 @@ pub async fn request_auth_token(email: String, server_url: String, password: Opt
         .context("Failed to send authentication request")?;
 
     if response.status().is_success() {
-        Ok("Authentication token has been sent to your email. Please check your inbox.".to_string())
+        Ok("Authentication request sent successfully!\n\n🔐 Security Notice:\nThe auth token is displayed on the SERVER CONSOLE for security reasons.\nCheck the server logs or scan the QR code displayed on the server.".to_string())
     } else {
         let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
         Err(anyhow::anyhow!("Authentication request failed: {}", error_text))

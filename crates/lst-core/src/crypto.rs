@@ -54,55 +54,7 @@ pub fn derive_key_from_credentials(email: &str, password: &str, auth_token: &str
     Ok(key)
 }
 
-/// Load or derive encryption key using secure credentials (email + password + auth_token)
-pub fn load_or_derive_key_from_credentials(
-    path: &Path, 
-    email: Option<&str>, 
-    password: Option<&str>, 
-    auth_token: Option<&str>
-) -> Result<[u8; 32]> {
-    // All three components required for security
-    if let (Some(email), Some(password), Some(token)) = (email, password, auth_token) {
-        match derive_key_from_credentials(email, password, token) {
-            Ok(derived_key) => {
-                // Save the derived key to the file for consistency
-                if let Err(e) = save_derived_key(path, &derived_key) {
-                    eprintln!("Warning: Failed to save derived key to {}: {}", path.display(), e);
-                }
-                
-                println!("DEBUG: Using SECURE Argon2-derived encryption key from credentials");
-                return Ok(derived_key);
-            }
-            Err(e) => {
-                eprintln!("ERROR: Secure key derivation failed: {}", e);
-                return Err(e);
-            }
-        }
-    }
-    
-    // Missing required credentials
-    eprintln!("ERROR: Email, password, and auth token all required for key derivation.");
-    eprintln!("       Please register/login with: lst auth register <email>");
-    eprintln!("       Then login with: lst auth login <email> <password> <auth-token>");
-    Err(anyhow!("Complete authentication required for encryption key"))
-}
-
-/// Legacy function - now requires all credentials for security
-pub fn load_or_derive_key(path: &Path, auth_token: Option<&str>) -> Result<[u8; 32]> {
-    eprintln!("WARNING: Using legacy key derivation function without email/password!");
-    eprintln!("         Please use load_or_derive_key_from_credentials for proper security");
-    
-    if auth_token.is_none() {
-        return Err(anyhow!("Auth token required for legacy key derivation"));
-    }
-    
-    // For now, fallback to file-based key to avoid breaking existing code
-    // This should be removed once all callers are updated
-    load_key(path)
-}
-
-/// Load or create the encryption key stored at `path` (DEPRECATED - use auth token derivation)
-/// If the file does not exist, a new random key is generated and written in base64 form.
+/// Load a previously saved encryption key from disk
 pub fn load_key(path: &Path) -> Result<[u8; 32]> {
     let expanded = if path.starts_with("~/") {
         if let Some(home) = dirs::home_dir() {
@@ -129,15 +81,7 @@ pub fn load_key(path: &Path) -> Result<[u8; 32]> {
         key.copy_from_slice(&decoded);
         Ok(key)
     } else {
-        let mut key = [0u8; 32];
-        rand::thread_rng().fill_bytes(&mut key);
-        if let Some(parent) = expanded.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("Failed to create key directory: {}", parent.display()))?;
-        }
-        fs::write(&expanded, general_purpose::STANDARD.encode(key))
-            .with_context(|| format!("Failed to write key file: {}", expanded.display()))?;
-        Ok(key)
+        return Err(anyhow!("No encryption key found at {}. Please run authentication first.", expanded.display()));
     }
 }
 

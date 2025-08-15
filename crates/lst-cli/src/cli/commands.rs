@@ -1279,7 +1279,6 @@ fn build_websocket_url(host: &str, port: u16) -> String {
 /// Register new account with secure password handling (shows auth token)
 pub async fn auth_register(email: &str, host: Option<&str>, json: bool) -> Result<()> {
     let config = get_config();
-    let mut state = State::load()?;
     let server_url = config
         .sync
         .as_ref()
@@ -1344,30 +1343,17 @@ pub async fn auth_register(email: &str, host: Option<&str>, json: bool) -> Resul
             .await
             .unwrap_or_else(|_| serde_json::json!({"status":"ok"}));
 
-        // Check for auth token in response
-        if let Some(auth_token) = auth_response.get("auth_token").and_then(|t| t.as_str()) {
-            // Store email and auth token for later login
-            state.store_auth_credentials(email.to_string(), auth_token.to_string());
-            state.save()?;
-
-            if json {
-                println!("{}", serde_json::to_string_pretty(&auth_response)?);
-            } else {
-                println!("Account registered successfully for {}", email.green());
-                println!("Auth token: {}", auth_token.cyan());
-                println!("");
-                println!("To complete setup, run:");
-                println!("  lst auth login {} {}", email.cyan(), auth_token.cyan());
-            }
+        if json {
+            println!("{}", serde_json::to_string_pretty(&auth_response)?);
         } else {
-            // Legacy server response - show instructions
-            if json {
-                println!("{}", serde_json::to_string_pretty(&auth_response)?);
-            } else {
-                println!("Registration requested for {}", email.cyan());
-                println!("Check your email or server logs for the auth token, then run:");
-                println!("  lst auth login {} <auth-token>", email.cyan());
-            }
+            println!("Registration request sent successfully for {}", email.green());
+            println!("");
+            println!("🔐 Security Notice:");
+            println!("  The auth token is displayed on the SERVER CONSOLE for security reasons.");
+            println!("  Check the server logs or scan the QR code displayed on the server.");
+            println!("");
+            println!("Once you have the auth token, complete login with:");
+            println!("  lst auth login {} <auth-token>", email.cyan());
         }
     } else {
         let error_text = response.text().await?;

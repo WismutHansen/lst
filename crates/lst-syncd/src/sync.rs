@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::crypto;
+use lst_core::crypto;
 use crate::database::LocalDb;
 use anyhow::{Context, Result};
 use automerge::{
@@ -119,10 +119,9 @@ impl SyncManager {
                 }
             }
         } else {
-            eprintln!("WARNING: No stored credentials found");
-            eprintln!("         Please run 'lst auth register <email>' followed by 'lst auth login <email> <auth-token>'");
-            eprintln!("         Falling back to legacy key derivation for compatibility");
-            crypto::load_or_derive_key(std::path::Path::new(key_path), auth_token)?
+            eprintln!("ERROR: No authentication credentials found");
+            eprintln!("       Please run 'lst auth register <email>' followed by 'lst auth login <email> <auth-token>'");
+            return Err(anyhow::anyhow!("Authentication required: no stored credentials found"));
         };
 
         Ok(Self {
