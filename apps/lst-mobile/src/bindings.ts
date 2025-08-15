@@ -270,7 +270,7 @@ async listThemes() : Promise<Result<string[], string>> {
     else return { status: "error", error: e  as any };
 }
 }
-};
+}
 
 /** user-defined events **/
 
