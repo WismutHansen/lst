@@ -33,6 +33,38 @@ impl LocalDb {
         Ok(Self { conn })
     }
 
+    /// Generate a unique file path if the provided one already exists
+    fn ensure_unique_file_path(&self, preferred_path: &str, doc_id: &str) -> Result<String> {
+        // Check if path is already taken by a different document
+        let mut stmt = self.conn.prepare("SELECT doc_id FROM documents WHERE file_path = ?")?;
+        if let Ok(existing_doc_id) = stmt.query_row([preferred_path], |row| {
+            let existing_id: String = row.get(0)?;
+            Ok(existing_id)
+        }) {
+            // If same doc_id, we can reuse the path
+            if existing_doc_id == doc_id {
+                return Ok(preferred_path.to_string());
+            }
+            // Different doc_id, need to generate unique path
+            let path = std::path::Path::new(preferred_path);
+            let stem = path.file_stem().unwrap_or_default().to_string_lossy();
+            let extension = path.extension().unwrap_or_default().to_string_lossy();
+            let parent = path.parent().unwrap_or(std::path::Path::new(""));
+            
+            // Try with doc_id suffix
+            let unique_name = if extension.is_empty() {
+                format!("{}_{}", stem, &doc_id[..8])
+            } else {
+                format!("{}_{}.{}", stem, &doc_id[..8], extension)
+            };
+            let unique_path = parent.join(unique_name);
+            Ok(unique_path.to_string_lossy().to_string())
+        } else {
+            // Path is not taken, can use as-is
+            Ok(preferred_path.to_string())
+        }
+    }
+
     /// Insert or update a document row
     pub fn upsert_document(
         &self,
@@ -45,6 +77,9 @@ impl LocalDb {
         writers: Option<&str>,
         readers: Option<&str>,
     ) -> Result<()> {
+        // Ensure we have a unique file path
+        let unique_file_path = self.ensure_unique_file_path(file_path, doc_id)?;
+        
         self.conn.execute(
             "INSERT INTO documents (doc_id, file_path, doc_type, last_sync_hash, automerge_state, owner, writers, readers)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
@@ -56,7 +91,7 @@ impl LocalDb {
                 owner = excluded.owner,
                 writers = excluded.writers,
                 readers = excluded.readers",
-            params![doc_id, file_path, doc_type, last_sync_hash, state, owner, writers, readers],
+            params![doc_id, unique_file_path, doc_type, last_sync_hash, state, owner, writers, readers],
         )?;
         Ok(())
     }

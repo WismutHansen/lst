@@ -10,7 +10,7 @@ use futures_util::{SinkExt, StreamExt};
 use lst_core::config::State;
 use notify::Event;
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use tokio::time::{timeout, Instant};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -62,6 +62,8 @@ pub struct SyncManager {
     last_sync: Instant,
     pending_changes: HashMap<String, Vec<Vec<u8>>>,
     initial_sync_done: bool,
+    /// Tracks files recently created by sync to avoid processing them as local changes
+    recently_synced_files: HashSet<std::path::PathBuf>,
 }
 
 impl SyncManager {
@@ -133,11 +135,19 @@ impl SyncManager {
             last_sync: Instant::now(),
             pending_changes: HashMap::new(),
             initial_sync_done: false,
+            recently_synced_files: HashSet::new(),
         })
     }
 
     pub async fn handle_file_event(&mut self, event: Event) -> Result<()> {
         for path in event.paths {
+            // Skip files we just created via sync
+            if self.recently_synced_files.contains(&path) {
+                println!("DEBUG: Skipping recently synced file: {}", path.display());
+                self.recently_synced_files.remove(&path); // Remove after use
+                continue;
+            }
+
             if let Some(filename) = path.file_name() {
                 if let Some(filename_str) = filename.to_str() {
                     if filename_str.starts_with('.')
