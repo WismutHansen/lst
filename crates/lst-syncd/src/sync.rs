@@ -62,6 +62,7 @@ pub struct SyncManager {
     encryption_key: [u8; 32],
     last_sync: Instant,
     pending_changes: HashMap<String, Vec<Vec<u8>>>,
+    initial_sync_done: bool,
 }
 
 impl SyncManager {
@@ -106,6 +107,7 @@ impl SyncManager {
             encryption_key,
             last_sync: Instant::now(),
             pending_changes: HashMap::new(),
+            initial_sync_done: false,
         })
     }
 
@@ -515,9 +517,10 @@ impl SyncManager {
         // read messages until timeout (give server time to process changes and send snapshots)
         let mut expected_snapshots = 0;
         let mut received_snapshots = 0;
+        let mut received_document_list = false;
         
         loop {
-            match timeout(Duration::from_secs(30), read.next()).await {
+            match timeout(Duration::from_secs(60), read.next()).await {
                 Ok(Some(Ok(Message::Text(txt)))) => {
                     if let Ok(server_msg) = serde_json::from_str::<lst_proto::ServerMessage>(&txt) {
                         match server_msg {
@@ -531,7 +534,9 @@ impl SyncManager {
                                 }
                             }
                             lst_proto::ServerMessage::DocumentList { documents } => {
-                                println!("DEBUG: Received DocumentList with {} documents from server", documents.len());
+                                received_document_list = true;
+                                println!("DEBUG: ✅ RECEIVED DocumentList with {} documents from server", documents.len());
+                                
                                 // Build a set of known local docs
                                 let mut local_ids = std::collections::HashSet::new();
                                 let local_docs = self.db.list_all_documents()?;
@@ -540,6 +545,7 @@ impl SyncManager {
                                     println!("DEBUG: Local doc: {}", doc_id);
                                     local_ids.insert(doc_id);
                                 }
+                                
                                 // Request snapshots for unknown server docs
                                 for info in &documents {
                                     let id_str = info.doc_id.to_string();
@@ -553,14 +559,16 @@ impl SyncManager {
                                     }
                                 }
                                 println!("DEBUG: Finished processing {} server documents, expecting {} snapshots", documents.len(), expected_snapshots);
+                                
                                 // Push snapshots for local docs missing on server
                                 use std::collections::HashSet;
                                 let server_ids: HashSet<String> = documents.into_iter().map(|d| d.doc_id.to_string()).collect();
                                 println!("DEBUG: Server has {} documents", server_ids.len());
                                 let local_docs_for_push = self.db.list_all_documents()?;
+                                let mut pushed_count = 0;
                                 for (doc_id, path, _typ, state, _owner, _w, _r) in local_docs_for_push {
                                     if !server_ids.contains(&doc_id) {
-                                        println!("DEBUG: Pushing local doc {} to server (not on server)", doc_id);
+                                        println!("DEBUG: 📤 Pushing local doc {} to server (not on server)", doc_id);
                                         if let Ok(uuid) = Uuid::parse_str(&doc_id) {
                                             // Extract relative path from content directory to preserve structure
                                             let content_dir = lst_core::storage::get_content_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
@@ -574,19 +582,25 @@ impl SyncManager {
                                             let encrypted_filename = crypto::encrypt(relative_path.as_bytes(), &self.encryption_key)?;
                                             let encoded_filename = general_purpose::STANDARD.encode(&encrypted_filename);
                                             
-                                            println!("DEBUG: Encrypting relative path: {} for doc {}", relative_path, doc_id);
+                                            println!("DEBUG: 🔐 Encrypting relative path: {} for doc {}", relative_path, doc_id);
                                             
                                             let msg = lst_proto::ClientMessage::PushSnapshot { 
                                                 doc_id: uuid, 
                                                 filename: encoded_filename,
                                                 snapshot: state 
                                             };
-                                            let _ = write.send(Message::Text(serde_json::to_string(&msg)?)).await;
+                                            if let Err(e) = write.send(Message::Text(serde_json::to_string(&msg)?)).await {
+                                                println!("DEBUG: ❌ Failed to send PushSnapshot for {}: {}", doc_id, e);
+                                            } else {
+                                                pushed_count += 1;
+                                                println!("DEBUG: ✅ Sent PushSnapshot for {}", doc_id);
+                                            }
                                         }
                                     } else {
                                         println!("DEBUG: Doc {} already exists on server", doc_id);
                                     }
                                 }
+                                println!("DEBUG: 📤 Pushed {} local documents to server", pushed_count);
                             }
                             lst_proto::ServerMessage::Snapshot { doc_id, filename, snapshot } => {
                                 received_snapshots += 1;
@@ -640,8 +654,9 @@ impl SyncManager {
                     break;
                 },
                 Err(_) => {
-                    println!("DEBUG: WebSocket read timeout after 30 seconds, closing connection");
-                    println!("DEBUG: Received {}/{} expected snapshots before timeout", received_snapshots, expected_snapshots);
+                    println!("DEBUG: WebSocket read timeout after 60 seconds, closing connection");
+                    println!("DEBUG: DocumentList received: {}, Received {}/{} expected snapshots before timeout", 
+                             received_document_list, received_snapshots, expected_snapshots);
                     break;
                 },
             }
@@ -649,6 +664,124 @@ impl SyncManager {
 
         // ignore errors closing
         let _ = write.close().await;
+        Ok(())
+    }
+
+    /// Scan all existing files in content directory and add them to sync
+    async fn ensure_initial_sync(&mut self) -> Result<()> {
+        println!("DEBUG: Starting initial file discovery...");
+        let content_dir = lst_core::storage::get_content_dir()?;
+        
+        // Recursively scan content directory for .md files
+        let mut files_found = 0;
+        let mut files_added = 0;
+        
+        if let Ok(entries) = std::fs::read_dir(&content_dir) {
+            for entry in entries.flatten() {
+                if let Err(e) = self.scan_directory_recursive(entry.path(), &mut files_found, &mut files_added).await {
+                    eprintln!("Error scanning directory {}: {}", entry.path().display(), e);
+                }
+            }
+        }
+        
+        println!("DEBUG: Initial sync: Found {} files, added {} to sync", files_found, files_added);
+        Ok(())
+    }
+    
+    /// Recursively scan directory for markdown files
+    async fn scan_directory_recursive(&mut self, dir_path: std::path::PathBuf, files_found: &mut usize, files_added: &mut usize) -> Result<()> {
+        if dir_path.is_file() {
+            if let Some(ext) = dir_path.extension() {
+                if ext == "md" {
+                    *files_found += 1;
+                    if let Err(e) = self.process_existing_file(&dir_path, files_added).await {
+                        eprintln!("Error processing existing file {}: {}", dir_path.display(), e);
+                    }
+                }
+            }
+        } else if dir_path.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(&dir_path) {
+                for entry in entries.flatten() {
+                    Box::pin(self.scan_directory_recursive(entry.path(), files_found, files_added)).await?;
+                }
+            }
+        }
+        Ok(())
+    }
+    
+    /// Process an existing file and add it to sync if not already tracked
+    async fn process_existing_file(&mut self, file_path: &std::path::Path, files_added: &mut usize) -> Result<()> {
+        // Generate doc_id the same way as file events
+        let doc_id = uuid::Uuid::new_v5(
+            &uuid::Uuid::NAMESPACE_OID,
+            file_path.to_string_lossy().as_bytes(),
+        ).to_string();
+        
+        // Check if already in database
+        if self.db.get_document(&doc_id)?.is_some() {
+            return Ok(()); // Already tracked
+        }
+        
+        println!("DEBUG: Discovering new file: {} -> {}", file_path.display(), doc_id);
+        
+        // Read file content
+        let data = match tokio::fs::read(file_path).await {
+            Ok(data) => data,
+            Err(_) => return Ok(()), // Skip unreadable files
+        };
+        
+        // Check file size limits
+        if let Some(sync) = &self.config.sync {
+            if data.len() as u64 > sync.max_file_size {
+                return Ok(());
+            }
+        }
+        
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(&data);
+        let hash = hex::encode(hasher.finalize());
+        
+        let doc_type = detect_doc_type(file_path);
+        let owner = self.state.device.device_id.as_ref().map(String::as_str).unwrap_or("local");
+        let new_content = String::from_utf8_lossy(&data);
+        
+        // Create new Automerge document
+        let mut doc = Automerge::new();
+        let old_heads = doc.get_heads().into_iter().collect::<Vec<_>>();
+        
+        if doc_type == "list" {
+            update_list_doc(&mut doc, &new_content)?;
+        } else {
+            update_note_doc(&mut doc, &new_content)?;
+        }
+        
+        let new_state = doc.save();
+        
+        // Store in database
+        self.db.upsert_document(
+            &doc_id,
+            &file_path.to_string_lossy(),
+            doc_type,
+            &hash,
+            &new_state,
+            owner,
+            None,
+            None,
+        )?;
+        
+        // Add to pending changes for sync
+        let new_doc = Automerge::load(&new_state)?;
+        let changes = new_doc.get_changes(&old_heads)
+            .into_iter()
+            .map(|c| c.raw_bytes().to_vec())
+            .collect::<Vec<_>>();
+        
+        if !changes.is_empty() {
+            self.pending_changes.insert(doc_id.clone(), changes);
+            *files_added += 1;
+            println!("DEBUG: Added existing file to sync: {}", file_path.display());
+        }
+        
         Ok(())
     }
 
@@ -662,6 +795,12 @@ impl SyncManager {
 
         if self.last_sync.elapsed().as_secs() < interval {
             return Ok(());
+        }
+
+        // Do initial sync on first run
+        if !self.initial_sync_done {
+            self.ensure_initial_sync().await?;
+            self.initial_sync_done = true;
         }
 
         if self.client.is_some() {
