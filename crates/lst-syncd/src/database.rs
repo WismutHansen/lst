@@ -33,6 +33,56 @@ impl LocalDb {
         Ok(Self { conn })
     }
 
+    /// Validate and fix file paths that might be incomplete
+    fn fix_incomplete_file_path(path: &str, doc_type: &str) -> String {
+        let path_obj = std::path::Path::new(path);
+        
+        // If it's just a directory name (no extension), add appropriate extension
+        if path_obj.extension().is_none() {
+            let filename = path_obj.file_name().unwrap_or_default().to_string_lossy();
+            
+            // Skip if it's just a directory like "lists" or "notes" 
+            if filename == "lists" || filename == "notes" || filename == "content" {
+                eprintln!("WARNING: Skipping bare directory name: {}", filename);
+                return format!("_invalid_/{}.md", filename); // Put in invalid folder
+            }
+            
+            // Add appropriate extension based on doc type
+            let extension = match doc_type {
+                "list" => ".md",
+                "note" => ".md", 
+                _ => ".md",
+            };
+            
+            format!("{}{}", path, extension)
+        } else {
+            path.to_string()
+        }
+    }
+
+    /// Validate that a path represents a file, not a directory
+    fn validate_file_path(path: &str) -> Result<()> {
+        let path_obj = std::path::Path::new(path);
+        
+        // Skip paths that start with _invalid_
+        if path_obj.starts_with("_invalid_") {
+            return Err(anyhow::anyhow!("Path '{}' is marked as invalid", path));
+        }
+        
+        // Check if it's just a directory name (no extension and no parent with extension)
+        if path_obj.extension().is_none() {
+            // Allow if it has a parent that suggests it's a file (e.g., "notes/something")
+            if let Some(parent) = path_obj.parent() {
+                if parent.to_string_lossy().is_empty() {
+                    return Err(anyhow::anyhow!("Path '{}' appears to be a directory, not a file", path));
+                }
+            } else {
+                return Err(anyhow::anyhow!("Path '{}' appears to be a directory, not a file", path));
+            }
+        }
+        Ok(())
+    }
+
     /// Generate a unique file path if the provided one already exists
     fn ensure_unique_file_path(&self, preferred_path: &str, doc_id: &str) -> Result<String> {
         // Check if path is already taken by a different document
@@ -77,8 +127,17 @@ impl LocalDb {
         writers: Option<&str>,
         readers: Option<&str>,
     ) -> Result<()> {
+        // Fix incomplete file paths
+        let fixed_file_path = Self::fix_incomplete_file_path(file_path, doc_type);
+        
+        // Validate that this is actually a file path, not a directory
+        if let Err(e) = Self::validate_file_path(&fixed_file_path) {
+            eprintln!("WARNING: Skipping invalid file path for doc {}: {}", doc_id, e);
+            return Ok(()); // Skip this document rather than fail
+        }
+
         // Ensure we have a unique file path
-        let unique_file_path = self.ensure_unique_file_path(file_path, doc_id)?;
+        let unique_file_path = self.ensure_unique_file_path(&fixed_file_path, doc_id)?;
         
         self.conn.execute(
             "INSERT INTO documents (doc_id, file_path, doc_type, last_sync_hash, automerge_state, owner, writers, readers)

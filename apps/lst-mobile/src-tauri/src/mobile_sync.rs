@@ -21,13 +21,31 @@ use uuid::Uuid;
 use base64::Engine;
 
 fn detect_doc_type(path: &std::path::Path) -> &str {
+    // Get the content directory to resolve relative paths
+    if let Ok(content_dir) = lst_core::storage::get_content_dir() {
+        // Try to get the relative path from content directory
+        if let Ok(relative_path) = path.strip_prefix(&content_dir) {
+            let relative_str = relative_path.to_string_lossy();
+            
+            // Check if it starts with lists/ (strict directory-based detection)
+            if relative_str.starts_with("lists/") || relative_str.starts_with("lists\\") {
+                return "list";
+            }
+            // Check if it starts with notes/ (strict directory-based detection)
+            else if relative_str.starts_with("notes/") || relative_str.starts_with("notes\\") {
+                return "note";
+            }
+        }
+    }
+    
+    // Fallback: check the full path (for backward compatibility)
     let s = path.to_string_lossy();
-    if s.contains("/lists/") || s.contains("daily_lists") {
+    if s.contains("/lists/") || s.contains("\\lists\\") {
         "list"
-    } else if s.contains("/notes/") {
+    } else if s.contains("/notes/") || s.contains("\\notes\\") {
         "note"
     } else {
-        "note" // default to note
+        "note" // default
     }
 }
 
@@ -112,7 +130,8 @@ impl MobileSyncManager {
 
         // Use secure credential-based key derivation 
         // Get stored credentials from mobile config
-        let (email, auth_token) = config.sync.get_credentials();
+        let email = config.sync.get_email();
+        let auth_token = config.sync.get_auth_token();
         let encryption_key = if let (Some(_email), Some(_auth_token)) = (email, auth_token) {
             // Try to load the key that was saved during login
             match crypto::load_key(key_path) {
@@ -145,6 +164,24 @@ impl MobileSyncManager {
 
     pub async fn handle_file_event(&mut self, event: Event) -> Result<()> {
         for path in event.paths {
+            // Skip cloud storage directories and files (same as desktop)
+            let path_str = path.to_string_lossy();
+            if path_str.contains("OneDrive") 
+                || path_str.contains("GoogleDrive") 
+                || path_str.contains("Dropbox")
+                || path_str.contains("iCloud")
+                || path_str.contains(".cloud")
+            {
+                println!("📱 Mobile sync: Skipping cloud storage path: {}", path.display());
+                continue;
+            }
+
+            // Skip directories - only process files (same as desktop)
+            if path.is_dir() {
+                println!("📱 Mobile sync: Skipping directory: {}", path.display());
+                continue;
+            }
+
             if let Some(filename) = path.file_name() {
                 if let Some(filename_str) = filename.to_str() {
                     if filename_str.starts_with('.')

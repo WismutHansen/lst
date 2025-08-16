@@ -283,8 +283,13 @@ pub struct MobileSyncdConfig {
 
 impl MobileSyncdConfig {
     pub fn new(server_url: String, device_id: String) -> Self {
-        // Set up mobile-specific paths
-        let app_data_dir = std::env::temp_dir().join("lst-mobile");
+        // Set up mobile-specific paths - use persistent storage
+        let app_data_dir = if let Some(data_dir) = dirs::data_dir() {
+            data_dir.join("lst-mobile")
+        } else {
+            // Fallback to temp if data_dir fails
+            std::env::temp_dir().join("lst-mobile")
+        };
         
         MobileSyncdConfig {
             url: Some(server_url),
@@ -321,7 +326,14 @@ pub struct MobileStorageConfig {
 
 impl Default for MobileStorageConfig {
     fn default() -> Self {
-        let app_data_dir = std::env::temp_dir().join("lst-mobile");
+        // Use persistent app data directory instead of temp
+        let app_data_dir = if let Some(data_dir) = dirs::data_dir() {
+            data_dir.join("lst-mobile")
+        } else {
+            // Fallback to temp if data_dir fails
+            std::env::temp_dir().join("lst-mobile")
+        };
+        
         MobileStorageConfig {
             crdt_dir: app_data_dir.join("crdt"),
         }

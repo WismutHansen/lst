@@ -17,11 +17,31 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use uuid::Uuid;
 
 fn detect_doc_type(path: &std::path::Path) -> &str {
+    // Get the content directory to resolve relative paths
+    if let Ok(content_dir) = lst_core::storage::get_content_dir() {
+        // Try to get the relative path from content directory
+        if let Ok(relative_path) = path.strip_prefix(&content_dir) {
+            let relative_str = relative_path.to_string_lossy();
+            
+            // Check if it starts with lists/ (strict directory-based detection)
+            if relative_str.starts_with("lists/") || relative_str.starts_with("lists\\") {
+                return "list";
+            }
+            // Check if it starts with notes/ (strict directory-based detection)
+            else if relative_str.starts_with("notes/") || relative_str.starts_with("notes\\") {
+                return "note";
+            }
+        }
+    }
+    
+    // Fallback: check the full path (for backward compatibility)
     let s = path.to_string_lossy();
-    if s.contains("/lists/") || s.contains("daily_lists") {
+    if s.contains("/lists/") || s.contains("\\lists\\") {
         "list"
-    } else {
+    } else if s.contains("/notes/") || s.contains("\\notes\\") {
         "note"
+    } else {
+        "note" // default
     }
 }
 
@@ -145,6 +165,24 @@ impl SyncManager {
             if self.recently_synced_files.contains(&path) {
                 println!("DEBUG: Skipping recently synced file: {}", path.display());
                 self.recently_synced_files.remove(&path); // Remove after use
+                continue;
+            }
+
+            // Skip cloud storage directories and files
+            let path_str = path.to_string_lossy();
+            if path_str.contains("OneDrive") 
+                || path_str.contains("GoogleDrive") 
+                || path_str.contains("Dropbox")
+                || path_str.contains("iCloud")
+                || path_str.contains(".cloud")
+            {
+                println!("DEBUG: Skipping cloud storage path: {}", path.display());
+                continue;
+            }
+
+            // Skip directories - only process files
+            if path.is_dir() {
+                println!("DEBUG: Skipping directory: {}", path.display());
                 continue;
             }
 
