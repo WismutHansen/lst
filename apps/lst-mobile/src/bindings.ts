@@ -189,6 +189,14 @@ async getSyncStatus() : Promise<Result<SyncStatus, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+async registerAccount(email: string, serverUrl: string, password: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("register_account", { email, serverUrl, password }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async requestAuthToken(email: string, serverUrl: string, password: string | null) : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("request_auth_token", { email, serverUrl, password }) };
@@ -200,6 +208,14 @@ async requestAuthToken(email: string, serverUrl: string, password: string | null
 async verifyAuthToken(email: string, token: string, serverUrl: string) : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("verify_auth_token", { email, token, serverUrl }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async secureLogin(email: string, authToken: string, password: string, serverUrl: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("secure_login", { email, authToken, password, serverUrl }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
