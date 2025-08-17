@@ -94,7 +94,8 @@ impl SyncManager {
             .as_ref()
             .and_then(|s| s.encryption_key_ref.as_ref())
             .expect("encryption_key_ref must be set in syncd config");
-        let encryption_key = crypto::load_key(std::path::Path::new(key_path))?;
+        let resolved_key_path = crypto::resolve_mobile_key_path(key_path)?;
+        let encryption_key = crypto::load_key(&resolved_key_path)?;
 
         Ok(Self {
             config,

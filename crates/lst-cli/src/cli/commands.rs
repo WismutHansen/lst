@@ -1388,7 +1388,7 @@ pub async fn auth_login(email: &str, auth_token: &str, json: bool) -> Result<()>
         .interact()?;
 
     // Derive secure encryption key using all three components
-    let key_path = std::path::PathBuf::from("lst-master-key");
+    let key_path = lst_core::crypto::get_master_key_path()?;
     match lst_core::crypto::derive_key_from_credentials(email, &password, auth_token) {
         Ok(derived_key) => {
             // Save the derived key

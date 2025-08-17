@@ -85,6 +85,71 @@ pub fn load_key(path: &Path) -> Result<[u8; 32]> {
     }
 }
 
+/// Get the proper path for storing the master key based on platform
+/// For desktop/CLI: ~/.local/share/lst/lst-master-key
+/// For mobile: Use app data directory (platform-specific)
+pub fn get_master_key_path() -> Result<std::path::PathBuf> {
+    // For mobile platforms, we should use a different path
+    // This function provides the default for desktop/CLI
+    if let Some(data_dir) = dirs::data_dir() {
+        let lst_data_dir = data_dir.join("lst");
+        std::fs::create_dir_all(&lst_data_dir)
+            .with_context(|| format!("Failed to create data directory: {}", lst_data_dir.display()))?;
+        Ok(lst_data_dir.join("lst-master-key"))
+    } else {
+        // Fallback to home directory if data_dir is not available
+        if let Some(home_dir) = dirs::home_dir() {
+            let lst_data_dir = home_dir.join(".local").join("share").join("lst");
+            std::fs::create_dir_all(&lst_data_dir)
+                .with_context(|| format!("Failed to create data directory: {}", lst_data_dir.display()))?;
+            Ok(lst_data_dir.join("lst-master-key"))
+        } else {
+            Err(anyhow!("Cannot determine data directory or home directory"))
+        }
+    }
+}
+
+/// Get the master key path for mobile apps using app-specific data directory
+/// This should be used by mobile apps as they can't access ~/.local/share
+pub fn get_mobile_master_key_path() -> Result<std::path::PathBuf> {
+    if let Some(data_dir) = dirs::data_dir() {
+        let app_data_dir = data_dir.join("lst-mobile");
+        std::fs::create_dir_all(&app_data_dir)
+            .with_context(|| format!("Failed to create app data directory: {}", app_data_dir.display()))?;
+        Ok(app_data_dir.join("lst-master-key"))
+    } else {
+        // Fallback to temp if data_dir fails
+        let app_data_dir = std::env::temp_dir().join("lst-mobile");
+        std::fs::create_dir_all(&app_data_dir)
+            .with_context(|| format!("Failed to create temp app data directory: {}", app_data_dir.display()))?;
+        Ok(app_data_dir.join("lst-master-key"))
+    }
+}
+
+/// Resolve the master key path from an encryption_key_ref string
+/// If the ref is "lst-master-key", resolves to the proper platform-specific path
+/// Otherwise, treats it as a literal path
+pub fn resolve_key_path(encryption_key_ref: &str) -> Result<std::path::PathBuf> {
+    if encryption_key_ref == "lst-master-key" {
+        // Use platform-appropriate path
+        get_master_key_path()
+    } else {
+        // Treat as literal path (supports existing behavior for custom paths)
+        Ok(std::path::PathBuf::from(encryption_key_ref))
+    }
+}
+
+/// Resolve the master key path for mobile apps from an encryption_key_ref string
+pub fn resolve_mobile_key_path(encryption_key_ref: &str) -> Result<std::path::PathBuf> {
+    if encryption_key_ref == "lst-master-key" {
+        // Use mobile-specific path
+        get_mobile_master_key_path()
+    } else {
+        // Treat as literal path (supports existing behavior for custom paths)
+        Ok(std::path::PathBuf::from(encryption_key_ref))
+    }
+}
+
 /// Save a derived key to the key file for consistency
 pub fn save_derived_key(path: &Path, key: &[u8; 32]) -> Result<()> {
     let expanded = if path.starts_with("~/") {

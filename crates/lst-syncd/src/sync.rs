@@ -129,7 +129,8 @@ impl SyncManager {
         let (email, auth_token) = state.get_credentials();
         let encryption_key = if let (Some(_email), Some(_auth_token)) = (email, auth_token) {
             // Try to load the key that was saved during login
-            match crypto::load_key(std::path::Path::new(key_path)) {
+            let resolved_key_path = crypto::resolve_key_path(key_path)?;
+            match crypto::load_key(&resolved_key_path) {
                 Ok(key) => {
                     println!("DEBUG: Sync daemon using encryption key from file (derived during login)");
                     key

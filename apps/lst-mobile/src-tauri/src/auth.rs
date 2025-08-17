@@ -161,7 +161,7 @@ pub async fn secure_login_with_credentials(
     store_auth_credentials_to_db(db, &email, &auth_token)?;
     
     // 4. Derive and save the secure encryption key
-    let key_path = std::path::PathBuf::from("lst-master-key");
+    let key_path = lst_core::crypto::get_mobile_master_key_path()?;
     match lst_core::crypto::derive_key_from_credentials(&email, &password, &auth_token) {
         Ok(derived_key) => {
             // Save the derived key

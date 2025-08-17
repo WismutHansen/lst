@@ -3,3 +3,6 @@
 .opencode
 /target
 .aider*
+
+# Legacy master key file (now stored in ~/.local/share/lst/)
+lst-master-key
