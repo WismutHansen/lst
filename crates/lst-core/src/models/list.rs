@@ -1,5 +1,6 @@
 use crate::storage::get_lists_dir;
 use chrono::{DateTime, Utc};
+use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use rand::distributions::{Alphanumeric, DistString};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -222,16 +223,39 @@ pub fn is_valid_anchor(anchor: &str) -> bool {
     ANCHOR_RE.is_match(anchor)
 }
 
-/// Find an item by fuzzy matching text
-/// Returns a vector of potential matching indices
-pub fn fuzzy_find(items: &[ListItem], query: &str, _threshold: f32) -> Vec<usize> {
-    // Simple contains matching for now, can be improved later with a fuzzy matching algorithm
-    items
-        .iter()
-        .enumerate()
-        .filter(|(_, item)| item.text.to_lowercase().contains(&query.to_lowercase()))
-        .map(|(i, _)| i)
-        .collect()
+/// Find items by fuzzy matching text with scoring and ranking
+/// Returns a vector of matching indices sorted by relevance score
+pub fn fuzzy_find(items: &[ListItem], query: &str, threshold: f32) -> Vec<usize> {
+    if query.is_empty() {
+        return Vec::new();
+    }
+
+    let matcher = SkimMatcherV2::default();
+    let mut matches_with_scores: Vec<(usize, i64)> = Vec::new();
+
+    for (index, item) in items.iter().enumerate() {
+        // Try fuzzy matching on the item text
+        if let Some(score) = matcher.fuzzy_match(&item.text, query) {
+            // Convert score to f32 for threshold comparison
+            let score_f32 = score as f32;
+            if score_f32 >= threshold {
+                matches_with_scores.push((index, score));
+            }
+        }
+
+        // Also try substring matching as fallback for very short queries
+        if query.len() <= 3 && item.text.to_lowercase().contains(&query.to_lowercase()) {
+            // Give substring matches a lower score boost
+            let substring_score = (query.len() * 50) as i64;
+            if !matches_with_scores.iter().any(|(idx, _)| *idx == index) {
+                matches_with_scores.push((index, substring_score));
+            }
+        }
+    }
+
+    // Sort by score (highest first) and return indices
+    matches_with_scores.sort_by(|a, b| b.1.cmp(&a.1));
+    matches_with_scores.into_iter().map(|(idx, _)| idx).collect()
 }
 
 

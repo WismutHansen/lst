@@ -220,6 +220,11 @@ async fn main() -> Result<()> {
                 cli::commands::user_info(email, cli.json).await?;
             }
         },
+        Commands::Schema => {
+            use lst_core::config::Config;
+            let schema = Config::generate_schema()?;
+            println!("{}", schema);
+        },
     }
 
     Ok(())

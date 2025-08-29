@@ -29,6 +29,8 @@ chrono = { workspace = true }
 regex = { workspace = true }
 lazy_static = { workspace = true }
 rand = { workspace = true }
+fuzzy-matcher = "0.3"
+schemars = "0.8"
 rusqlite.workspace = true
 sha2 = "0.10"
 hex = "0.4"

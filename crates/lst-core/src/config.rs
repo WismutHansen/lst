@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
@@ -7,7 +8,7 @@ use std::path::{Path, PathBuf};
 use crate::theme::{Theme, ThemeLoader};
 
 /// Configuration for the lst application
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[cfg_attr(feature = "tauri", derive(Type))]
 pub struct Config {
     #[serde(default)]
@@ -20,6 +21,7 @@ pub struct Config {
     pub server: ServerConfig,
     // New tinted theming system
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(skip)]
     pub theme: Option<Theme>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub storage: Option<StorageConfig>,
@@ -31,14 +33,14 @@ pub struct Config {
 use specta::Type;
 
 // Legacy theme config for backwards compatibility
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 #[cfg_attr(feature = "tauri", derive(Type))]
 pub struct LegacyThemeConfig {
     #[serde(default)]
     pub vars: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[cfg_attr(feature = "tauri", derive(Type))]
 pub struct UiConfig {
     #[serde(default = "default_resolution_order")]
@@ -57,7 +59,7 @@ pub struct UiConfig {
     pub theme: LegacyThemeConfig,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[cfg_attr(feature = "tauri", derive(Type))]
 pub struct FuzzyConfig {
     #[serde(default = "default_threshold")]
@@ -66,7 +68,7 @@ pub struct FuzzyConfig {
     pub max_suggestions: usize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[cfg_attr(feature = "tauri", derive(Type))]
 pub struct PathsConfig {
     pub content_dir: Option<PathBuf>,
@@ -76,7 +78,7 @@ pub struct PathsConfig {
     pub themes_dir: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[cfg_attr(feature = "tauri", derive(Type))]
 pub struct ServerConfig {
     /// Host for lst-server daemon (only used when running lst-server)
@@ -95,7 +97,7 @@ pub struct ServerConfig {
 
 // SyncdConfig removed - consolidated into SyncSettings
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[cfg_attr(feature = "tauri", derive(Type))]
 pub struct StorageConfig {
     /// Directory for CRDT state storage
@@ -106,7 +108,7 @@ pub struct StorageConfig {
     pub max_snapshots: usize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[cfg_attr(feature = "tauri", derive(Type))]
 pub struct SyncSettings {
     /// Server URL (if None, runs in local-only mode)
@@ -129,7 +131,7 @@ pub struct SyncSettings {
 }
 
 /// Machine-specific state that should not be synced across devices
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[cfg_attr(feature = "tauri", derive(Type))]
 pub struct State {
     /// Authentication settings
@@ -145,7 +147,7 @@ pub struct State {
     pub sync: SyncState,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[cfg_attr(feature = "tauri", derive(Type))]
 pub struct AuthState {
     /// User email address for authentication
@@ -158,17 +160,18 @@ pub struct AuthState {
     pub jwt_token: Option<String>,
     
     /// Expiration timestamp for the JWT token
+    #[schemars(with = "String")]
     pub jwt_expires_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[cfg_attr(feature = "tauri", derive(Type))]
 pub struct DeviceState {
     /// Device identifier (auto-generated if missing)
     pub device_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[cfg_attr(feature = "tauri", derive(Type))]
 pub struct SyncState {
     /// Path to the local sync database
@@ -306,7 +309,7 @@ fn default_resolution_order() -> Vec<String> {
 }
 
 fn default_threshold() -> f32 {
-    0.75
+    50.0
 }
 
 fn default_max_suggestions() -> usize {
@@ -332,8 +335,18 @@ impl Config {
             // Create default config if it doesn't exist
             fs::create_dir_all(&config_dir).context("Failed to create config directory")?;
             let default_config = Self::default();
-            let toml_str = toml::to_string_pretty(&default_config)
+            let mut toml_str = toml::to_string_pretty(&default_config)
                 .context("Failed to serialize default config")?;
+
+            // Add schema reference header
+            let header = r#"# LST Configuration File
+# Schema: https://json-schema.org/draft-07/schema#
+# LST Configuration Schema: ./lst-config-schema.json
+# For LSP/editor validation, configure your editor to use the schema above
+
+"#;
+            toml_str = format!("{}{}", header, toml_str);
+
             fs::write(&config_path, toml_str).context("Failed to write default config file")?;
             return Ok(default_config);
         }
@@ -423,6 +436,45 @@ impl Config {
     /// Get theme loader
     pub fn get_theme_loader(&self) -> ThemeLoader {
         ThemeLoader::with_config(self.paths.themes_dir.clone())
+    }
+
+    /// Generate JSON schema for the configuration
+    pub fn generate_schema() -> Result<String> {
+        let schema = schemars::schema_for!(Config);
+        let json_schema = serde_json::to_string_pretty(&schema)
+            .context("Failed to serialize schema to JSON")?;
+        Ok(json_schema)
+    }
+
+    /// Generate default config with schema header for testing
+    #[cfg(test)]
+    pub fn generate_default_config_with_header() -> String {
+        let default_config = Self::default();
+        let toml_str = toml::to_string_pretty(&default_config)
+            .expect("Failed to serialize default config");
+
+        let header = r#"# LST Configuration File
+# Schema: https://json-schema.org/draft-07/schema#
+# LST Configuration Schema: ./lst-config-schema.json
+# For LSP/editor validation, configure your editor to use the schema above
+
+"#;
+        format!("{}{}", header, toml_str)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_config_includes_schema_header() {
+        let config_with_header = Config::generate_default_config_with_header();
+
+        assert!(config_with_header.starts_with("# LST Configuration File"));
+        assert!(config_with_header.contains("# LST Configuration Schema: ./lst-config-schema.json"));
+        assert!(config_with_header.contains("[fuzzy]"));
+        assert!(config_with_header.contains("threshold = 50.0"));
     }
 }
 

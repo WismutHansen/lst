@@ -4,6 +4,10 @@
 # are managed by the app; do not put secrets in this file.
 # All sections are optional and will use defaults if not specified.
 
+# Schema: https://json-schema.org/draft-07/schema#
+# LST Configuration Schema: ./lst-config-schema.json
+# For LSP/editor validation, configure your editor to use the schema above
+
 # =============================================================================
 # UI Configuration (Desktop/Mobile Apps)
 # =============================================================================
@@ -40,8 +44,12 @@ leader_key = " "
 # Fuzzy Search Configuration
 # =============================================================================
 [fuzzy]
-# Threshold for fuzzy matching (0.0 = accept all, 1.0 = exact match only)
-threshold = 0.75
+# Threshold for fuzzy matching (minimum match score required)
+# Higher values = more restrictive (better matches only)
+# Lower values = less restrictive (more matches accepted)
+# Range: typically 0-200+ (fuzzy-matcher scoring system)
+# Recommended: 30-80 (50 = good balance of quality vs coverage)
+threshold = 50.0
 
 # Maximum number of suggestions to show
 max_suggestions = 7

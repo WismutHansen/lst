@@ -1,0 +1,298 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Config",
+  "description": "Configuration for the lst application",
+  "type": "object",
+  "properties": {
+    "fuzzy": {
+      "default": {
+        "max_suggestions": 7,
+        "threshold": 50.0
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/FuzzyConfig"
+        }
+      ]
+    },
+    "paths": {
+      "default": {
+        "content_dir": null,
+        "kinds": null,
+        "media_dir": null,
+        "themes_dir": null
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/PathsConfig"
+        }
+      ]
+    },
+    "server": {
+      "default": {
+        "content_db": null,
+        "data_dir": null,
+        "host": null,
+        "port": null,
+        "sync_db": null,
+        "tokens_db": null
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/ServerConfig"
+        }
+      ]
+    },
+    "storage": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/StorageConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sync": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/SyncSettings"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "ui": {
+      "default": {
+        "leader_key": " ",
+        "resolution_order": [
+          "anchor",
+          "exact",
+          "fuzzy",
+          "index",
+          "interactive"
+        ],
+        "theme": {
+          "vars": {}
+        },
+        "vim_mode": false
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/UiConfig"
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "FuzzyConfig": {
+      "type": "object",
+      "properties": {
+        "max_suggestions": {
+          "default": 7,
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "threshold": {
+          "default": 50.0,
+          "type": "number",
+          "format": "float"
+        }
+      }
+    },
+    "LegacyThemeConfig": {
+      "type": "object",
+      "properties": {
+        "vars": {
+          "default": {},
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "PathsConfig": {
+      "type": "object",
+      "properties": {
+        "content_dir": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kinds": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "media_dir": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "themes_dir": {
+          "description": "Directory containing theme files (defaults to ~/.config/themes)",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "ServerConfig": {
+      "type": "object",
+      "properties": {
+        "content_db": {
+          "description": "Content database filename (only used when running lst-server)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "data_dir": {
+          "description": "Base directory for server databases (only used when running lst-server)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "host": {
+          "description": "Host for lst-server daemon (only used when running lst-server)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "port": {
+          "description": "Port for lst-server daemon (only used when running lst-server)",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
+          "minimum": 0.0
+        },
+        "sync_db": {
+          "description": "Sync database filename (only used when running lst-server)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tokens_db": {
+          "description": "Tokens database filename (only used when running lst-server)",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "StorageConfig": {
+      "type": "object",
+      "required": [
+        "crdt_dir"
+      ],
+      "properties": {
+        "crdt_dir": {
+          "description": "Directory for CRDT state storage",
+          "type": "string"
+        },
+        "max_snapshots": {
+          "description": "Maximum number of CRDT snapshots to keep",
+          "default": 100,
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        }
+      }
+    },
+    "SyncSettings": {
+      "type": "object",
+      "properties": {
+        "encryption_key_ref": {
+          "description": "Reference to the encryption key",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "exclude_patterns": {
+          "description": "File patterns to exclude from sync",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "interval_seconds": {
+          "description": "Sync interval in seconds",
+          "default": 30,
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "max_file_size": {
+          "description": "Maximum file size to sync (in bytes)",
+          "default": 10485760,
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "server_url": {
+          "description": "Server URL (if None, runs in local-only mode)",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "UiConfig": {
+      "type": "object",
+      "properties": {
+        "leader_key": {
+          "description": "Leader key used for command sequences (defaults to space)",
+          "default": " ",
+          "type": "string"
+        },
+        "resolution_order": {
+          "default": [
+            "anchor",
+            "exact",
+            "fuzzy",
+            "index",
+            "interactive"
+          ],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "theme": {
+          "default": {
+            "vars": {}
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/LegacyThemeConfig"
+            }
+          ]
+        },
+        "vim_mode": {
+          "description": "Enable Vim-like keybindings in the frontend",
+          "default": false,
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

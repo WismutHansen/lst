@@ -169,6 +169,10 @@ pub enum Commands {
     /// User management commands (requires lst-server)
     #[clap(subcommand, name = "user")]
     User(UserCommands),
+
+    /// Generate JSON schema for configuration validation
+    #[clap(name = "schema")]
+    Schema,
 }
 
 /// User management subcommands (requires lst-server binary)

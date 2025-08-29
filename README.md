@@ -95,6 +95,13 @@ cargo install --path crates/lst-server
 
 1. Create a configuration file at `~/.config/lst/lst.toml` (see [examples/lst.toml](examples/lst.toml) for reference):
 
+   **💡 Pro tip**: LST automatically includes schema references in generated config files for LSP validation. See [CONFIG_SCHEMA.md](CONFIG_SCHEMA.md) for editor setup instructions.
+
+   Generate the schema yourself:
+   ```bash
+   lst schema > lst-config-schema.json
+   ```
+
 ```toml
 [server]
 host = "127.0.0.1"  # or "0.0.0.0" for all interfaces
