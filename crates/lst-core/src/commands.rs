@@ -1,6 +1,7 @@
 use anyhow::Result;
 use chrono;
 use crate::storage;
+use crate::Config;
 
 /// Add an item to a list
 pub async fn add_item(list: &str, text: &str, _json: bool) -> Result<()> {
@@ -26,21 +27,24 @@ pub async fn add_item(list: &str, text: &str, _json: bool) -> Result<()> {
 /// Mark an item as done
 pub async fn mark_done(list: &str, target: &str, _json: bool) -> Result<()> {
     let list_name = normalize_list(list)?;
-    storage::markdown::mark_done(&list_name, target)?;
+    let config = Config::load()?;
+    storage::markdown::mark_done(&list_name, target, config.fuzzy.threshold)?;
     Ok(())
 }
 
 /// Mark an item as undone
 pub async fn mark_undone(list: &str, target: &str, _json: bool) -> Result<()> {
     let list_name = normalize_list(list)?;
-    storage::markdown::mark_undone(&list_name, target)?;
+    let config = Config::load()?;
+    storage::markdown::mark_undone(&list_name, target, config.fuzzy.threshold)?;
     Ok(())
 }
 
 /// Remove an item from a list
 pub async fn remove_item(list: &str, target: &str, _json: bool) -> Result<()> {
     let list_name = normalize_list(list)?;
-    storage::markdown::delete_item(&list_name, target)?;
+    let config = Config::load()?;
+    storage::markdown::delete_item(&list_name, target, config.fuzzy.threshold)?;
     Ok(())
 }
 

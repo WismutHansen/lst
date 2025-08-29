@@ -3333,6 +3333,7 @@ dependencies = [
  "colored",
  "console",
  "dialoguer",
+ "fuzzy-matcher",
  "lst-core",
  "reqwest 0.11.27",
  "rusqlite",

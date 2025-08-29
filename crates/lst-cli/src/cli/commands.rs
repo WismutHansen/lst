@@ -1,5 +1,6 @@
 use anyhow::{bail, Context, Result};
 use colored::{ColoredString, Colorize};
+use fuzzy_matcher::FuzzyMatcher;
 use serde_json;
 use serde_yaml;
 use std::io::{self, BufRead};
@@ -220,18 +221,32 @@ fn normalize_list(input: &str) -> Result<String> {
     }
 
     // Then try fuzzy match by filename
-    let matches: Vec<&storage::FileEntry> = entries
+    let config = crate::config::Config::load()?;
+    let matcher = fuzzy_matcher::skim::SkimMatcherV2::default();
+
+    let mut fuzzy_matches: Vec<(&storage::FileEntry, i64)> = entries
         .iter()
-        .filter(|entry| entry.name.contains(key))
+        .filter_map(|entry| {
+            matcher.fuzzy_match(&entry.name, key)
+                .filter(|&score| score >= config.fuzzy.threshold as i64)
+                .map(|score| (entry, score))
+        })
         .collect();
 
-    match matches.len() {
+    // Sort by score (highest first)
+    fuzzy_matches.sort_by(|a, b| b.1.cmp(&a.1));
+
+    match fuzzy_matches.len() {
         0 => Ok(key.to_string()), // Allow new list creation
-        1 => Ok(matches[0].relative_path.clone()),
+        1 => Ok(fuzzy_matches[0].0.relative_path.clone()),
         _ => {
-            let match_names: Vec<String> =
-                matches.iter().map(|e| e.relative_path.clone()).collect();
-            bail!("Multiple lists match '{}': {:?}", key, match_names);
+            // Show top matches with scores
+            let max_suggestions = config.fuzzy.max_suggestions as usize;
+            let match_names: Vec<String> = fuzzy_matches.iter()
+                .take(max_suggestions)
+                .map(|(entry, score)| format!("{} (score: {})", entry.relative_path, score))
+                .collect();
+            bail!("Multiple lists match '{}': {}", key, match_names.join(", "));
         }
     }
 }
@@ -262,18 +277,32 @@ fn resolve_note(input: &str) -> Result<String> {
     }
 
     // Then try fuzzy match by filename
-    let matches: Vec<&storage::FileEntry> = entries
+    let config = crate::config::Config::load()?;
+    let matcher = fuzzy_matcher::skim::SkimMatcherV2::default();
+
+    let mut fuzzy_matches: Vec<(&storage::FileEntry, i64)> = entries
         .iter()
-        .filter(|entry| entry.name.contains(key))
+        .filter_map(|entry| {
+            matcher.fuzzy_match(&entry.name, key)
+                .filter(|&score| score >= config.fuzzy.threshold as i64)
+                .map(|score| (entry, score))
+        })
         .collect();
 
-    match matches.len() {
+    // Sort by score (highest first)
+    fuzzy_matches.sort_by(|a, b| b.1.cmp(&a.1));
+
+    match fuzzy_matches.len() {
         0 => bail!("No note matching '{}' found", input),
-        1 => Ok(matches[0].relative_path.clone()),
+        1 => Ok(fuzzy_matches[0].0.relative_path.clone()),
         _ => {
-            let match_names: Vec<String> =
-                matches.iter().map(|e| e.relative_path.clone()).collect();
-            bail!("Multiple notes match '{}': {:?}", input, match_names);
+            // Show top matches with scores
+            let max_suggestions = config.fuzzy.max_suggestions as usize;
+            let match_names: Vec<String> = fuzzy_matches.iter()
+                .take(max_suggestions)
+                .map(|(entry, score)| format!("{} (score: {})", entry.relative_path, score))
+                .collect();
+            bail!("Multiple notes match '{}': {}", input, match_names.join(", "));
         }
     }
 }
@@ -304,18 +333,32 @@ fn resolve_list(input: &str) -> Result<String> {
     }
 
     // Then try fuzzy match by filename
-    let matches: Vec<&storage::FileEntry> = entries
+    let config = crate::config::Config::load()?;
+    let matcher = fuzzy_matcher::skim::SkimMatcherV2::default();
+
+    let mut fuzzy_matches: Vec<(&storage::FileEntry, i64)> = entries
         .iter()
-        .filter(|entry| entry.name.contains(key))
+        .filter_map(|entry| {
+            matcher.fuzzy_match(&entry.name, key)
+                .filter(|&score| score >= config.fuzzy.threshold as i64)
+                .map(|score| (entry, score))
+        })
         .collect();
 
-    match matches.len() {
+    // Sort by score (highest first)
+    fuzzy_matches.sort_by(|a, b| b.1.cmp(&a.1));
+
+    match fuzzy_matches.len() {
         0 => bail!("No list matching '{}' found", input),
-        1 => Ok(matches[0].relative_path.clone()),
+        1 => Ok(fuzzy_matches[0].0.relative_path.clone()),
         _ => {
-            let match_names: Vec<String> =
-                matches.iter().map(|e| e.relative_path.clone()).collect();
-            bail!("Multiple lists match '{}': {:?}", input, match_names);
+            // Show top matches with scores
+            let max_suggestions = config.fuzzy.max_suggestions as usize;
+            let match_names: Vec<String> = fuzzy_matches.iter()
+                .take(max_suggestions)
+                .map(|(entry, score)| format!("{} (score: {})", entry.relative_path, score))
+                .collect();
+            bail!("Multiple lists match '{}': {}", input, match_names.join(", "));
         }
     }
 }
@@ -395,7 +438,8 @@ pub async fn add_item(list: &str, text: &str, category: Option<&str>, json: bool
 /// Handle the 'done' command to mark an item as done
 pub async fn mark_done(list: &str, target: &str, json: bool) -> Result<()> {
     let list_name = normalize_list(list)?;
-    let items = storage::markdown::mark_done(&list_name, target)?;
+    let config = crate::config::Config::load()?;
+    let items = storage::markdown::mark_done(&list_name, target, config.fuzzy.threshold)?;
 
     if json {
         println!("{}", serde_json::to_string(&items)?);
@@ -427,7 +471,8 @@ pub async fn mark_done(list: &str, target: &str, json: bool) -> Result<()> {
 /// Handle the 'undone' command to mark a completed item as not done
 pub async fn mark_undone(list: &str, target: &str, json: bool) -> Result<()> {
     let list_name = normalize_list(list)?;
-    let items = storage::markdown::mark_undone(&list_name, target)?;
+    let config = crate::config::Config::load()?;
+    let items = storage::markdown::mark_undone(&list_name, target, config.fuzzy.threshold)?;
 
     if json {
         println!("{}", serde_json::to_string(&items)?);
@@ -489,9 +534,10 @@ pub async fn reset_list(list: &str, json: bool) -> Result<()> {
 /// Handle the 'rm' command to remove an item from a list
 pub async fn remove_item(list: &str, target: &str, json: bool) -> Result<()> {
     let list_name = normalize_list(list)?;
+    let config = crate::config::Config::load()?;
 
     // Use the storage layer implementation
-    let removed = storage::markdown::delete_item(&list_name, target)
+    let removed = storage::markdown::delete_item(&list_name, target, config.fuzzy.threshold)
         .with_context(|| format!("Failed to delete '{}' from {}", target, list_name))?;
 
     if json {
@@ -1852,9 +1898,10 @@ pub async fn category_add(list: &str, name: &str, json: bool) -> Result<()> {
 pub async fn category_move(list: &str, item: &str, category: &str, json: bool) -> Result<()> {
     let list_name = normalize_list(list)?;
     let mut list_obj = storage::markdown::load_list(&list_name)?;
-    
+    let config = crate::config::Config::load()?;
+
     // Find and remove the item from its current location
-    let location = storage::markdown::find_item_for_removal(&list_obj, item)?;
+    let location = storage::markdown::find_item_for_removal(&list_obj, item, config.fuzzy.threshold)?;
     let moved_item = storage::markdown::remove_item_at_location(&mut list_obj, location);
     
     // Add to target category (create if doesn't exist)
