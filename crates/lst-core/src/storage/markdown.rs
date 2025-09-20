@@ -274,7 +274,7 @@ pub fn add_item_to_category(list_name: &str, text: &str, category: Option<&str>)
 }
 
 /// Mark an item as done
-pub fn mark_done(list_name: &str, target: &str, threshold: f32) -> Result<Vec<ListItem>> {
+pub fn mark_done(list_name: &str, target: &str, threshold: i64) -> Result<Vec<ListItem>> {
     let mut list = load_list(list_name)?;
 
     // If there are multiple comma-separated targets, handle each one
@@ -310,7 +310,7 @@ pub fn mark_done(list_name: &str, target: &str, threshold: f32) -> Result<Vec<Li
 }
 
 /// Mark an item as undone (not completed)
-pub fn mark_undone(list_name: &str, target: &str, threshold: f32) -> Result<Vec<ListItem>> {
+pub fn mark_undone(list_name: &str, target: &str, threshold: i64) -> Result<Vec<ListItem>> {
     let mut list = load_list(list_name)?;
 
     // If there are multiple comma-separated targets, handle each one
@@ -368,19 +368,19 @@ pub fn reset_list(list_name: &str) -> Result<Vec<ListItem>> {
 }
 
 /// Helper function to mark a single item as done
-fn mark_item_done(list: &mut List, target: &str, threshold: f32) -> Result<ListItem> {
+fn mark_item_done(list: &mut List, target: &str, threshold: i64) -> Result<ListItem> {
     // Find item and set status
     find_and_set_item_status(list, target, ItemStatus::Done, threshold)
 }
 
 /// Helper function to mark a single item as undone
-fn mark_item_undone(list: &mut List, target: &str, threshold: f32) -> Result<ListItem> {
+fn mark_item_undone(list: &mut List, target: &str, threshold: i64) -> Result<ListItem> {
     // Find item and set status
     find_and_set_item_status(list, target, ItemStatus::Todo, threshold)
 }
 
 /// Helper function to find an item and set its status
-fn find_and_set_item_status(list: &mut List, target: &str, status: ItemStatus, threshold: f32) -> Result<ListItem> {
+fn find_and_set_item_status(list: &mut List, target: &str, status: ItemStatus, threshold: i64) -> Result<ListItem> {
     // Try to find the item by anchor first
     if is_valid_anchor(target) {
         if let Some(item) = list.find_item_mut_by_anchor(target) {
@@ -427,7 +427,7 @@ fn find_and_set_item_status(list: &mut List, target: &str, status: ItemStatus, t
 }
 
 /// Delete an item from a list
-pub fn delete_item(list_name: &str, target: &str, threshold: f32) -> Result<Vec<ListItem>> {
+pub fn delete_item(list_name: &str, target: &str, threshold: i64) -> Result<Vec<ListItem>> {
     let mut list = load_list(list_name)?;
 
     // If there are multiple comma-separated targets, handle each one
@@ -520,7 +520,7 @@ pub fn edit_item_text(list_name: &str, target: &str, new_text: &str) -> Result<(
 }
 
 /// Move an item to a new position within a list
-pub fn reorder_item(list_name: &str, target: &str, new_index: usize, threshold: f32) -> Result<()> {
+pub fn reorder_item(list_name: &str, target: &str, new_index: usize, threshold: i64) -> Result<()> {
     let mut list = load_list(list_name)?;
 
     if let Ok(location) = find_item_for_removal(&list, target, threshold) {
@@ -553,7 +553,7 @@ pub fn save_list(list: &List) -> Result<()> {
 }
 
 /// Helper function to find an item for removal, returning location info
-pub fn find_item_for_removal(list: &List, target: &str, threshold: f32) -> Result<ItemLocation> {
+pub fn find_item_for_removal(list: &List, target: &str, threshold: i64) -> Result<ItemLocation> {
     // Try to find the item by anchor first
     if is_valid_anchor(target) {
         if let Some(location) = find_item_location_by_anchor(list, target) {

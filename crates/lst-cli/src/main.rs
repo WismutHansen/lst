@@ -16,9 +16,9 @@ async fn main() -> Result<()> {
 
     // Process commands
     match &cli.command {
-        Commands::ListLists { list } => {
+        Commands::ListLists { list, clean } => {
             if let Some(list_name) = list {
-                cli::commands::display_list(list_name, cli.json)?;
+                cli::commands::display_list(list_name, cli.json, *clean)?;
             } else {
                 cli::commands::list_lists(cli.json)?;
             }

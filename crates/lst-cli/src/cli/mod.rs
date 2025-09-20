@@ -21,6 +21,9 @@ pub enum Commands {
     ListLists {
         /// Name of the list to show (optional)
         list: Option<String>,
+        /// Hide anchors in list item display
+        #[clap(short = 'c', long = "clean")]
+        clean: bool,
     },
 
     /// Create and open a new list

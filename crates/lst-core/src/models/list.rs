@@ -225,7 +225,7 @@ pub fn is_valid_anchor(anchor: &str) -> bool {
 
 /// Find items by fuzzy matching text with scoring and ranking
 /// Returns a vector of matching indices sorted by relevance score
-pub fn fuzzy_find(items: &[ListItem], query: &str, threshold: f32) -> Vec<usize> {
+pub fn fuzzy_find(items: &[ListItem], query: &str, threshold: i64) -> Vec<usize> {
     if query.is_empty() {
         return Vec::new();
     }
@@ -236,9 +236,7 @@ pub fn fuzzy_find(items: &[ListItem], query: &str, threshold: f32) -> Vec<usize>
     for (index, item) in items.iter().enumerate() {
         // Try fuzzy matching on the item text
         if let Some(score) = matcher.fuzzy_match(&item.text, query) {
-            // Convert score to f32 for threshold comparison
-            let score_f32 = score as f32;
-            if score_f32 >= threshold {
+            if score >= threshold {
                 matches_with_scores.push((index, score));
             }
         }

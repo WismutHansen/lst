@@ -63,7 +63,7 @@ pub struct UiConfig {
 #[cfg_attr(feature = "tauri", derive(Type))]
 pub struct FuzzyConfig {
     #[serde(default = "default_threshold")]
-    pub threshold: f32,
+    pub threshold: i64,
     #[serde(default = "default_max_suggestions")]
     pub max_suggestions: usize,
 }
@@ -308,8 +308,8 @@ fn default_resolution_order() -> Vec<String> {
     ]
 }
 
-fn default_threshold() -> f32 {
-    50.0
+fn default_threshold() -> i64 {
+    50
 }
 
 fn default_max_suggestions() -> usize {

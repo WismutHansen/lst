@@ -3,7 +3,7 @@ use colored::{ColoredString, Colorize};
 use fuzzy_matcher::FuzzyMatcher;
 use serde_json;
 use serde_yaml;
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, IsTerminal};
 
 use crate::cli::{DlCmd, SyncCommands};
 use crate::config::{get_config, Config};
@@ -37,9 +37,18 @@ pub fn list_lists(json: bool) -> Result<()> {
         return Ok(());
     }
 
-    println!("Available lists:");
-    for list in lists {
-        println!("  {}", list);
+    // Check if output is going to a terminal or is being piped
+    if std::io::stdout().is_terminal() {
+        // Human-readable format with header and indentation
+        println!("Available lists:");
+        for list in lists {
+            println!("  {}", list);
+        }
+    } else {
+        // Machine-readable format for pipes (no header, no indentation)
+        for list in lists {
+            println!("{}", list);
+        }
     }
 
     Ok(())
@@ -70,7 +79,7 @@ pub async fn daily_list(cmd: Option<&DlCmd>, json: bool) -> Result<()> {
             if storage::markdown::load_list(&list_name).is_err() {
                 storage::markdown::create_list(&list_name)?;
             }
-            display_list(&list_name, json)?;
+            display_list(&list_name, json, false)?;
         }
     }
     Ok(())
@@ -116,9 +125,18 @@ pub fn list_notes(json: bool) -> Result<()> {
         return Ok(());
     }
 
-    println!("Available notes:");
-    for note in notes {
-        println!("  {}", note);
+    // Check if output is going to a terminal or is being piped
+    if std::io::stdout().is_terminal() {
+        // Human-readable format with header and indentation
+        println!("Available notes:");
+        for note in notes {
+            println!("  {}", note);
+        }
+    } else {
+        // Machine-readable format for pipes (no header, no indentation)
+        for note in notes {
+            println!("{}", note);
+        }
     }
 
     Ok(())
@@ -228,7 +246,7 @@ fn normalize_list(input: &str) -> Result<String> {
         .iter()
         .filter_map(|entry| {
             matcher.fuzzy_match(&entry.name, key)
-                .filter(|&score| score >= config.fuzzy.threshold as i64)
+                .filter(|&score| score >= config.fuzzy.threshold)
                 .map(|score| (entry, score))
         })
         .collect();
@@ -284,7 +302,7 @@ fn resolve_note(input: &str) -> Result<String> {
         .iter()
         .filter_map(|entry| {
             matcher.fuzzy_match(&entry.name, key)
-                .filter(|&score| score >= config.fuzzy.threshold as i64)
+                .filter(|&score| score >= config.fuzzy.threshold)
                 .map(|score| (entry, score))
         })
         .collect();
@@ -340,7 +358,7 @@ fn resolve_list(input: &str) -> Result<String> {
         .iter()
         .filter_map(|entry| {
             matcher.fuzzy_match(&entry.name, key)
-                .filter(|&score| score >= config.fuzzy.threshold as i64)
+                .filter(|&score| score >= config.fuzzy.threshold)
                 .map(|score| (entry, score))
         })
         .collect();
@@ -614,7 +632,7 @@ pub fn pipe(list: &str, json: bool) -> Result<()> {
 }
 
 /// Handle displaying a list
-pub fn display_list(list: &str, json: bool) -> Result<()> {
+pub fn display_list(list: &str, json: bool, clean: bool) -> Result<()> {
     let list_name = normalize_list(list)?;
     let list = storage::markdown::load_list(&list_name)?;
 
@@ -646,13 +664,22 @@ pub fn display_list(list: &str, json: bool) -> Result<()> {
             ItemStatus::Done => item.text.strikethrough(),
         };
 
-        println!(
-            "#{} {} {} {}",
-            item_counter,
-            checkbox,
-            text,
-            item.anchor.dimmed()
-        );
+        if clean {
+            println!(
+                "#{} {} {}",
+                item_counter,
+                checkbox,
+                text
+            );
+        } else {
+            println!(
+                "#{} {} {} {}",
+                item_counter,
+                checkbox,
+                text,
+                item.anchor.dimmed()
+            );
+        }
         item_counter += 1;
     }
 
@@ -672,13 +699,22 @@ pub fn display_list(list: &str, json: bool) -> Result<()> {
                     ItemStatus::Done => item.text.strikethrough(),
                 };
 
-                println!(
-                    "#{} {} {} {}",
-                    item_counter,
-                    checkbox,
-                    text,
-                    item.anchor.dimmed()
-                );
+                if clean {
+                    println!(
+                        "#{} {} {}",
+                        item_counter,
+                        checkbox,
+                        text
+                    );
+                } else {
+                    println!(
+                        "#{} {} {} {}",
+                        item_counter,
+                        checkbox,
+                        text,
+                        item.anchor.dimmed()
+                    );
+                }
                 item_counter += 1;
             }
         }
@@ -917,7 +953,7 @@ fn find_syncd_binary() -> Result<String> {
 pub fn display_daily_list(json: bool) -> Result<()> {
     let date = Local::now().format("%Y%m%d").to_string();
     let list_name = format!("daily_lists/{}_daily_list", date);
-    display_list(&list_name, json)
+    display_list(&list_name, json, false)
 }
 
 /// Share a document by updating writers and readers in the local sync database

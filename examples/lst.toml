@@ -49,7 +49,7 @@ leader_key = " "
 # Lower values = less restrictive (more matches accepted)
 # Range: typically 0-200+ (fuzzy-matcher scoring system)
 # Recommended: 30-80 (50 = good balance of quality vs coverage)
-threshold = 50.0
+threshold = 50
 
 # Maximum number of suggestions to show
 max_suggestions = 7

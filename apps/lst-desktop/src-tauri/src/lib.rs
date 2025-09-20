@@ -104,7 +104,7 @@ fn find_item_index(list: &List, target: &str) -> Option<usize> {
         }
     }
     let all_items: Vec<ListItem> = list.all_items().cloned().collect();
-    let matches = fuzzy_find(&all_items, target, 0.75);
+    let matches = fuzzy_find(&all_items, target, 75);
     match matches.len() {
         1 => Some(matches[0]),
         _ => None,
@@ -114,16 +114,17 @@ fn find_item_index(list: &List, target: &str) -> Option<usize> {
 #[tauri::command]
 #[specta::specta]
 fn toggle_item(list: String, target: String) -> Result<List, String> {
+    let config = get_config();
     let current = load_list(&list).map_err(|e| e.to_string())?;
     if let Some(idx) = find_item_index(&current, &target) {
         let status = current.all_items().nth(idx).unwrap().status.clone();
         drop(current);
         match status {
             ItemStatus::Todo => {
-                markdown::mark_done(&list, &target).map_err(|e| e.to_string())?;
+                markdown::mark_done(&list, &target, config.fuzzy.threshold).map_err(|e| e.to_string())?;
             }
             ItemStatus::Done => {
-                markdown::mark_undone(&list, &target).map_err(|e| e.to_string())?;
+                markdown::mark_undone(&list, &target, config.fuzzy.threshold).map_err(|e| e.to_string())?;
             }
         }
         load_list(&list).map_err(|e| e.to_string())
@@ -135,11 +136,12 @@ fn toggle_item(list: String, target: String) -> Result<List, String> {
 #[tauri::command]
 #[specta::specta]
 fn remove_item(list: String, target: String) -> Result<List, String> {
+    let config = get_config();
     let current = load_list(&list).map_err(|e| e.to_string())?;
     if let Some(_idx) = find_item_index(&current, &target) {
         drop(current);
         println!("deleting item {}", target);
-        markdown::delete_item(&list, &target).map_err(|e| e.to_string())?;
+        markdown::delete_item(&list, &target, config.fuzzy.threshold).map_err(|e| e.to_string())?;
         load_list(&list).map_err(|e| e.to_string())
     } else {
         Err(format!("No item matching '{}'", target))
@@ -262,7 +264,8 @@ fn edit_item(list: String, target: String, text: String) -> Result<List, String>
 #[tauri::command]
 #[specta::specta]
 fn reorder_item(list: String, target: String, new_index: u32) -> Result<List, String> {
-    markdown::reorder_item(&list, &target, new_index as usize).map_err(|e| e.to_string())?;
+    let config = get_config();
+    markdown::reorder_item(&list, &target, new_index as usize, config.fuzzy.threshold).map_err(|e| e.to_string())?;
     load_list(&list).map_err(|e| e.to_string())
 }
 
@@ -296,10 +299,11 @@ fn create_category(list_name: String, category_name: String) -> Result<List, Str
 #[tauri::command]
 #[specta::specta]
 fn move_item_to_category(list_name: String, item_anchor: String, category_name: Option<String>) -> Result<List, String> {
+    let config = get_config();
     let mut list = load_list(&list_name).map_err(|e| e.to_string())?;
-    
+
     // Find and remove the item from its current location
-    let item_location = markdown::find_item_for_removal(&list, &item_anchor).map_err(|e| e.to_string())?;
+    let item_location = markdown::find_item_for_removal(&list, &item_anchor, config.fuzzy.threshold).map_err(|e| e.to_string())?;
     let item = markdown::remove_item_at_location(&mut list, item_location);
     
     // Add item to new location

@@ -620,7 +620,7 @@ fn find_item_index(list: &List, target: &str) -> Option<usize> {
         }
     }
     let all_items: Vec<ListItem> = list.all_items().cloned().collect();
-    let matches = fuzzy_find(&all_items, target, 0.75);
+    let matches = fuzzy_find(&all_items, target, 75);
     match matches.len() {
         1 => Some(matches[0]),
         _ => None,
