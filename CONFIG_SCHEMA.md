@@ -19,7 +19,7 @@ max_suggestions = 7
 
 **When LST creates a config file automatically:**
 - ✅ Schema reference is included at the top
-- ✅ Works for `~/.config/lst/lst.toml` (first run)
+- ✅ Works for `~/.config/lst/config.toml` (first run)
 - ✅ Works for sync daemon configs
 - ✅ No manual editing required
 

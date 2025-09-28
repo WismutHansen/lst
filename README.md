@@ -93,7 +93,7 @@ cargo install --path crates/lst-server
 
 #### Configuration
 
-1. Create a configuration file at `~/.config/lst/lst.toml` (see [examples/lst.toml](examples/lst.toml) for reference):
+1. Create a configuration file at `~/.config/lst/config.toml` (see [examples/config.toml](examples/config.toml) for reference):
 
    **💡 Pro tip**: LST automatically includes schema references in generated config files for LSP validation. See [CONFIG_SCHEMA.md](CONFIG_SCHEMA.md) for editor setup instructions.
 
@@ -131,7 +131,7 @@ export SMTP_PASSWORD="your-app-password"
 lst-server
 
 # Or with custom config path
-lst-server --config /path/to/your/lst.toml
+lst-server --config /path/to/your/config.toml
 
 # Or directly from source
 cargo run --bin lst-server
@@ -399,7 +399,7 @@ The system includes several built-in themes:
 
 #### Theme Configuration
 
-Themes can be configured in your `lst.toml` file:
+Themes can be configured in your `config.toml` file:
 
 ```toml
 [theme]
@@ -422,7 +422,7 @@ Both desktop and mobile applications support real-time theme switching:
 
 ## Configuration
 
-`lst` uses a unified TOML configuration file located at `~/.config/lst/lst.toml` that is shared across all components (CLI, server, sync daemon). You can override the config file location by setting the `LST_CONFIG` environment variable.
+`lst` uses a unified TOML configuration file located at `~/.config/lst/config.toml` that is shared across all components (CLI, server, sync daemon). You can override the config file location by setting the `LST_CONFIG` environment variable.
 
 Configuration changes take effect the next time you run a command. If you change the `content_dir` option, existing data will remain in the old location, and you'll need to move it manually to the new location.
 
@@ -495,7 +495,7 @@ max_suggestions = 7
 ```toml
 [paths]
 # Base directory for all content (lists, notes, posts, media) when used by the CLI directly.
-# For `lst-server`, this directory (or the directory containing lst.toml if content_dir is not set,
+# For `lst-server`, this directory (or the directory containing config.toml if content_dir is not set,
 # which then determines the location of a 'lst_server_data' subdirectory)
 # is where SQLite database files (e.g., tokens.db, content.db) are stored.
 content_dir = "~/Documents/lst"
@@ -508,14 +508,14 @@ media_dir = "~/Documents/lst/media"
 
 #### Server-Only Configuration
 
-The `lst-server` uses specific sections from `lst.toml`:
+The `lst-server` uses specific sections from `config.toml`:
 
 ```toml
 # Settings for lst-server under its [server] block (host, port)
 # are already shown in "CLI & Server Configuration".
 
 # The [paths] block (see above) is crucial for lst-server:
-# `content_dir` (or the directory of lst.toml if content_dir is not set)
+# `content_dir` (or the directory of config.toml if content_dir is not set)
 # determines where the 'lst_server_data' subdirectory is created,
 # which in turn stores its SQLite database files (e.g., tokens.db, content.db).
 
@@ -550,13 +550,13 @@ max_snapshots = 100
 
 ## Example Configuration
 
-An example unified configuration file is provided in the `examples/lst.toml` file in the repository. You can copy this file to `~/.config/lst/lst.toml` and customize it to your needs. Each component reads only the sections it needs from the same file.
+An example unified configuration file is provided in the `examples/config.toml` file in the repository. You can copy this file to `~/.config/lst/config.toml` and customize it to your needs. Each component reads only the sections it needs from the same file.
 
 ## Storage Format
 
 **CLI and Local Usage:**
 
-When using the `lst` CLI directly for local operations, data is stored as Markdown files in the content directory (which can be configured in `lst.toml` using `paths.content_dir`):
+When using the `lst` CLI directly for local operations, data is stored as Markdown files in the content directory (which can be configured in `config.toml` using `paths.content_dir`):
 
 ```
 content/

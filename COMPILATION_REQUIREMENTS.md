@@ -63,7 +63,7 @@ cd .. && bun tauri dev
 ### **✅ Complete Implementation:**
 1. **Real HTTP Authentication** with Argon2id password hashing
 2. **Secure JWT Token Storage** using system keychain
-3. **Persistent Configuration** in `~/.config/lst/lst.toml`
+3. **Persistent Configuration** in `~/.config/lst/config.toml`
 4. **Production WebSocket Sync** with CRDT and encryption
 5. **Advanced Error Handling** with network timeouts and retry logic
 6. **Professional UI** with settings page and real-time status

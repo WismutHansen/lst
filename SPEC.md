@@ -61,7 +61,7 @@ This model is designed to bridge the plain-text file system with a robust, confl
 
 ### 3.1 `lst-cli` & Plain-Text Files
 
-The user-facing experience is centered on Markdown files in the `content` directory, as configured in `lst.toml`. `lst-cli` is responsible for creating, reading, and modifying these files. This layer is intentionally unaware of the sync mechanism.
+The user-facing experience is centered on Markdown files in the `content` directory, as configured in `config.toml`. `lst-cli` is responsible for creating, reading, and modifying these files. This layer is intentionally unaware of the sync mechanism.
 
 - **File Formats**: As described in `README.md`, content is structured Markdown with YAML frontmatter.
 - **Organization**: Users can organize files into subdirectories (e.g., `lists/groceries/pharmacy.md`).
@@ -215,7 +215,7 @@ The CLI interface is updated to support the new device pairing flow.
 
 ---
 
-## 6. Configuration (`lst.toml`)
+## 6. Configuration (`config.toml`)
 
 The unified configuration file will be updated to include sync and encryption settings.
 

@@ -16,7 +16,7 @@ use crate::watcher::FileWatcher;
 #[command(name = "lst-syncd", about = "Background sync daemon for lst")]
 struct Args {
     /// Path to sync daemon configuration file
-    #[arg(long, default_value = "~/.config/lst/lst.toml")]
+    #[arg(long, default_value = "~/.config/lst/config.toml")]
     config: String,
 
     /// Run in foreground mode (don't daemonize)

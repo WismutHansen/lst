@@ -330,7 +330,7 @@ impl Config {
         // Always use ~/.config/lst/ regardless of platform
         let home_dir = dirs::home_dir().context("Could not determine home directory")?;
         let config_dir = home_dir.join(".config").join("lst");
-        let config_path = config_dir.join("lst.toml");
+        let config_path = config_dir.join("config.toml");
         if !config_path.exists() {
             // Create default config if it doesn't exist
             fs::create_dir_all(&config_dir).context("Failed to create config directory")?;
@@ -370,7 +370,7 @@ impl Config {
         let home_dir = dirs::home_dir().context("Could not determine home directory")?;
         let config_dir = home_dir.join(".config").join("lst");
         fs::create_dir_all(&config_dir).context("Failed to create config directory")?;
-        let config_path = config_dir.join("lst.toml");
+        let config_path = config_dir.join("config.toml");
         let toml_str = toml::to_string_pretty(self).context("Failed to serialize config")?;
         fs::write(&config_path, toml_str).context("Failed to write config file")?;
         Ok(())

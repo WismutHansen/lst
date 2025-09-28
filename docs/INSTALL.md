@@ -57,10 +57,10 @@ Copy the example configuration to your config directory and adjust paths as need
 
 ```bash
 mkdir -p ~/.config/lst
-cp examples/lst.toml ~/.config/lst/lst.toml
+cp examples/config.toml ~/.config/lst/config.toml
 ```
 
-Edit `~/.config/lst/lst.toml` to customize content directories, server settings, and themes:
+Edit `~/.config/lst/config.toml` to customize content directories, server settings, and themes:
 
 ```toml
 [theme]

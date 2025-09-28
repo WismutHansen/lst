@@ -1,5 +1,5 @@
 # Complete configuration example for lst
-# Place at ~/.config/lst/lst.toml (user config).
+# Place at ~/.config/lst/config.toml (user config).
 # Runtime state and secrets are stored in ~/.local/share/lst/state.toml and
 # are managed by the app; do not put secrets in this file.
 # All sections are optional and will use defaults if not specified.

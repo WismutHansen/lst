@@ -1,0 +1,29 @@
+[Unit]
+Description=lst Personal Lists & Notes Server
+After=network.target
+Wants=network.target
+
+[Service]
+Type=exec
+User=lst
+Group=lst
+ExecStart=/usr/local/bin/lst-server serve --config /etc/lst/config.toml
+Restart=on-failure
+RestartSec=5
+Environment=HOME=/var/lib/lst
+WorkingDirectory=/var/lib/lst
+StandardOutput=journal
+StandardError=journal
+
+# Security settings
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/lst
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

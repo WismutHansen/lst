@@ -520,7 +520,7 @@ struct AuthResponse {
 struct Args {
     #[command(subcommand)]
     command: Option<Commands>,
-    #[arg(long, default_value = "~/.config/lst/lst.toml")]
+    #[arg(long, default_value = "~/.config/lst/config.toml")]
     config: String,
 }
 
