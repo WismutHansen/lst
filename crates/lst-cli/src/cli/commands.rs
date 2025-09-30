@@ -7,12 +7,12 @@ use std::io::{self, BufRead, IsTerminal};
 
 use crate::cli::{DlCmd, SyncCommands};
 use crate::config::{get_config, Config};
-use lst_core::config::State;
 use crate::storage;
 use crate::{models::ItemStatus, storage::notes::delete_note};
+use chrono::{Local, Utc};
+use lst_core::config::State;
 use lst_core::models::Category;
 use lst_core::theme::ThemeLoader;
-use chrono::{Local, Utc};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -148,13 +148,13 @@ pub async fn note_new(title: &str) -> Result<()> {
     let key = resolve_note(title).unwrap_or_else(|_| title.trim_end_matches(".md").to_string());
     // Create the note file (with frontmatter)
     let path = storage::notes::create_note(&key).context("Failed to create note")?;
-    
+
     // Notify desktop app that a note was updated
     #[cfg(feature = "gui")]
     {
         let _ = notify_note_updated(&key).await;
     }
-    
+
     // Open in editor
     open_editor(&path)
 }
@@ -174,13 +174,13 @@ pub async fn note_add(title: &str, text: &str) -> Result<()> {
     let note = resolve_note(key).unwrap_or_else(|_| key.to_string());
     // Append to note, creating if missing
     let path = storage::notes::append_to_note(&note, text).context("Failed to append to note")?;
-    
+
     // Notify desktop app that a note was updated
     #[cfg(feature = "gui")]
     {
         let _ = notify_note_updated(&note).await;
     }
-    
+
     open_editor(&path)
 }
 
@@ -191,13 +191,13 @@ pub async fn note_delete(title: &str) -> Result<()> {
     let key = title.trim_end_matches(".md");
     let note = resolve_note(key)?;
     let result = delete_note(&note);
-    
+
     // Notify desktop app that a note was updated (deleted)
     #[cfg(feature = "gui")]
     {
         let _ = notify_note_updated(&note).await;
     }
-    
+
     result
 }
 
@@ -245,7 +245,8 @@ fn normalize_list(input: &str) -> Result<String> {
     let mut fuzzy_matches: Vec<(&storage::FileEntry, i64)> = entries
         .iter()
         .filter_map(|entry| {
-            matcher.fuzzy_match(&entry.name, key)
+            matcher
+                .fuzzy_match(&entry.name, key)
                 .filter(|&score| score >= config.fuzzy.threshold)
                 .map(|score| (entry, score))
         })
@@ -260,7 +261,8 @@ fn normalize_list(input: &str) -> Result<String> {
         _ => {
             // Show top matches with scores
             let max_suggestions = config.fuzzy.max_suggestions as usize;
-            let match_names: Vec<String> = fuzzy_matches.iter()
+            let match_names: Vec<String> = fuzzy_matches
+                .iter()
                 .take(max_suggestions)
                 .map(|(entry, score)| format!("{} (score: {})", entry.relative_path, score))
                 .collect();
@@ -301,7 +303,8 @@ fn resolve_note(input: &str) -> Result<String> {
     let mut fuzzy_matches: Vec<(&storage::FileEntry, i64)> = entries
         .iter()
         .filter_map(|entry| {
-            matcher.fuzzy_match(&entry.name, key)
+            matcher
+                .fuzzy_match(&entry.name, key)
                 .filter(|&score| score >= config.fuzzy.threshold)
                 .map(|score| (entry, score))
         })
@@ -316,11 +319,16 @@ fn resolve_note(input: &str) -> Result<String> {
         _ => {
             // Show top matches with scores
             let max_suggestions = config.fuzzy.max_suggestions as usize;
-            let match_names: Vec<String> = fuzzy_matches.iter()
+            let match_names: Vec<String> = fuzzy_matches
+                .iter()
                 .take(max_suggestions)
                 .map(|(entry, score)| format!("{} (score: {})", entry.relative_path, score))
                 .collect();
-            bail!("Multiple notes match '{}': {}", input, match_names.join(", "));
+            bail!(
+                "Multiple notes match '{}': {}",
+                input,
+                match_names.join(", ")
+            );
         }
     }
 }
@@ -357,7 +365,8 @@ fn resolve_list(input: &str) -> Result<String> {
     let mut fuzzy_matches: Vec<(&storage::FileEntry, i64)> = entries
         .iter()
         .filter_map(|entry| {
-            matcher.fuzzy_match(&entry.name, key)
+            matcher
+                .fuzzy_match(&entry.name, key)
                 .filter(|&score| score >= config.fuzzy.threshold)
                 .map(|score| (entry, score))
         })
@@ -372,11 +381,16 @@ fn resolve_list(input: &str) -> Result<String> {
         _ => {
             // Show top matches with scores
             let max_suggestions = config.fuzzy.max_suggestions as usize;
-            let match_names: Vec<String> = fuzzy_matches.iter()
+            let match_names: Vec<String> = fuzzy_matches
+                .iter()
                 .take(max_suggestions)
                 .map(|(entry, score)| format!("{} (score: {})", entry.relative_path, score))
                 .collect();
-            bail!("Multiple lists match '{}': {}", input, match_names.join(", "));
+            bail!(
+                "Multiple lists match '{}': {}",
+                input,
+                match_names.join(", ")
+            );
         }
     }
 }
@@ -442,7 +456,12 @@ pub async fn add_item(list: &str, text: &str, category: Option<&str>, json: bool
         } else {
             String::new()
         };
-        println!("Added to {}{}: {}", list_name.cyan(), category_info, added_items[0].text);
+        println!(
+            "Added to {}{}: {}",
+            list_name.cyan(),
+            category_info,
+            added_items[0].text
+        );
     } else {
         println!("Added {} items to {}:", added_items.len(), list.cyan());
         for item in added_items {
@@ -644,7 +663,8 @@ pub fn display_list(list: &str, json: bool, clean: bool) -> Result<()> {
     println!("{}:", list.metadata.title.cyan().bold());
 
     // Check if list has any items at all
-    let total_items = list.uncategorized_items.len() + list.categories.iter().map(|c| c.items.len()).sum::<usize>();
+    let total_items = list.uncategorized_items.len()
+        + list.categories.iter().map(|c| c.items.len()).sum::<usize>();
     if total_items == 0 {
         println!("  No items in list");
         return Ok(());
@@ -665,12 +685,7 @@ pub fn display_list(list: &str, json: bool, clean: bool) -> Result<()> {
         };
 
         if clean {
-            println!(
-                "#{} {} {}",
-                item_counter,
-                checkbox,
-                text
-            );
+            println!("#{} {} {}", item_counter, checkbox, text);
         } else {
             println!(
                 "#{} {} {} {}",
@@ -687,7 +702,7 @@ pub fn display_list(list: &str, json: bool, clean: bool) -> Result<()> {
     for category in &list.categories {
         if !category.items.is_empty() {
             println!("\n{}:", category.name.cyan().bold());
-            
+
             for item in &category.items {
                 let checkbox: ColoredString = match item.status {
                     ItemStatus::Todo => "[ ]".into(),
@@ -700,12 +715,7 @@ pub fn display_list(list: &str, json: bool, clean: bool) -> Result<()> {
                 };
 
                 if clean {
-                    println!(
-                        "#{} {} {}",
-                        item_counter,
-                        checkbox,
-                        text
-                    );
+                    println!("#{} {} {}", item_counter, checkbox, text);
                 } else {
                     println!(
                         "#{} {} {} {}",
@@ -1328,12 +1338,17 @@ fn get_note_file_path(note_name: &str) -> Result<std::path::PathBuf> {
 fn parse_server_config(server_url: &str) -> Result<(String, u16)> {
     // Handle different formats:
     // "192.168.1.25:5673" -> ("192.168.1.25", 5673)
-    // "ws://192.168.1.25:5673/api/sync" -> ("192.168.1.25", 5673) 
+    // "ws://192.168.1.25:5673/api/sync" -> ("192.168.1.25", 5673)
     // "http://example.com:8080" -> ("example.com", 8080)
-    
+
     if let Ok(url) = url::Url::parse(server_url) {
-        let host = url.host_str().context("Invalid host in server URL")?.to_string();
-        let port = url.port().unwrap_or(if url.scheme() == "https" { 443 } else { 80 });
+        let host = url
+            .host_str()
+            .context("Invalid host in server URL")?
+            .to_string();
+        let port = url
+            .port()
+            .unwrap_or(if url.scheme() == "https" { 443 } else { 80 });
         Ok((host, port))
     } else if server_url.contains(':') {
         // Handle "host:port" format
@@ -1343,10 +1358,14 @@ fn parse_server_config(server_url: &str) -> Result<(String, u16)> {
             let port = parts[1].parse().context("Invalid port number")?;
             Ok((host, port))
         } else {
-            Err(anyhow::anyhow!("Invalid server URL format. Use 'host:port' or full URL"))
+            Err(anyhow::anyhow!(
+                "Invalid server URL format. Use 'host:port' or full URL"
+            ))
         }
     } else {
-        Err(anyhow::anyhow!("Invalid server URL format. Use 'host:port' or full URL"))
+        Err(anyhow::anyhow!(
+            "Invalid server URL format. Use 'host:port' or full URL"
+        ))
     }
 }
 
@@ -1376,9 +1395,9 @@ pub async fn auth_register(email: &str, host: Option<&str>, json: bool) -> Resul
 
     let http_base_url = build_http_url(&host, port);
 
-    use dialoguer::Password;
-    use argon2::{Argon2, PasswordHasher};
     use argon2::password_hash::SaltString;
+    use argon2::{Argon2, PasswordHasher};
+    use dialoguer::Password;
     use std::hash::Hasher;
 
     // Securely prompt for password
@@ -1392,13 +1411,13 @@ pub async fn auth_register(email: &str, host: Option<&str>, json: bool) -> Resul
     hasher.write(email.as_bytes());
     hasher.write(b"lst-client-salt"); // Add app-specific salt component
     let email_hash = hasher.finish();
-    
+
     // Convert hash to 16-byte array for salt
     let salt_bytes = email_hash.to_le_bytes();
     let mut full_salt = [0u8; 16];
     full_salt[..8].copy_from_slice(&salt_bytes);
     full_salt[8..].copy_from_slice(&salt_bytes); // Repeat to fill 16 bytes
-    
+
     let salt = SaltString::encode_b64(&full_salt).expect("Failed to encode salt");
     let argon2 = Argon2::default(); // Use default params like mobile app
     let password_hash = argon2
@@ -1430,11 +1449,11 @@ pub async fn auth_register(email: &str, host: Option<&str>, json: bool) -> Resul
         } else {
             println!("New account registered successfully for {}", email.green());
             println!("");
-            println!("🔐 Security Notice:");
+            println!("  Security Notice:");
             println!("  Your auth token is displayed on the SERVER CONSOLE for security reasons.");
             println!("  Check the server logs or scan the QR code displayed on the server.");
             println!("");
-            println!("⚠️  IMPORTANT: Save your auth token safely!");
+            println!("  IMPORTANT: Save your auth token safely!");
             println!("  You'll need it to login and access your encrypted data.");
             println!("  If you lose it, your encrypted data cannot be recovered.");
             println!("");
@@ -1463,11 +1482,9 @@ pub async fn auth_login(email: &str, auth_token: &str, json: bool) -> Result<()>
     let http_base_url = build_http_url(&host, port);
 
     use dialoguer::Password;
-    
+
     // Securely prompt for password (never print it)
-    let password = Password::new()
-        .with_prompt("Account password")
-        .interact()?;
+    let password = Password::new().with_prompt("Account password").interact()?;
 
     // Derive secure encryption key using all three components
     let key_path = lst_core::crypto::get_master_key_path()?;
@@ -1477,10 +1494,10 @@ pub async fn auth_login(email: &str, auth_token: &str, json: bool) -> Result<()>
             if let Err(e) = lst_core::crypto::save_derived_key(&key_path, &derived_key) {
                 eprintln!("Warning: Failed to save encryption key: {}", e);
             }
-            
+
             // Store credentials for future use
             state.store_auth_credentials(email.to_string(), auth_token.to_string());
-            
+
             // Get JWT token for server authentication
             let client = reqwest::Client::new();
             let payload = serde_json::json!({
@@ -1545,9 +1562,9 @@ pub async fn auth_request(email: &str, host: Option<&str>, json: bool) -> Result
 
     let http_base_url = build_http_url(&host, port);
 
-    use dialoguer::Password;
-    use argon2::{Argon2, PasswordHasher};
     use argon2::password_hash::SaltString;
+    use argon2::{Argon2, PasswordHasher};
+    use dialoguer::Password;
     use std::hash::Hasher;
 
     let password = Password::new().with_prompt("Account password").interact()?;
@@ -1557,13 +1574,13 @@ pub async fn auth_request(email: &str, host: Option<&str>, json: bool) -> Result
     hasher.write(email.as_bytes());
     hasher.write(b"lst-client-salt"); // Add app-specific salt component
     let email_hash = hasher.finish();
-    
+
     // Convert hash to 16-byte array for salt
     let salt_bytes = email_hash.to_le_bytes();
     let mut full_salt = [0u8; 16];
     full_salt[..8].copy_from_slice(&salt_bytes);
     full_salt[8..].copy_from_slice(&salt_bytes); // Repeat to fill 16 bytes
-    
+
     let salt = SaltString::encode_b64(&full_salt).expect("Failed to encode salt");
     let argon2 = Argon2::default(); // Use default params like mobile app
     let password_hash = argon2
@@ -1609,14 +1626,16 @@ pub async fn auth_request(email: &str, host: Option<&str>, json: bool) -> Result
     Ok(())
 }
 
-
-
 /// Show current authentication status
 pub fn auth_status(json: bool) -> Result<()> {
     let config = get_config();
     let state = State::load()?;
 
-    let has_server_url = config.sync.as_ref().and_then(|s| s.server_url.as_ref()).is_some();
+    let has_server_url = config
+        .sync
+        .as_ref()
+        .and_then(|s| s.server_url.as_ref())
+        .is_some();
     let has_jwt = state.auth.jwt_token.is_some();
     let jwt_valid = state.is_jwt_valid();
 
@@ -1637,7 +1656,15 @@ pub fn auth_status(json: bool) -> Result<()> {
             println!("  Server: {}", "Not configured".red());
             println!("  Run 'lst sync setup' to configure server URL");
         } else {
-            println!("  Server: {}", config.sync.as_ref().and_then(|s| s.server_url.as_ref()).unwrap().cyan());
+            println!(
+                "  Server: {}",
+                config
+                    .sync
+                    .as_ref()
+                    .and_then(|s| s.server_url.as_ref())
+                    .unwrap()
+                    .cyan()
+            );
         }
 
         if !has_jwt {
@@ -1707,7 +1734,7 @@ pub async fn refresh_jwt_token(config: &Config, state: &mut State) -> Result<()>
 
             state.store_jwt(jwt.to_string(), expires_at);
             state.save()?;
-            
+
             println!("JWT token refreshed successfully");
             Ok(())
         } else {
@@ -1906,27 +1933,30 @@ pub async fn server_delete(kind: &str, path: &str, json: bool) -> Result<()> {
 pub async fn category_add(list: &str, name: &str, json: bool) -> Result<()> {
     let list_name = normalize_list(list)?;
     let mut list_obj = storage::markdown::load_list(&list_name)?;
-    
+
     // Check if category already exists
     if list_obj.categories.iter().any(|c| c.name == name) {
         bail!("Category '{}' already exists in list '{}'", name, list_name);
     }
-    
+
     // Add empty category
     list_obj.categories.push(Category {
         name: name.to_string(),
         items: Vec::new(),
     });
-    
+
     list_obj.metadata.updated = chrono::Utc::now();
     storage::markdown::save_list_with_path(&list_obj, &list_name)?;
-    
+
     if json {
-        println!("{}", serde_json::json!({"status": "success", "message": format!("Created category '{}'", name)}));
+        println!(
+            "{}",
+            serde_json::json!({"status": "success", "message": format!("Created category '{}'", name)})
+        );
     } else {
         println!("Created category '{}' in {}", name.cyan(), list_name.cyan());
     }
-    
+
     Ok(())
 }
 
@@ -1937,9 +1967,10 @@ pub async fn category_move(list: &str, item: &str, category: &str, json: bool) -
     let config = crate::config::Config::load()?;
 
     // Find and remove the item from its current location
-    let location = storage::markdown::find_item_for_removal(&list_obj, item, config.fuzzy.threshold)?;
+    let location =
+        storage::markdown::find_item_for_removal(&list_obj, item, config.fuzzy.threshold)?;
     let moved_item = storage::markdown::remove_item_at_location(&mut list_obj, location);
-    
+
     // Add to target category (create if doesn't exist)
     if let Some(cat) = list_obj.categories.iter_mut().find(|c| c.name == category) {
         cat.items.push(moved_item.clone());
@@ -1950,16 +1981,24 @@ pub async fn category_move(list: &str, item: &str, category: &str, json: bool) -
             items: vec![moved_item.clone()],
         });
     }
-    
+
     list_obj.metadata.updated = chrono::Utc::now();
     storage::markdown::save_list_with_path(&list_obj, &list_name)?;
-    
+
     if json {
-        println!("{}", serde_json::json!({"status": "success", "item": moved_item, "category": category}));
+        println!(
+            "{}",
+            serde_json::json!({"status": "success", "item": moved_item, "category": category})
+        );
     } else {
-        println!("Moved '{}' to category '{}' in {}", moved_item.text, category.cyan(), list_name.cyan());
+        println!(
+            "Moved '{}' to category '{}' in {}",
+            moved_item.text,
+            category.cyan(),
+            list_name.cyan()
+        );
     }
-    
+
     Ok(())
 }
 
@@ -1967,27 +2006,31 @@ pub async fn category_move(list: &str, item: &str, category: &str, json: bool) -
 pub async fn category_list(list: &str, json: bool) -> Result<()> {
     let list_name = normalize_list(list)?;
     let list_obj = storage::markdown::load_list(&list_name)?;
-    
+
     if json {
         let categories: Vec<_> = list_obj.categories.iter().map(|c| &c.name).collect();
         println!("{}", serde_json::to_string(&categories)?);
         return Ok(());
     }
-    
+
     if list_obj.categories.is_empty() {
         println!("No categories in {}", list_name.cyan());
         return Ok(());
     }
-    
+
     println!("Categories in {}:", list_name.cyan());
     for category in &list_obj.categories {
         println!("  {} ({} items)", category.name, category.items.len());
     }
-    
+
     if !list_obj.uncategorized_items.is_empty() {
-        println!("  {} ({} items)", "(uncategorized)".dimmed(), list_obj.uncategorized_items.len());
+        println!(
+            "  {} ({} items)",
+            "(uncategorized)".dimmed(),
+            list_obj.uncategorized_items.len()
+        );
     }
-    
+
     Ok(())
 }
 
@@ -1995,28 +2038,35 @@ pub async fn category_list(list: &str, json: bool) -> Result<()> {
 pub async fn category_remove(list: &str, name: &str, json: bool) -> Result<()> {
     let list_name = normalize_list(list)?;
     let mut list_obj = storage::markdown::load_list(&list_name)?;
-    
+
     // Find and remove the category
     if let Some(pos) = list_obj.categories.iter().position(|c| c.name == name) {
         let removed_category = list_obj.categories.remove(pos);
         let item_count = removed_category.items.len();
-        
+
         // Move items to uncategorized
         list_obj.uncategorized_items.extend(removed_category.items);
-        
+
         list_obj.metadata.updated = chrono::Utc::now();
         storage::markdown::save_list_with_path(&list_obj, &list_name)?;
-        
+
         if json {
-            println!("{}", serde_json::json!({"status": "success", "moved_items": item_count}));
+            println!(
+                "{}",
+                serde_json::json!({"status": "success", "moved_items": item_count})
+            );
         } else {
-            println!("Removed category '{}' from {} ({} items moved to uncategorized)", 
-                     name.cyan(), list_name.cyan(), item_count);
+            println!(
+                "Removed category '{}' from {} ({} items moved to uncategorized)",
+                name.cyan(),
+                list_name.cyan(),
+                item_count
+            );
         }
     } else {
         bail!("Category '{}' not found in list '{}'", name, list_name);
     }
-    
+
     Ok(())
 }
 
@@ -2029,7 +2079,7 @@ pub fn theme_list(verbose: bool, json: bool) -> Result<()> {
     let config = Config::load()?;
     let loader = config.get_theme_loader();
     let themes = loader.list_themes();
-    
+
     if json {
         if verbose {
             let mut theme_infos = Vec::new();
@@ -2044,27 +2094,32 @@ pub fn theme_list(verbose: bool, json: bool) -> Result<()> {
         }
         return Ok(());
     }
-    
+
     if themes.is_empty() {
         println!("No themes found.");
         return Ok(());
     }
-    
+
     println!("Available themes:");
-    
+
     if verbose {
         for theme_name in themes {
             if let Ok(info) = loader.get_theme_info(&theme_name) {
-                println!("  {} - {}", 
-                    info.name.cyan(), 
-                    info.description.unwrap_or_else(|| "No description".to_string()).dimmed()
+                println!(
+                    "  {} - {}",
+                    info.name.cyan(),
+                    info.description
+                        .unwrap_or_else(|| "No description".to_string())
+                        .dimmed()
                 );
                 if let Some(author) = info.author {
                     println!("    Author: {}", author.dimmed());
                 }
-                println!("    System: {:?}, Variant: {:?}", 
-                    info.system, 
-                    info.variant.unwrap_or_else(|| lst_core::theme::ThemeVariant::Dark)
+                println!(
+                    "    System: {:?}, Variant: {:?}",
+                    info.system,
+                    info.variant
+                        .unwrap_or_else(|| lst_core::theme::ThemeVariant::Dark)
                 );
                 println!();
             }
@@ -2074,7 +2129,7 @@ pub fn theme_list(verbose: bool, json: bool) -> Result<()> {
             println!("  {}", theme_name);
         }
     }
-    
+
     Ok(())
 }
 
@@ -2082,12 +2137,12 @@ pub fn theme_list(verbose: bool, json: bool) -> Result<()> {
 pub fn theme_current(json: bool) -> Result<()> {
     let config = get_config();
     let current_theme = config.get_theme()?;
-    
+
     if json {
         println!("{}", serde_json::to_string_pretty(&current_theme)?);
         return Ok(());
     }
-    
+
     println!("Current theme: {}", current_theme.scheme.cyan());
     if let Some(name) = &current_theme.name {
         println!("Name: {}", name);
@@ -2102,7 +2157,7 @@ pub fn theme_current(json: bool) -> Result<()> {
     if let Some(variant) = &current_theme.variant {
         println!("Variant: {:?}", variant);
     }
-    
+
     // Show some key colors
     println!("\nKey colors:");
     if let Some(bg) = &current_theme.palette.base00 {
@@ -2114,38 +2169,42 @@ pub fn theme_current(json: bool) -> Result<()> {
     if let Some(primary) = &current_theme.palette.base0d {
         println!("  Primary: {}", primary.dimmed());
     }
-    
+
     Ok(())
 }
 
 /// Apply a theme
 pub async fn theme_apply(theme_name: &str, json: bool) -> Result<()> {
     let mut config = Config::load()?;
-    let theme = config.load_theme_by_name(theme_name)
+    let theme = config
+        .load_theme_by_name(theme_name)
         .with_context(|| format!("Failed to load theme '{}'", theme_name))?;
-    
+
     config.set_theme(theme.clone());
     config.save()?;
-    
+
     // Notify GUI applications about theme change
     #[cfg(feature = "gui")]
     {
         let _ = notify_theme_changed(theme_name).await;
     }
-    
+
     if json {
-        println!("{}", serde_json::json!({
-            "status": "success",
-            "theme": theme_name,
-            "message": format!("Applied theme '{}'", theme_name)
-        }));
+        println!(
+            "{}",
+            serde_json::json!({
+                "status": "success",
+                "theme": theme_name,
+                "message": format!("Applied theme '{}'", theme_name)
+            })
+        );
     } else {
         println!("Applied theme: {}", theme_name.cyan());
         if let Some(name) = &theme.name {
             println!("  {}", name.dimmed());
         }
     }
-    
+
     Ok(())
 }
 
@@ -2153,14 +2212,15 @@ pub async fn theme_apply(theme_name: &str, json: bool) -> Result<()> {
 pub fn theme_info(theme_name: &str, json: bool) -> Result<()> {
     let config = Config::load()?;
     let loader = config.get_theme_loader();
-    let theme = loader.load_theme(theme_name)
+    let theme = loader
+        .load_theme(theme_name)
         .with_context(|| format!("Failed to load theme '{}'", theme_name))?;
-    
+
     if json {
         println!("{}", serde_json::to_string_pretty(&theme)?);
         return Ok(());
     }
-    
+
     println!("Theme: {}", theme.scheme.cyan());
     if let Some(name) = &theme.name {
         println!("Name: {}", name);
@@ -2175,11 +2235,11 @@ pub fn theme_info(theme_name: &str, json: bool) -> Result<()> {
     if let Some(variant) = &theme.variant {
         println!("Variant: {:?}", variant);
     }
-    
+
     if let Some(inherits) = &theme.inherits {
         println!("Inherits from: {}", inherits.dimmed());
     }
-    
+
     println!("\nColor palette:");
     let palette_colors = [
         ("base00", &theme.palette.base00, "Default Background"),
@@ -2199,13 +2259,18 @@ pub fn theme_info(theme_name: &str, json: bool) -> Result<()> {
         ("base0E", &theme.palette.base0e, "Purple"),
         ("base0F", &theme.palette.base0f, "Brown"),
     ];
-    
+
     for (name, color, description) in palette_colors {
         if let Some(color_value) = color {
-            println!("  {}: {} ({})", name.cyan(), color_value, description.dimmed());
+            println!(
+                "  {}: {} ({})",
+                name.cyan(),
+                color_value,
+                description.dimmed()
+            );
         }
     }
-    
+
     println!("\nSemantic mappings:");
     println!("  background: {}", theme.semantic.background.cyan());
     println!("  foreground: {}", theme.semantic.foreground.cyan());
@@ -2214,7 +2279,7 @@ pub fn theme_info(theme_name: &str, json: bool) -> Result<()> {
     println!("  success: {}", theme.semantic.success.cyan());
     println!("  warning: {}", theme.semantic.warning.cyan());
     println!("  error: {}", theme.semantic.error.cyan());
-    
+
     Ok(())
 }
 
@@ -2223,19 +2288,22 @@ pub fn theme_validate(file_path: &str, json: bool) -> Result<()> {
     let config = Config::load()?;
     let loader = config.get_theme_loader();
     let path = Path::new(file_path);
-    
+
     if !path.exists() {
         bail!("Theme file not found: {}", file_path);
     }
-    
+
     match loader.load_theme_from_file(path) {
         Ok(theme) => {
             if json {
-                println!("{}", serde_json::json!({
-                    "status": "valid",
-                    "theme": theme.scheme,
-                    "message": "Theme file is valid"
-                }));
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "status": "valid",
+                        "theme": theme.scheme,
+                        "message": "Theme file is valid"
+                    })
+                );
             } else {
                 println!("✓ Theme file is valid: {}", theme.scheme.cyan());
                 if let Some(name) = &theme.name {
@@ -2246,17 +2314,20 @@ pub fn theme_validate(file_path: &str, json: bool) -> Result<()> {
         }
         Err(e) => {
             if json {
-                println!("{}", serde_json::json!({
-                    "status": "invalid",
-                    "error": e.to_string()
-                }));
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "status": "invalid",
+                        "error": e.to_string()
+                    })
+                );
             } else {
                 println!("✗ Theme file is invalid: {}", e.to_string().red());
             }
             return Err(e);
         }
     }
-    
+
     Ok(())
 }
 
@@ -2264,15 +2335,18 @@ pub fn theme_validate(file_path: &str, json: bool) -> Result<()> {
 pub fn theme_generate_css(json: bool) -> Result<()> {
     let config = get_config();
     let theme = config.get_theme()?;
-    
+
     if json {
-        println!("{}", serde_json::json!({
-            "css": theme.generate_css_theme()
-        }));
+        println!(
+            "{}",
+            serde_json::json!({
+                "css": theme.generate_css_theme()
+            })
+        );
     } else {
         println!("{}", theme.generate_css_theme());
     }
-    
+
     Ok(())
 }
 
@@ -2295,29 +2369,31 @@ fn check_server_binary() -> Result<()> {
 /// List all users
 pub async fn user_list(json: bool) -> Result<()> {
     check_server_binary()?;
-    
+
     let mut cmd = std::process::Command::new("lst-server");
     cmd.arg("user").arg("list");
     if json {
         cmd.arg("--json");
     }
-    
-    let output = cmd.output().context("Failed to execute lst-server user list")?;
-    
+
+    let output = cmd
+        .output()
+        .context("Failed to execute lst-server user list")?;
+
     if output.status.success() {
         print!("{}", String::from_utf8_lossy(&output.stdout));
     } else {
         let error = String::from_utf8_lossy(&output.stderr);
         bail!("lst-server user list failed: {}", error);
     }
-    
+
     Ok(())
 }
 
 /// Create a new user
 pub async fn user_create(email: &str, name: Option<&str>, json: bool) -> Result<()> {
     check_server_binary()?;
-    
+
     let mut cmd = std::process::Command::new("lst-server");
     cmd.arg("user").arg("create").arg(email);
     if let Some(name) = name {
@@ -2326,23 +2402,25 @@ pub async fn user_create(email: &str, name: Option<&str>, json: bool) -> Result<
     if json {
         cmd.arg("--json");
     }
-    
-    let output = cmd.output().context("Failed to execute lst-server user create")?;
-    
+
+    let output = cmd
+        .output()
+        .context("Failed to execute lst-server user create")?;
+
     if output.status.success() {
         print!("{}", String::from_utf8_lossy(&output.stdout));
     } else {
         let error = String::from_utf8_lossy(&output.stderr);
         bail!("lst-server user create failed: {}", error);
     }
-    
+
     Ok(())
 }
 
 /// Delete a user
 pub async fn user_delete(email: &str, force: bool, json: bool) -> Result<()> {
     check_server_binary()?;
-    
+
     let mut cmd = std::process::Command::new("lst-server");
     cmd.arg("user").arg("delete").arg(email);
     if force {
@@ -2351,23 +2429,30 @@ pub async fn user_delete(email: &str, force: bool, json: bool) -> Result<()> {
     if json {
         cmd.arg("--json");
     }
-    
-    let output = cmd.output().context("Failed to execute lst-server user delete")?;
-    
+
+    let output = cmd
+        .output()
+        .context("Failed to execute lst-server user delete")?;
+
     if output.status.success() {
         print!("{}", String::from_utf8_lossy(&output.stdout));
     } else {
         let error = String::from_utf8_lossy(&output.stderr);
         bail!("lst-server user delete failed: {}", error);
     }
-    
+
     Ok(())
 }
 
 /// Update user information
-pub async fn user_update(email: &str, name: Option<&str>, enabled: Option<bool>, json: bool) -> Result<()> {
+pub async fn user_update(
+    email: &str,
+    name: Option<&str>,
+    enabled: Option<bool>,
+    json: bool,
+) -> Result<()> {
     check_server_binary()?;
-    
+
     let mut cmd = std::process::Command::new("lst-server");
     cmd.arg("user").arg("update").arg(email);
     if let Some(name) = name {
@@ -2379,37 +2464,41 @@ pub async fn user_update(email: &str, name: Option<&str>, enabled: Option<bool>,
     if json {
         cmd.arg("--json");
     }
-    
-    let output = cmd.output().context("Failed to execute lst-server user update")?;
-    
+
+    let output = cmd
+        .output()
+        .context("Failed to execute lst-server user update")?;
+
     if output.status.success() {
         print!("{}", String::from_utf8_lossy(&output.stdout));
     } else {
         let error = String::from_utf8_lossy(&output.stderr);
         bail!("lst-server user update failed: {}", error);
     }
-    
+
     Ok(())
 }
 
 /// Show detailed information about a user
 pub async fn user_info(email: &str, json: bool) -> Result<()> {
     check_server_binary()?;
-    
+
     let mut cmd = std::process::Command::new("lst-server");
     cmd.arg("user").arg("info").arg(email);
     if json {
         cmd.arg("--json");
     }
-    
-    let output = cmd.output().context("Failed to execute lst-server user info")?;
-    
+
+    let output = cmd
+        .output()
+        .context("Failed to execute lst-server user info")?;
+
     if output.status.success() {
         print!("{}", String::from_utf8_lossy(&output.stdout));
     } else {
         let error = String::from_utf8_lossy(&output.stderr);
         bail!("lst-server user info failed: {}", error);
     }
-    
+
     Ok(())
 }

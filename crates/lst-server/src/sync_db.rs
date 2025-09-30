@@ -149,6 +149,30 @@ impl SyncDb {
         Ok(())
     }
 
-    
-}
+    /// Ensure a document row exists for this user when changes arrive without prior snapshot
+    pub async fn ensure_document_exists(&self, doc_id: &Uuid, user_id: &str) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+        // Insert a placeholder document row if not present (empty snapshot)
+        sqlx::query(
+            r#"INSERT OR IGNORE INTO documents (doc_id, user_id, encrypted_filename, encrypted_snapshot)
+               VALUES (?, ?, '', x'00')"#,
+        )
+        .bind(doc_id.to_string())
+        .bind(&user_id.to_lowercase())
+        .execute(&mut *tx)
+        .await?;
 
+        // Ensure permission row exists
+        sqlx::query(
+            r#"INSERT OR IGNORE INTO document_permissions (doc_id, user_email, permission_type)
+               VALUES (?, ?, 'owner')"#,
+        )
+        .bind(doc_id.to_string())
+        .bind(&user_id.to_lowercase())
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(())
+    }
+}

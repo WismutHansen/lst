@@ -6,6 +6,7 @@ use automerge::{
     transaction::Transactable as _, Automerge, Change, ObjType, ReadDoc, ScalarValue, Value,
 };
 use base64::engine::general_purpose;
+use base64::Engine;
 use futures_util::{SinkExt, StreamExt};
 use lst_core::config::State;
 use notify::Event;
@@ -46,9 +47,18 @@ fn detect_doc_type(path: &std::path::Path) -> &str {
 }
 
 fn update_note_doc(doc: &mut Automerge, content: &str) -> Result<()> {
+    // Ensure we have a Text object at key "content"
+    let maybe_id = if let Some((Value::Object(_), id)) = doc.get(automerge::ROOT, "content")? {
+        Some(id)
+    } else {
+        None
+    };
     let mut tx = doc.transaction();
-    tx.put(&automerge::ROOT, "content", "")?;
-    tx.update_text(&automerge::ROOT, content)?;
+    let content_id = match maybe_id {
+        Some(id) => id,
+        None => tx.put_object(&automerge::ROOT, "content", ObjType::Text)?,
+    };
+    tx.update_text(&content_id, content)?;
     tx.commit();
     Ok(())
 }
@@ -198,11 +208,22 @@ impl SyncManager {
                 }
             }
 
-            let doc_id = uuid::Uuid::new_v5(
-                &uuid::Uuid::NAMESPACE_OID,
-                path.to_string_lossy().as_bytes(),
-            )
-            .to_string();
+            // Prefer existing mapping by file_path
+            let existing_doc_id = self
+                .db
+                .get_doc_id_by_file_path(&path.to_string_lossy())
+                .ok()
+                .flatten();
+            let doc_id = if let Some(id) = existing_doc_id {
+                id
+            } else {
+                // Use normalized relative path for stable identity across devices
+                let rel = lst_core::storage::get_content_dir()
+                    .ok()
+                    .and_then(|root| path.strip_prefix(&root).ok().map(|p| p.to_string_lossy().replace('\\', "/")))
+                    .unwrap_or_else(|| path.to_string_lossy().replace('\\', "/"));
+                uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, rel.as_bytes()).to_string()
+            };
 
             println!(
                 "DEBUG: Processing file {} -> doc_id: {}",
@@ -417,6 +438,9 @@ impl SyncManager {
                 }
             };
 
+            // Avoid feedback loop: mark as recently synced before writing
+            self.recently_synced_files.insert(std::path::PathBuf::from(&file_path));
+
             tokio::fs::write(&file_path, &content)
                 .await
                 .with_context(|| format!("Failed to write updated file: {}", file_path))?;
@@ -449,18 +473,13 @@ impl SyncManager {
             .and_then(|s| s.server_url.as_ref())
             .context("No server URL configured")?;
 
-        let auth_token = self
-            .state
-            .get_auth_token()
-            .context("No auth token stored for refresh")?;
+        let (email, auth_token) = self.state.get_credentials();
+        let email = email.context("No stored email for refresh")?;
+        let auth_token = auth_token.context("No auth token stored for refresh")?;
 
         // Parse server URL to get host and port
         let url_parts: Vec<&str> = server_url.split("://").collect();
-        let host_port = if url_parts.len() > 1 {
-            url_parts[1]
-        } else {
-            url_parts[0]
-        };
+        let host_port = if url_parts.len() > 1 { url_parts[1] } else { url_parts[0] };
         let host_port_parts: Vec<&str> = host_port.split(':').collect();
         let host = host_port_parts[0];
         let port: u16 = if host_port_parts.len() > 1 {
@@ -473,21 +492,22 @@ impl SyncManager {
 
         if let Some(client) = &self.client {
             let payload = serde_json::json!({
-                "password_hash": auth_token
+                "email": email,
+                "token": auth_token
             });
 
             let response = client
-                .post(format!("{}/api/auth/refresh", http_base_url))
+                .post(format!("{}/api/auth/verify", http_base_url))
                 .json(&payload)
                 .send()
                 .await?;
 
             if response.status().is_success() {
-                let refresh_response: serde_json::Value = response.json().await?;
+                let verify_response: serde_json::Value = response.json().await?;
 
-                if let Some(jwt) = refresh_response.get("jwt").and_then(|j| j.as_str()) {
-                    // Parse JWT to get expiration (basic extraction without validation)
-                    let expires_at = chrono::Utc::now() + chrono::Duration::hours(1); // Default 1 hour
+                if let Some(jwt) = verify_response.get("jwt").and_then(|j| j.as_str()) {
+                    // Default 1 hour
+                    let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
 
                     self.state.store_jwt(jwt.to_string(), expires_at);
                     self.state.save()?;
@@ -496,7 +516,7 @@ impl SyncManager {
                     Ok(())
                 } else {
                     return Err(anyhow::anyhow!(
-                        "Invalid refresh response: missing JWT token"
+                        "Invalid verify response: missing JWT token"
                     ));
                 }
             } else {
@@ -595,20 +615,11 @@ impl SyncManager {
             .clone()
             .unwrap_or_else(|| "unknown".to_string());
 
-        // Connect to WebSocket with Authorization header (like mobile app)
-        use base64::Engine;
+        // Connect to WebSocket with Authorization header
         use tokio_tungstenite::tungstenite::http::Request;
         let ws_request = Request::builder()
             .method("GET")
             .uri(&url)
-            .header("Host", "192.168.1.25:5673")
-            .header("Upgrade", "websocket")
-            .header("Connection", "Upgrade")
-            .header(
-                "Sec-WebSocket-Key",
-                base64::engine::general_purpose::STANDARD.encode("desktop-key-12345678"),
-            )
-            .header("Sec-WebSocket-Version", "13")
             .header("Authorization", format!("Bearer {}", token))
             .body(())?;
 
@@ -940,12 +951,22 @@ impl SyncManager {
         file_path: &std::path::Path,
         files_added: &mut usize,
     ) -> Result<()> {
-        // Generate doc_id the same way as file events
-        let doc_id = uuid::Uuid::new_v5(
-            &uuid::Uuid::NAMESPACE_OID,
-            file_path.to_string_lossy().as_bytes(),
-        )
-        .to_string();
+        // Reuse existing mapping if present
+        let existing_doc_id = self
+            .db
+            .get_doc_id_by_file_path(&file_path.to_string_lossy())
+            .ok()
+            .flatten();
+        let doc_id = if let Some(id) = existing_doc_id {
+            id
+        } else {
+            // Generate doc_id from normalized relative path (stable across devices)
+            let rel = lst_core::storage::get_content_dir()
+                .ok()
+                .and_then(|root| file_path.strip_prefix(&root).ok().map(|p| p.to_string_lossy().replace('\\', "/")))
+                .unwrap_or_else(|| file_path.to_string_lossy().replace('\\', "/"));
+            uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, rel.as_bytes()).to_string()
+        };
 
         // Check if already in database
         if self.db.get_document(&doc_id)?.is_some() {

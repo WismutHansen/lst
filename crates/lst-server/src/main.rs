@@ -1183,6 +1183,10 @@ async fn handle_ws(stream: WebSocket, state: Arc<AppState>, user: String) {
                         } => {
                             eprintln!("Processing PushChanges for {} doc: {} from device: {} ({} changes)", 
                                      user, doc_id, device_id, changes.len());
+                            // Ensure a document row exists so DocumentList can surface it even before a snapshot
+                            if let Err(e) = state.db.ensure_document_exists(&doc_id, &user).await {
+                                eprintln!("Failed to ensure document row: {}", e);
+                            }
                             if let Err(e) = state
                                 .db
                                 .add_changes(&doc_id, &device_id, &changes)

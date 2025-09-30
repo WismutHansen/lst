@@ -179,6 +179,18 @@ impl LocalDb {
         }
     }
 
+    /// Look up a document id by full file path
+    pub fn get_doc_id_by_file_path(&self, file_path: &str) -> Result<Option<String>> {
+        let mut stmt = self.conn.prepare("SELECT doc_id FROM documents WHERE file_path = ?1 LIMIT 1")?;
+        let mut rows = stmt.query(params![file_path])?;
+        if let Some(row) = rows.next()? {
+            let id: String = row.get(0)?;
+            Ok(Some(id))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Delete a document by id
     pub fn delete_document(&self, doc_id: &str) -> Result<()> {
         self.conn
