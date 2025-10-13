@@ -282,6 +282,34 @@ pub enum NoteCommands {
     /// Tidy all notes: ensure proper YAML frontmatter
     #[clap(name = "tidy")]
     Tidy,
+
+    /// Display note content with metadata
+    #[clap(name = "show")]
+    Show {
+        /// Title of the note
+        title: String,
+    },
+
+    /// Search for pattern in note contents using ripgrep
+    #[clap(name = "grep")]
+    Grep {
+        /// Pattern to search for (supports regex)
+        pattern: String,
+    },
+
+    /// Search for text in note contents (simple text search)
+    #[clap(name = "search")]
+    Search {
+        /// Text to search for
+        query: String,
+    },
+
+    /// Get note metadata without full content
+    #[clap(name = "metadata")]
+    Metadata {
+        /// Title of the note
+        title: String,
+    },
 }
 
 #[derive(Subcommand)]

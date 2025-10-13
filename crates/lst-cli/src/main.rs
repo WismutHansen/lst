@@ -63,6 +63,18 @@ async fn main() -> Result<()> {
             NoteCommands::Tidy => {
                 cli::commands::tidy_notes(cli.json)?;
             }
+            NoteCommands::Show { title } => {
+                cli::commands::note_show(title, cli.json)?;
+            }
+            NoteCommands::Grep { pattern } => {
+                cli::commands::note_grep(pattern, cli.json)?;
+            }
+            NoteCommands::Search { query } => {
+                cli::commands::note_search(query, cli.json)?;
+            }
+            NoteCommands::Metadata { title } => {
+                cli::commands::note_metadata(title, cli.json)?;
+            }
         },
         // Commands::Post(post_cmd) => {
         //     match post_cmd {

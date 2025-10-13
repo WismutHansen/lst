@@ -12,7 +12,6 @@ use crate::{models::ItemStatus, storage::notes::delete_note};
 use chrono::{Local, Utc};
 use lst_core::config::State;
 use lst_core::models::Category;
-use lst_core::theme::ThemeLoader;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -199,6 +198,337 @@ pub async fn note_delete(title: &str) -> Result<()> {
     }
 
     result
+}
+
+/// Display note content with metadata
+pub fn note_show(title: &str, json: bool) -> Result<()> {
+    use uuid::Uuid;
+    
+    let key = title.trim_end_matches(".md");
+    let note = resolve_note(key)?;
+    let path = storage::notes::load_note(&note).context("Failed to load note")?;
+    
+    if !path.exists() {
+        bail!("Note '{}' does not exist", title);
+    }
+    
+    let content = std::fs::read_to_string(&path)
+        .context(format!("Failed to read note: {}", path.display()))?;
+    
+    let mut frontmatter = NoteFrontmatter::default();
+    let body: String;
+    
+    if content.starts_with("---") {
+        let parts: Vec<&str> = content.splitn(3, "---").collect();
+        if parts.len() >= 3 {
+            if let Ok(fm) = serde_yaml::from_str::<NoteFrontmatter>(parts[1]) {
+                frontmatter = fm;
+            }
+            body = parts[2].trim_start_matches('\n').to_string();
+        } else {
+            body = content.clone();
+        }
+    } else {
+        body = content.clone();
+    }
+    
+    if json {
+        let id = Uuid::new_v5(&Uuid::NAMESPACE_OID, path.to_string_lossy().as_bytes()).to_string();
+        
+        let mut metadata = serde_json::Map::new();
+        if let Some(ref created) = frontmatter.created {
+            metadata.insert("created".to_string(), serde_json::json!(created.to_rfc3339()));
+        }
+        if let Some(ref updated) = frontmatter.updated {
+            metadata.insert("updated".to_string(), serde_json::json!(updated.to_rfc3339()));
+        }
+        if let Some(ref tags) = frontmatter.tags {
+            metadata.insert("tags".to_string(), serde_json::json!(tags));
+        }
+        if let Some(ref title_val) = frontmatter.title {
+            metadata.insert("title".to_string(), serde_json::json!(title_val));
+        }
+        
+        let output = serde_json::json!({
+            "id": id,
+            "title": frontmatter.title.as_ref().unwrap_or(&note),
+            "path": path.to_string_lossy(),
+            "content": body,
+            "metadata": metadata
+        });
+        
+        println!("{}", serde_json::to_string_pretty(&output)?);
+    } else {
+        println!("Title: {}", frontmatter.title.as_ref().unwrap_or(&note).cyan());
+        println!("Path: {}", path.display());
+        if let Some(created) = frontmatter.created {
+            println!("Created: {}", created.format("%Y-%m-%d %H:%M:%S UTC"));
+        }
+        if let Some(updated) = frontmatter.updated {
+            println!("Updated: {}", updated.format("%Y-%m-%d %H:%M:%S UTC"));
+        }
+        if let Some(tags) = frontmatter.tags {
+            println!("Tags: {}", tags.join(", "));
+        }
+        println!("\n{}", body);
+    }
+    
+    Ok(())
+}
+
+/// Search for pattern in notes using ripgrep
+pub fn note_grep(pattern: &str, json: bool) -> Result<()> {
+    let notes_dir = storage::get_notes_dir()?;
+    
+    let output = Command::new("rg")
+        .arg("--line-number")
+        .arg("--no-heading")
+        .arg("--with-filename")
+        .arg("--color=never")
+        .arg(pattern)
+        .arg(&notes_dir)
+        .output()
+        .context("Failed to execute ripgrep. Make sure 'rg' is installed.")?;
+    
+    if !output.stderr.is_empty() {
+        let stderr_msg = String::from_utf8_lossy(&output.stderr);
+        bail!("ripgrep error: {}", stderr_msg);
+    }
+    
+    if output.stdout.is_empty() {
+        if json {
+            println!("[]");
+        } else {
+            println!("No matches found for pattern: {}", pattern);
+        }
+        return Ok(());
+    }
+    
+    let results = String::from_utf8_lossy(&output.stdout);
+    
+    if json {
+        let mut matches = Vec::new();
+        
+        for line in results.lines() {
+            let parts: Vec<&str> = line.splitn(3, ':').collect();
+            if parts.len() == 3 {
+                let file_path = parts[0];
+                let line_num = parts[1];
+                let content = parts[2];
+                
+                let relative_path = if let Ok(stripped) = std::path::Path::new(file_path)
+                    .strip_prefix(&notes_dir)
+                {
+                    stripped.to_string_lossy().to_string()
+                } else {
+                    file_path.to_string()
+                };
+                
+                let note_name = relative_path.trim_end_matches(".md").to_string();
+                
+                matches.push(serde_json::json!({
+                    "note": note_name,
+                    "line": line_num.parse::<u32>().unwrap_or(0),
+                    "content": content.trim()
+                }));
+            }
+        }
+        
+        println!("{}", serde_json::to_string_pretty(&matches)?);
+    } else {
+        for line in results.lines() {
+            let parts: Vec<&str> = line.splitn(3, ':').collect();
+            if parts.len() == 3 {
+                let file_path = parts[0];
+                let line_num = parts[1];
+                let content = parts[2];
+                
+                let relative_path = if let Ok(stripped) = std::path::Path::new(file_path)
+                    .strip_prefix(&notes_dir)
+                {
+                    stripped.to_string_lossy().to_string()
+                } else {
+                    file_path.to_string()
+                };
+                
+                let note_name = relative_path.trim_end_matches(".md");
+                
+                println!(
+                    "{}:{} {}",
+                    note_name.cyan(),
+                    line_num.yellow(),
+                    content.trim()
+                );
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+/// Search for text in notes (simple text search, fixed string)
+pub fn note_search(query: &str, json: bool) -> Result<()> {
+    let notes_dir = storage::get_notes_dir()?;
+    
+    let output = Command::new("rg")
+        .arg("--fixed-strings")
+        .arg("--line-number")
+        .arg("--no-heading")
+        .arg("--with-filename")
+        .arg("--color=never")
+        .arg(query)
+        .arg(&notes_dir)
+        .output()
+        .context("Failed to execute ripgrep. Make sure 'rg' is installed.")?;
+    
+    if output.stdout.is_empty() {
+        if json {
+            println!("[]");
+        } else {
+            println!("No matches found for: {}", query);
+        }
+        return Ok(());
+    }
+    
+    let results = String::from_utf8_lossy(&output.stdout);
+    
+    if json {
+        let mut note_list: std::collections::HashSet<String> = std::collections::HashSet::new();
+        
+        for line in results.lines() {
+            let parts: Vec<&str> = line.splitn(3, ':').collect();
+            if parts.len() >= 2 {
+                let file_path = parts[0];
+                
+                let relative_path = if let Ok(stripped) = std::path::Path::new(file_path)
+                    .strip_prefix(&notes_dir)
+                {
+                    stripped.to_string_lossy().to_string()
+                } else {
+                    file_path.to_string()
+                };
+                
+                let note_name = relative_path.trim_end_matches(".md").to_string();
+                note_list.insert(note_name);
+            }
+        }
+        
+        let mut notes: Vec<String> = note_list.into_iter().collect();
+        notes.sort();
+        
+        println!("{}", serde_json::to_string_pretty(&notes)?);
+    } else {
+        let mut note_list: std::collections::HashSet<String> = std::collections::HashSet::new();
+        
+        for line in results.lines() {
+            let parts: Vec<&str> = line.splitn(3, ':').collect();
+            if parts.len() >= 2 {
+                let file_path = parts[0];
+                
+                let relative_path = if let Ok(stripped) = std::path::Path::new(file_path)
+                    .strip_prefix(&notes_dir)
+                {
+                    stripped.to_string_lossy().to_string()
+                } else {
+                    file_path.to_string()
+                };
+                
+                let note_name = relative_path.trim_end_matches(".md").to_string();
+                note_list.insert(note_name);
+            }
+        }
+        
+        if note_list.is_empty() {
+            println!("No notes found containing: {}", query);
+        } else {
+            println!("Notes containing '{}':", query);
+            let mut notes: Vec<String> = note_list.into_iter().collect();
+            notes.sort();
+            for note in notes {
+                println!("  {}", note.cyan());
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+/// Get note metadata without full content
+pub fn note_metadata(title: &str, json: bool) -> Result<()> {
+    let key = title.trim_end_matches(".md");
+    let note = resolve_note(key)?;
+    let path = storage::notes::load_note(&note).context("Failed to load note")?;
+    
+    if !path.exists() {
+        bail!("Note '{}' does not exist", title);
+    }
+    
+    let content = std::fs::read_to_string(&path)
+        .context(format!("Failed to read note: {}", path.display()))?;
+    
+    let mut frontmatter = NoteFrontmatter::default();
+    let body: String;
+    
+    if content.starts_with("---") {
+        let parts: Vec<&str> = content.splitn(3, "---").collect();
+        if parts.len() >= 3 {
+            if let Ok(fm) = serde_yaml::from_str::<NoteFrontmatter>(parts[1]) {
+                frontmatter = fm;
+            }
+            body = parts[2].trim_start_matches('\n').to_string();
+        } else {
+            body = content.clone();
+        }
+    } else {
+        body = content.clone();
+    }
+    
+    let word_count = body.split_whitespace().count();
+    let line_count = body.lines().count();
+    
+    if json {
+        let mut output = serde_json::Map::new();
+        
+        output.insert("title".to_string(), serde_json::json!(frontmatter.title.as_ref().unwrap_or(&note)));
+        
+        if let Some(ref created) = frontmatter.created {
+            output.insert("created".to_string(), serde_json::json!(created.to_rfc3339()));
+        }
+        
+        if let Some(ref updated) = frontmatter.updated {
+            output.insert("updated".to_string(), serde_json::json!(updated.to_rfc3339()));
+        }
+        
+        output.insert("word_count".to_string(), serde_json::json!(word_count));
+        output.insert("line_count".to_string(), serde_json::json!(line_count));
+        
+        if let Some(ref tags) = frontmatter.tags {
+            output.insert("tags".to_string(), serde_json::json!(tags));
+        }
+        
+        println!("{}", serde_json::to_string_pretty(&output)?);
+    } else {
+        println!("Note Metadata:");
+        println!("  Title: {}", frontmatter.title.as_ref().unwrap_or(&note).cyan());
+        println!("  Path: {}", path.display());
+        
+        if let Some(created) = frontmatter.created {
+            println!("  Created: {}", created.format("%Y-%m-%d %H:%M:%S UTC"));
+        }
+        
+        if let Some(updated) = frontmatter.updated {
+            println!("  Updated: {}", updated.format("%Y-%m-%d %H:%M:%S UTC"));
+        }
+        
+        if let Some(tags) = frontmatter.tags {
+            println!("  Tags: {}", tags.join(", "));
+        }
+        
+        println!("  Word count: {}", word_count);
+        println!("  Line count: {}", line_count);
+    }
+    
+    Ok(())
 }
 
 /// Spawn the user's editor (from $EDITOR or default 'vi') on the given path
@@ -1225,6 +1555,8 @@ fn get_list_file_path(list_name: &str) -> Result<std::path::PathBuf> {
 struct NoteFrontmatter {
     title: Option<String>,
     created: Option<chrono::DateTime<chrono::Utc>>,
+    updated: Option<chrono::DateTime<chrono::Utc>>,
+    tags: Option<Vec<String>>,
 }
 
 /// Tidy all notes: ensure they have proper YAML frontmatter
