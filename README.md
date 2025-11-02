@@ -13,7 +13,7 @@ For a step-by-step guide see [docs/INSTALL.md](docs/INSTALL.md).
 The `lst-cli` supports optional features to reduce compilation time and dependencies:
 
 - **`gui`** (default): Enables desktop app integration and live updates
-- **`lists`** (default): Core list functionality  
+- **`lists`** (default): Core list functionality
 - **`notes`**: Note management features
 - **`posts`**: Blog post features
 - **`media`**: Image and media handling
@@ -32,6 +32,7 @@ cargo install --path crates/lst-cli --no-default-features --features "lists,note
 ```
 
 **Compilation Time Comparison:**
+
 - With GUI features: ~19 seconds
 - Without GUI features: ~6 seconds (3x faster)
 
@@ -59,7 +60,7 @@ cargo install --path crates/lst-server
 
 ### MCP Server Setup
 
-The `lst-mcp` provides a Model Context Protocol server that allows AI assistants (like Claude) to manage your lists and notes.
+The `lst-mcp` provides a Model Context Protocol server that allows AI assistants (like opencode) to manage your lists and notes.
 
 #### Installing the MCP Server
 
@@ -72,6 +73,7 @@ lst-mcp
 ```
 
 The MCP server provides tools for:
+
 - Listing all available lists
 - Adding items to lists
 - Marking items as done/undone
@@ -98,6 +100,7 @@ cargo install --path crates/lst-server
    **💡 Pro tip**: LST automatically includes schema references in generated config files for LSP validation. See [CONFIG_SCHEMA.md](CONFIG_SCHEMA.md) for editor setup instructions.
 
    Generate the schema yourself:
+
    ```bash
    lst schema > lst-config-schema.json
    ```
@@ -120,6 +123,7 @@ sender = "noreply@yourdomain.com"
 ```
 
 2. Set up environment variables (if using email):
+
 ```bash
 export SMTP_PASSWORD="your-app-password"
 ```
@@ -138,6 +142,7 @@ cargo run --bin lst-server
 ```
 
 The server will:
+
 - Listen on the configured host:port (default: `127.0.0.1:5673`)
 - Create SQLite databases in the configured data directory
 - Provide REST API endpoints at `/api/*`
@@ -146,6 +151,7 @@ The server will:
 #### API Usage
 
 1. **Request login token**:
+
 ```bash
 curl -X POST -H "Content-Type: application/json" \
   -d '{"email": "user@example.com", "host": "your.server.com"}' \
@@ -153,6 +159,7 @@ curl -X POST -H "Content-Type: application/json" \
 ```
 
 2. **Verify token and get JWT**:
+
 ```bash
 curl -X POST -H "Content-Type: application/json" \
   -d '{"email": "user@example.com", "token": "RECEIVED-TOKEN"}' \
@@ -160,6 +167,7 @@ curl -X POST -H "Content-Type: application/json" \
 ```
 
 3. **Use JWT for authenticated requests**:
+
 ```bash
 JWT_TOKEN="your-jwt-token"
 curl -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $JWT_TOKEN" \
@@ -174,23 +182,29 @@ For complete API documentation, see [SPEC.md](SPEC.md).
 The CLI provides a streamlined authentication flow that integrates with the server's email-based token system:
 
 1. **Configure server URL** (if not done already):
+
 ```bash
 lst sync setup --server http://localhost:5673/api
 ```
 
 2. **Request authentication**:
+
 ```bash
 lst auth request user@example.com
 ```
+
 This sends a token to your email address.
 
 3. **Verify and store JWT**:
+
 ```bash
 lst auth verify user@example.com YOUR-TOKEN-HERE
 ```
+
 This exchanges the email token for a JWT that's stored locally for future requests.
 
 4. **Use authenticated commands**:
+
 ```bash
 lst server create notes "test.md" "Hello from authenticated CLI!"
 ```
@@ -389,6 +403,7 @@ lst theme validate <theme_file>
 #### Built-in Themes
 
 The system includes several built-in themes:
+
 - **catppuccin-mocha**: Dark theme with warm, muted colors
 - **catppuccin-latte**: Light theme with soft, pastel colors
 - **gruvbox-dark**: Popular dark theme with earthy tones
@@ -415,6 +430,7 @@ background = "#1e1e2e"
 #### Desktop and Mobile Apps
 
 Both desktop and mobile applications support real-time theme switching:
+
 - **Desktop**: Theme selector in the sidebar
 - **Mobile**: Theme selector in the Settings panel
 - **Live Updates**: Theme changes apply immediately without restart
@@ -669,50 +685,55 @@ The `lst-server` provides an HTTP API for managing authentication and content.
 
 #### Authentication Flow
 
-1.  **Token Request**: `POST /api/auth/request`
-    -   Client sends: `{ "email": "user@example.com", "host": "client.host.name" }`
-    -   Server emails a one-time token to `user@example.com`. This token is stored temporarily in its `tokens.db` SQLite database.
-2.  **Token Verification & JWT**: `POST /api/auth/verify`
-    -   Client sends: `{ "email": "user@example.com", "token": "RECEIVED_TOKEN" }`
-    -   Server verifies the token against `tokens.db`. If valid, it's consumed, and a JWT is issued.
-3.  **Authenticated Requests**:
-    -   The received JWT is used in the `Authorization: Bearer <JWT>` header for all subsequent protected API calls.
+1. **Token Request**: `POST /api/auth/request`
+    - Client sends: `{ "email": "user@example.com", "host": "client.host.name" }`
+    - Server emails a one-time token to `user@example.com`. This token is stored temporarily in its `tokens.db` SQLite database.
+2. **Token Verification & JWT**: `POST /api/auth/verify`
+    - Client sends: `{ "email": "user@example.com", "token": "RECEIVED_TOKEN" }`
+    - Server verifies the token against `tokens.db`. If valid, it's consumed, and a JWT is issued.
+3. **Authenticated Requests**:
+    - The received JWT is used in the `Authorization: Bearer <JWT>` header for all subsequent protected API calls.
 
 #### Content Management API
 
 Content (like notes or lists) is stored in the server's `content.db` SQLite database. Items are identified by a `kind` (e.g., "notes", "lists") and a `path` (e.g., "personal/todos.md"). These are logical identifiers within the database.
 
--   **Create**: `POST /api/content`
-    -   Payload: `{ "kind": "notes", "path": "travel/packing_list.md", "content": "- Passport\n- Tickets" }`
-    -   Response: `201 Created` or `409 Conflict` if `kind`/`path` already exists.
--   **Read**: `GET /api/content/{kind}/{path}`
-    -   Example: `GET /api/content/notes/travel/packing_list.md`
-    -   Response: `200 OK` with content or `404 Not Found`.
--   **Update**: `PUT /api/content/{kind}/{path}`
-    -   Payload: `{ "content": "- Passport (checked!)" }`
-    -   Response: `200 OK` or `404 Not Found`.
--   **Delete**: `DELETE /api/content/{kind}/{path}`
-    -   Response: `200 OK` or `404 Not Found`.
+- **Create**: `POST /api/content`
+  - Payload: `{ "kind": "notes", "path": "travel/packing_list.md", "content": "- Passport\n- Tickets" }`
+  - Response: `201 Created` or `409 Conflict` if `kind`/`path` already exists.
+- **Read**: `GET /api/content/{kind}/{path}`
+  - Example: `GET /api/content/notes/travel/packing_list.md`
+  - Response: `200 OK` with content or `404 Not Found`.
+- **Update**: `PUT /api/content/{kind}/{path}`
+  - Payload: `{ "content": "- Passport (checked!)" }`
+  - Response: `200 OK` or `404 Not Found`.
+- **Delete**: `DELETE /api/content/{kind}/{path}`
+  - Response: `200 OK` or `404 Not Found`.
 
 **Example `curl` Usage:**
 
-1.  Request login token:
+1. Request login token:
+
     ```bash
     curl -X POST -H "Content-Type: application/json" \
       -d '{ "email": "user@example.com", "host": "your.server.com" }' \
       http://your.server.com:3000/api/auth/request
     ```
+
     (Server sends token to `user@example.com`. Assume token is `ABCD-1234`)
 
-2.  Verify token and get JWT:
+2. Verify token and get JWT:
+
     ```bash
     curl -X POST -H "Content-Type: application/json" \
       -d '{ "email": "user@example.com", "token": "ABCD-1234" }' \
       http://your.server.com:3000/api/auth/verify
     ```
+
     (Returns JSON with `jwt` field, e.g., `{"jwt":"eyJ...", "user":"user@example.com"}`)
 
-3.  Create a note using JWT:
+3. Create a note using JWT:
+
     ```bash
     JWT_TOKEN="eyJ..." # Replace with actual JWT
     curl -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $JWT_TOKEN" \
@@ -720,7 +741,8 @@ Content (like notes or lists) is stored in the server's `content.db` SQLite data
       http://your.server.com:3000/api/content
     ```
 
-4.  Read the note:
+4. Read the note:
+
     ```bash
     curl -X GET -H "Authorization: Bearer $JWT_TOKEN" \
       http://your.server.com:3000/api/content/notes/example.md
@@ -741,7 +763,7 @@ A typical command flow:
 This architecture provides:
 
 - **Separation of Concerns**: Each crate has a distinct responsibility
-- **Testability**: Core logic can be tested without I/O dependencies  
+- **Testability**: Core logic can be tested without I/O dependencies
 - **Flexibility**: Multiple interfaces (CLI, MCP, server, GUI) can use the same core logic
 - **Performance**: MCP server compiles quickly without UI dependencies
 - **Live Updates**: GUI automatically refreshes when CLI makes changes
@@ -780,6 +802,6 @@ cargo build --release -p lst-cli --no-default-features --features lists
 ./target/release/lst ls <list_name>
 
 # Build MCP server (always lightweight)
-cargo build --release -p lst-mcp  
+cargo build --release -p lst-mcp
 ./target/release/lst-mcp
 ```
