@@ -1,9 +1,9 @@
 use anyhow::Result;
+use chrono::{DateTime, Utc};
+use lst_proto::DocumentInfo;
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 use sqlx::Row;
 use std::path::PathBuf;
-use lst_proto::DocumentInfo;
-use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -35,7 +35,7 @@ impl SyncDb {
         )
         .execute(&pool)
         .await?;
-        
+
         sqlx::query(
             r#"CREATE TABLE IF NOT EXISTS document_permissions (
                 doc_id TEXT NOT NULL,
@@ -86,10 +86,12 @@ impl SyncDb {
     }
 
     pub async fn get_snapshot(&self, doc_id: &Uuid) -> Result<Option<(String, Vec<u8>)>> {
-        let row = sqlx::query("SELECT encrypted_filename, encrypted_snapshot FROM documents WHERE doc_id = ?")
-            .bind(doc_id.to_string())
-            .fetch_optional(&self.pool)
-            .await?;
+        let row = sqlx::query(
+            "SELECT encrypted_filename, encrypted_snapshot FROM documents WHERE doc_id = ?",
+        )
+        .bind(doc_id.to_string())
+        .fetch_optional(&self.pool)
+        .await?;
         Ok(row.map(|r| (r.get("encrypted_filename"), r.get("encrypted_snapshot"))))
     }
 
@@ -101,7 +103,7 @@ impl SyncDb {
         snapshot: &[u8],
     ) -> Result<()> {
         let mut tx = self.pool.begin().await?;
-        
+
         sqlx::query(
             r#"INSERT INTO documents (doc_id, user_id, encrypted_filename, encrypted_snapshot)
                VALUES (?, ?, ?, ?)
@@ -116,7 +118,7 @@ impl SyncDb {
         .bind(snapshot)
         .execute(&mut *tx)
         .await?;
-        
+
         sqlx::query(
             r#"INSERT OR IGNORE INTO document_permissions (doc_id, user_email, permission_type)
                VALUES (?, ?, 'owner')"#,
@@ -125,7 +127,7 @@ impl SyncDb {
         .bind(&user_id.to_lowercase())
         .execute(&mut *tx)
         .await?;
-        
+
         tx.commit().await?;
         Ok(())
     }

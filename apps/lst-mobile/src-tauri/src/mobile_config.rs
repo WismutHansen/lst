@@ -2,10 +2,10 @@
 // This file provides mobile-only config functions that don't touch desktop config
 
 use anyhow::Result;
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::sync::Mutex;
-use lazy_static::lazy_static;
 
 lazy_static! {
     static ref MOBILE_CONFIG: Mutex<MobileConfig> = Mutex::new(MobileConfig::default());
@@ -74,7 +74,7 @@ impl MobileSyncConfig {
         let auth_token = db.load_sync_config("auth_token")?;
         let jwt_token = db.load_sync_config("jwt_token")?;
         let device_id = db.load_sync_config("device_id")?;
-        
+
         let jwt_expires_at = if let Some(expires_str) = db.load_sync_config("jwt_expires_at")? {
             chrono::DateTime::parse_from_rfc3339(&expires_str)
                 .map(|dt| dt.with_timezone(&chrono::Utc))
@@ -163,7 +163,7 @@ impl MobileSyncConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct MobileUiConfig {
     pub resolution_order: Option<Vec<String>>,
-    pub keybind_mode: Option<String>, 
+    pub keybind_mode: Option<String>,
     pub compact_mode: Option<bool>,
     pub leader_key: Option<String>,
     pub theme: Option<MobileThemeConfig>,
@@ -202,7 +202,10 @@ pub fn get_current_config() -> MobileConfig {
 }
 
 /// Update mobile config
-pub fn update_config<F>(updater: F) where F: FnOnce(&mut MobileConfig) {
+pub fn update_config<F>(updater: F)
+where
+    F: FnOnce(&mut MobileConfig),
+{
     let mut config_guard = MOBILE_CONFIG.lock().unwrap();
     updater(&mut *config_guard);
 }
@@ -210,29 +213,29 @@ pub fn update_config<F>(updater: F) where F: FnOnce(&mut MobileConfig) {
 /// Save mobile configuration to database
 pub fn save_config_to_db(db: &crate::database::Database) -> Result<()> {
     let config = get_current_config();
-    
+
     // Save sync configuration
     config.sync.save_to_db(db)?;
-    
+
     // Save UI configuration as JSON
     if let Ok(ui_json) = serde_json::to_string(&config.ui) {
         db.save_sync_config("ui_config", &ui_json)?;
     }
-    
+
     // Save syncd configuration if it exists
     if let Some(ref syncd) = config.syncd {
         if let Ok(syncd_json) = serde_json::to_string(syncd) {
             db.save_sync_config("syncd_config", &syncd_json)?;
         }
     }
-    
+
     // Save sync settings if they exist
     if let Some(ref sync_settings) = config.sync_settings {
         if let Ok(settings_json) = serde_json::to_string(sync_settings) {
             db.save_sync_config("sync_settings", &settings_json)?;
         }
     }
-    
+
     println!("📱 Config: Saved mobile configuration to database");
     Ok(())
 }
@@ -244,31 +247,31 @@ pub fn load_config_from_db(db: &crate::database::Database) -> Result<()> {
         if let Ok(sync_config) = MobileSyncConfig::load_from_db(db) {
             config.sync = sync_config;
         }
-        
+
         // Load UI configuration
         if let Ok(Some(ui_json)) = db.load_sync_config("ui_config") {
             if let Ok(ui_config) = serde_json::from_str::<MobileUiConfig>(&ui_json) {
                 config.ui = ui_config;
             }
         }
-        
+
         // Load syncd configuration
         if let Ok(Some(syncd_json)) = db.load_sync_config("syncd_config") {
             if let Ok(syncd_config) = serde_json::from_str::<MobileSyncdConfig>(&syncd_json) {
                 config.syncd = Some(syncd_config);
             }
         }
-        
+
         // Load sync settings
         if let Ok(Some(settings_json)) = db.load_sync_config("sync_settings") {
             if let Ok(sync_settings) = serde_json::from_str::<MobileSyncSettings>(&settings_json) {
                 config.sync_settings = Some(sync_settings);
             }
         }
-        
+
         println!("📱 Config: Loaded mobile configuration from database");
     });
-    
+
     Ok(())
 }
 
@@ -290,7 +293,7 @@ impl MobileSyncdConfig {
             // Fallback to temp if data_dir fails
             std::env::temp_dir().join("lst-mobile")
         };
-        
+
         MobileSyncdConfig {
             url: Some(server_url),
             device_id: Some(device_id),
@@ -311,7 +314,7 @@ pub struct MobileSyncSettings {
 impl Default for MobileSyncSettings {
     fn default() -> Self {
         MobileSyncSettings {
-            interval_seconds: 30, // 30 seconds for mobile
+            interval_seconds: 30,            // 30 seconds for mobile
             max_file_size: 10 * 1024 * 1024, // 10MB
             exclude_patterns: vec![],
         }
@@ -333,7 +336,7 @@ impl Default for MobileStorageConfig {
             // Fallback to temp if data_dir fails
             std::env::temp_dir().join("lst-mobile")
         };
-        
+
         MobileStorageConfig {
             crdt_dir: app_data_dir.join("crdt"),
         }
@@ -349,7 +352,7 @@ impl MobileConfig {
     /// Set up sync configuration with server details
     pub fn setup_sync(&mut self, server_url: String, device_id: String) {
         self.syncd = Some(MobileSyncdConfig::new(server_url, device_id));
-        
+
         // Ensure sync settings exist
         if self.sync_settings.is_none() {
             self.sync_settings = Some(MobileSyncSettings::default());

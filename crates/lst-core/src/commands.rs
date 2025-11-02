@@ -1,7 +1,7 @@
-use anyhow::Result;
-use chrono;
 use crate::storage;
 use crate::Config;
+use anyhow::Result;
+use chrono;
 
 /// Add an item to a list
 pub async fn add_item(list: &str, text: &str, _json: bool) -> Result<()> {
@@ -51,13 +51,13 @@ pub async fn remove_item(list: &str, target: &str, _json: bool) -> Result<()> {
 // Helper function to normalize list names
 fn normalize_list(list: &str) -> Result<String> {
     let key = list.trim_end_matches(".md");
-    
+
     // Handle special case: "dl" resolves to today's daily list
     if key == "dl" {
         let date = chrono::Local::now().format("%Y%m%d").to_string();
         return Ok(format!("daily_lists/{}_daily_list", date));
     }
-    
+
     // For other cases, return as-is (simplified version without fuzzy matching)
     Ok(key.to_string())
 }
@@ -65,13 +65,13 @@ fn normalize_list(list: &str) -> Result<String> {
 // Helper function to normalize note names
 fn normalize_note(note: &str) -> Result<String> {
     let key = note.trim_end_matches(".md");
-    
+
     // Handle special case: "dn" resolves to today's daily note
     if key == "dn" {
         let date = chrono::Local::now().format("%Y%m%d").to_string();
         return Ok(format!("daily_notes/{}_daily_note", date));
     }
-    
+
     // For other cases, return as-is (simplified version without fuzzy matching)
     Ok(key.to_string())
 }

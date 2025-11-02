@@ -73,14 +73,12 @@ impl AddToListTool {
                 format!("Failed to create runtime: {}", e),
             ))
         })?;
-        
+
         match rt.block_on(commands::add_item(&self.list, &self.item, false)) {
-            Ok(_) => {
-                Ok(CallToolResult::text_content(
-                    format!("Added '{}' to list '{}'", self.item, self.list),
-                    None,
-                ))
-            }
+            Ok(_) => Ok(CallToolResult::text_content(
+                format!("Added '{}' to list '{}'", self.item, self.list),
+                None,
+            )),
             Err(e) => Err(CallToolError::new(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 format!("{}", e),
@@ -116,14 +114,12 @@ impl MarkDoneTool {
                 format!("Failed to create runtime: {}", e),
             ))
         })?;
-        
+
         match rt.block_on(commands::mark_done(&self.list, &self.target, false)) {
-            Ok(_) => {
-                Ok(CallToolResult::text_content(
-                    format!("Marked '{}' as done in list '{}'", self.target, self.list),
-                    None,
-                ))
-            }
+            Ok(_) => Ok(CallToolResult::text_content(
+                format!("Marked '{}' as done in list '{}'", self.target, self.list),
+                None,
+            )),
             Err(e) => Err(CallToolError::new(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 format!("{}", e),
@@ -159,14 +155,12 @@ impl MarkUndoneTool {
                 format!("Failed to create runtime: {}", e),
             ))
         })?;
-        
+
         match rt.block_on(commands::mark_undone(&self.list, &self.target, false)) {
-            Ok(_) => {
-                Ok(CallToolResult::text_content(
-                    format!("Marked '{}' as undone in list '{}'", self.target, self.list),
-                    None,
-                ))
-            }
+            Ok(_) => Ok(CallToolResult::text_content(
+                format!("Marked '{}' as undone in list '{}'", self.target, self.list),
+                None,
+            )),
             Err(e) => Err(CallToolError::new(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 format!("{}", e),
@@ -179,4 +173,7 @@ impl MarkUndoneTool {
 //  LstTools Enum  //
 //******************//
 // Generates an enum names LstTools, with all tool variants
-tool_box!(LstTools, [ListListsTool, AddToListTool, MarkDoneTool, MarkUndoneTool]);
+tool_box!(
+    LstTools,
+    [ListListsTool, AddToListTool, MarkDoneTool, MarkUndoneTool]
+);

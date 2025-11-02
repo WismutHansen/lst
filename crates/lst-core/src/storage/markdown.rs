@@ -1,4 +1,4 @@
-use crate::models::{generate_anchor, is_valid_anchor, ItemStatus, List, ListItem, Category};
+use crate::models::{generate_anchor, is_valid_anchor, Category, ItemStatus, List, ListItem};
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::fs;
@@ -127,12 +127,12 @@ fn parse_items(list: &mut List, content: &str) {
 
     for line in content.lines() {
         let line = line.trim();
-        
+
         // Check for category headline
         if let Some(captures) = HEADLINE_RE.captures(line) {
             let category_name = captures[1].trim().to_string();
             current_category = Some(category_name.clone());
-            
+
             // Create category if it doesn't exist
             if !list.categories.iter().any(|c| c.name == category_name) {
                 list.categories.push(Category {
@@ -166,7 +166,8 @@ fn parse_items(list: &mut List, content: &str) {
             // Add to current category or uncategorized
             match &current_category {
                 Some(cat_name) => {
-                    if let Some(category) = list.categories.iter_mut().find(|c| c.name == *cat_name) {
+                    if let Some(category) = list.categories.iter_mut().find(|c| c.name == *cat_name)
+                    {
                         category.items.push(item);
                     }
                 }
@@ -181,8 +182,8 @@ fn parse_items(list: &mut List, content: &str) {
 /// Format a list as markdown
 fn format_list_as_markdown(list: &List) -> String {
     // Format frontmatter - only serialize metadata, not items
-    let frontmatter =
-        serde_yaml::to_string(&list.metadata).unwrap_or_else(|_| "title: Untitled List\n".to_string());
+    let frontmatter = serde_yaml::to_string(&list.metadata)
+        .unwrap_or_else(|_| "title: Untitled List\n".to_string());
 
     let mut content = format!("---\n{}---\n\n", frontmatter);
 
@@ -264,7 +265,11 @@ pub fn add_item(list_name: &str, text: &str) -> Result<ListItem> {
 }
 
 /// Add an item to a specific category in a list
-pub fn add_item_to_category(list_name: &str, text: &str, category: Option<&str>) -> Result<ListItem> {
+pub fn add_item_to_category(
+    list_name: &str,
+    text: &str,
+    category: Option<&str>,
+) -> Result<ListItem> {
     let mut list = load_list(list_name)?;
     let item = list.add_item_to_category(text.to_string(), category);
 
@@ -380,7 +385,12 @@ fn mark_item_undone(list: &mut List, target: &str, threshold: i64) -> Result<Lis
 }
 
 /// Helper function to find an item and set its status
-fn find_and_set_item_status(list: &mut List, target: &str, status: ItemStatus, threshold: i64) -> Result<ListItem> {
+fn find_and_set_item_status(
+    list: &mut List,
+    target: &str,
+    status: ItemStatus,
+    threshold: i64,
+) -> Result<ListItem> {
     // Try to find the item by anchor first
     if is_valid_anchor(target) {
         if let Some(item) = list.find_item_mut_by_anchor(target) {
@@ -390,7 +400,10 @@ fn find_and_set_item_status(list: &mut List, target: &str, status: ItemStatus, t
     }
 
     // Try to find by exact text match
-    if let Some(item) = list.all_items_mut().find(|item| item.text.to_lowercase() == target.to_lowercase()) {
+    if let Some(item) = list
+        .all_items_mut()
+        .find(|item| item.text.to_lowercase() == target.to_lowercase())
+    {
         item.status = status;
         return Ok(item.clone());
     }
@@ -471,9 +484,10 @@ pub fn delete_item(list_name: &str, target: &str, threshold: i64) -> Result<Vec<
 pub fn remove_item_at_location(list: &mut List, location: ItemLocation) -> ListItem {
     match location {
         ItemLocation::Uncategorized(idx) => list.uncategorized_items.remove(idx),
-        ItemLocation::Categorized { category_index, item_index } => {
-            list.categories[category_index].items.remove(item_index)
-        }
+        ItemLocation::Categorized {
+            category_index,
+            item_index,
+        } => list.categories[category_index].items.remove(item_index),
     }
 }
 
@@ -497,10 +511,11 @@ pub fn edit_item_text(list_name: &str, target: &str, new_text: &str) -> Result<(
 
     // Try other methods - need to find first, then modify
     let target_lower = target.to_lowercase();
-    let found_anchor = list.all_items()
+    let found_anchor = list
+        .all_items()
         .find(|item| item.text.to_lowercase() == target_lower)
         .map(|item| item.anchor.clone());
-    
+
     if let Some(anchor) = found_anchor {
         if let Some(item) = list.find_item_mut_by_anchor(&anchor) {
             item.text = new_text.to_string();
@@ -525,12 +540,12 @@ pub fn reorder_item(list_name: &str, target: &str, new_index: usize, threshold: 
 
     if let Ok(location) = find_item_for_removal(&list, target, threshold) {
         let item = remove_item_at_location(&mut list, location);
-        
+
         // For now, reordering puts items in uncategorized section
         // TODO: Could be enhanced to support reordering within categories
         let clamped = new_index.min(list.uncategorized_items.len());
         list.uncategorized_items.insert(clamped, item);
-        
+
         list.metadata.updated = chrono::Utc::now();
         save_list_with_path(&list, list_name)?;
         Ok(())
@@ -599,16 +614,23 @@ pub fn find_item_for_removal(list: &List, target: &str, threshold: i64) -> Resul
 #[derive(Debug)]
 pub enum ItemLocation {
     Uncategorized(usize),
-    Categorized { category_index: usize, item_index: usize },
+    Categorized {
+        category_index: usize,
+        item_index: usize,
+    },
 }
 
 /// Find item location by anchor
 fn find_item_location_by_anchor(list: &List, anchor: &str) -> Option<ItemLocation> {
     // Check uncategorized items
-    if let Some(idx) = list.uncategorized_items.iter().position(|item| item.anchor == anchor) {
+    if let Some(idx) = list
+        .uncategorized_items
+        .iter()
+        .position(|item| item.anchor == anchor)
+    {
         return Some(ItemLocation::Uncategorized(idx));
     }
-    
+
     // Check categorized items
     for (cat_idx, category) in list.categories.iter().enumerate() {
         if let Some(item_idx) = category.items.iter().position(|item| item.anchor == anchor) {
@@ -618,42 +640,50 @@ fn find_item_location_by_anchor(list: &List, anchor: &str) -> Option<ItemLocatio
             });
         }
     }
-    
+
     None
 }
 
 /// Find item location by text
 fn find_item_location_by_text(list: &List, text: &str) -> Option<ItemLocation> {
     let text_lower = text.to_lowercase();
-    
+
     // Check uncategorized items
-    if let Some(idx) = list.uncategorized_items.iter().position(|item| item.text.to_lowercase() == text_lower) {
+    if let Some(idx) = list
+        .uncategorized_items
+        .iter()
+        .position(|item| item.text.to_lowercase() == text_lower)
+    {
         return Some(ItemLocation::Uncategorized(idx));
     }
-    
+
     // Check categorized items
     for (cat_idx, category) in list.categories.iter().enumerate() {
-        if let Some(item_idx) = category.items.iter().position(|item| item.text.to_lowercase() == text_lower) {
+        if let Some(item_idx) = category
+            .items
+            .iter()
+            .position(|item| item.text.to_lowercase() == text_lower)
+        {
             return Some(ItemLocation::Categorized {
                 category_index: cat_idx,
                 item_index: item_idx,
             });
         }
     }
-    
+
     None
 }
 
 /// Find item location by global index
 fn find_item_location_by_global_index(list: &List, global_index: usize) -> Option<ItemLocation> {
     let mut current_index = 0;
-    
+
     // Check uncategorized items
     if global_index < list.uncategorized_items.len() {
         return Some(ItemLocation::Uncategorized(global_index));
     }
     current_index += list.uncategorized_items.len();
-    
+
     // Check categorized items
     for (cat_idx, category) in list.categories.iter().enumerate() {
         if global_index < current_index + category.items.len() {
@@ -665,14 +695,15 @@ fn find_item_location_by_global_index(list: &List, global_index: usize) -> Optio
         }
         current_index += category.items.len();
     }
-    
+
     None
 }
 
 /// Remove all items from a list, returning the number of removed entries
 pub fn wipe_list(list_name: &str) -> Result<usize> {
     let mut list = load_list(list_name)?;
-    let removed = list.uncategorized_items.len() + list.categories.iter().map(|c| c.items.len()).sum::<usize>();
+    let removed = list.uncategorized_items.len()
+        + list.categories.iter().map(|c| c.items.len()).sum::<usize>();
     if removed == 0 {
         return Ok(0);
     }

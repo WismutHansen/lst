@@ -1,8 +1,11 @@
 use anyhow::{Context, Result};
+use automerge::{Automerge, ObjType, ReadDoc, Value};
+use lst_core::sync::{
+    extract_automerge_content, path_from_relative, path_from_server_filename, write_document,
+    CanonicalDocPath, DocumentKind,
+};
 use rusqlite::{params, Connection};
 use std::path::Path;
-use automerge::{Automerge, ObjType, ReadDoc};
-use std::path::PathBuf;
 
 /// Local SQLite database used by lst-syncd
 pub struct LocalDb {
@@ -59,6 +62,20 @@ impl LocalDb {
             params![doc_id, file_path, doc_type, last_sync_hash, state, owner, writers, readers],
         )?;
         Ok(())
+    }
+
+    /// Look up a document id by full file path
+    pub fn get_doc_id_by_file_path(&self, file_path: &str) -> Result<Option<String>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT doc_id FROM documents WHERE file_path = ?1 LIMIT 1")?;
+        let mut rows = stmt.query(params![file_path])?;
+        if let Some(row) = rows.next()? {
+            let id: String = row.get(0)?;
+            Ok(Some(id))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Fetch a document row by doc_id
@@ -145,137 +162,89 @@ impl LocalDb {
 
     /// Insert a new document from a snapshot if it doesn't already exist; no-op if present.
     pub fn insert_new_document_from_snapshot(&self, doc_id: &str, snapshot: &[u8]) -> Result<()> {
-        // Load the Automerge document from snapshot
         let doc = Automerge::load(snapshot)?;
-        
-        // Extract content from the document
-        let content = self.extract_content_from_automerge(&doc)?;
-        
-        // Determine document type and generate file path
-        let (doc_type, file_path) = self.generate_file_path_for_document(doc_id, &content)?;
-        
-        // Write content to file
-        if let Err(e) = std::fs::write(&file_path, &content) {
-            eprintln!("📱 Failed to write file {}: {}", file_path, e);
-            return Err(anyhow::anyhow!("Failed to write file: {}", e));
-        }
-        
-        println!("📱 Created file from snapshot: {} -> {}", doc_id, file_path);
-        
-        // Store in database
+        let doc_kind = Self::detect_kind_from_doc(&doc);
+        let content = extract_automerge_content(&doc, doc_kind)?;
+        let canonical = self.generate_file_path_for_document(doc_id, doc_kind, &content)?;
+
+        write_document(&canonical, &content)?;
+        println!(
+            "📱 Created file from snapshot: {} -> {}",
+            doc_id,
+            canonical.full_path.display()
+        );
+
         self.conn.execute(
             "INSERT OR IGNORE INTO documents (doc_id, file_path, doc_type, last_sync_hash, automerge_state, owner, writers, readers)
              VALUES (?1, ?2, ?3, '', ?4, '', NULL, NULL)",
-            params![doc_id, file_path, doc_type, snapshot],
+            params![
+                doc_id,
+                canonical.full_path.to_string_lossy().to_string(),
+                doc_kind.as_str(),
+                snapshot
+            ],
         )?;
         Ok(())
     }
 
     /// Insert a new document from snapshot with the original filename/path
-    pub fn insert_new_document_from_snapshot_with_filename(&self, doc_id: &str, relative_path: &str, snapshot: &[u8]) -> Result<()> {
-        // Load the Automerge document from snapshot
+    pub fn insert_new_document_from_snapshot_with_filename(
+        &self,
+        doc_id: &str,
+        relative_path: &str,
+        snapshot: &[u8],
+    ) -> Result<()> {
         let doc = Automerge::load(snapshot)?;
-        
-        // Extract content from the document
-        let content = self.extract_content_from_automerge(&doc)?;
-        
-        // Get mobile content directory (different from desktop storage)
-        let content_dir = self.get_mobile_content_dir()?;
-        let file_path = content_dir.join(relative_path);
-        
-        // Ensure parent directory exists (creating full nested structure)
-        if let Some(parent) = file_path.parent() {
-            std::fs::create_dir_all(parent)?;
-            println!("📱 Created directory structure: {}", parent.display());
-        }
-        
-        // Write content to file
-        if let Err(e) = std::fs::write(&file_path, &content) {
-            eprintln!("📱 Failed to write file {}: {}", file_path.display(), e);
-            return Err(anyhow::anyhow!("Failed to write file: {}", e));
-        }
-        
-        println!("📱 Created file from snapshot with original path: {} -> {}", doc_id, file_path.display());
-        
-        // Determine document type from path
-        let doc_type = if relative_path.starts_with("lists/") || relative_path.contains("/lists/") {
-            "list"
-        } else {
-            "note"
-        };
-        
-        // Store in database with full path
+        let doc_kind = Self::detect_kind_from_doc(&doc);
+        let content = extract_automerge_content(&doc, doc_kind)?;
+        let canonical = path_from_server_filename(relative_path)?;
+
+        write_document(&canonical, &content)?;
+        println!(
+            "📱 Created file from snapshot with original path: {} -> {}",
+            doc_id,
+            canonical.full_path.display()
+        );
+
         self.conn.execute(
             "INSERT OR IGNORE INTO documents (doc_id, file_path, doc_type, last_sync_hash, automerge_state, owner, writers, readers)
              VALUES (?1, ?2, ?3, '', ?4, '', NULL, NULL)",
-            params![doc_id, file_path.to_string_lossy().to_string(), doc_type, snapshot],
+            params![
+                doc_id,
+                canonical.full_path.to_string_lossy().to_string(),
+                doc_kind.as_str(),
+                snapshot
+            ],
         )?;
         Ok(())
     }
 
-    /// Extract content from an Automerge document
-    fn extract_content_from_automerge(&self, doc: &Automerge) -> Result<String> {
-        // Check if this is a list document (has "items" array)
-        if let Ok(Some((items_value, items_id))) = doc.get(&automerge::ROOT, "items") {
-            if let automerge::Value::Object(obj_type) = items_value {
-                if obj_type == ObjType::List {
-                    // Extract list items
-                    let mut content = String::new();
-                    let length = doc.length(&items_id);
-                    for i in 0..length {
-                        if let Ok(Some((value, _))) = doc.get(&items_id, i) {
-                            if let automerge::Value::Scalar(s) = value {
-                                if let automerge::ScalarValue::Str(text) = s.as_ref() {
-                                    content.push_str(text);
-                                    content.push('\n');
-                                }
-                            }
-                        }
-                    }
-                    return Ok(content);
-                }
-            }
-        }
-        
-        // Check if this is a note document (has "content" field)
-        if let Ok(Some((value, _))) = doc.get(&automerge::ROOT, "content") {
-            if let automerge::Value::Scalar(s) = value {
-                if let automerge::ScalarValue::Str(text) = s.as_ref() {
-                    return Ok(text.to_string());
-                }
-            }
-        }
-        
-        // Fallback: empty content
-        Ok(String::new())
-    }
-    
-    /// Generate appropriate file path for a document
-    fn generate_file_path_for_document(&self, doc_id: &str, content: &str) -> Result<(String, String)> {
-        let content_dir = self.get_mobile_content_dir()?;
-        
-        // Determine if this is a list or note based on content structure
-        let doc_type = if content.lines().any(|line| !line.trim().is_empty()) && 
-                          content.lines().all(|line| line.len() < 200) {
-            "list"
-        } else {
-            "note"
-        };
-        
-        // Extract meaningful filename from content
+    fn generate_file_path_for_document(
+        &self,
+        doc_id: &str,
+        kind: DocumentKind,
+        content: &str,
+    ) -> Result<CanonicalDocPath> {
         let filename = self.extract_filename_from_content(content, doc_id);
-        
-        let subdir = if doc_type == "list" { "lists" } else { "notes" };
-        let file_path = content_dir.join(subdir).join(&filename);
-        
-        // Ensure parent directory exists
-        if let Some(parent) = file_path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        
-        Ok((doc_type.to_string(), file_path.to_string_lossy().to_string()))
+        let subdir = match kind {
+            DocumentKind::List => "lists",
+            DocumentKind::Note => "notes",
+        };
+        let relative = format!("{}/{}", subdir, filename);
+        path_from_relative(&relative)
     }
-    
+
+    fn detect_kind_from_doc(doc: &Automerge) -> DocumentKind {
+        if let Ok(Some((value, _))) = doc.get(&automerge::ROOT, "items") {
+            if let Value::Object(obj_type) = value {
+                if obj_type == ObjType::List {
+                    return DocumentKind::List;
+                }
+            }
+        }
+        DocumentKind::Note
+    }
+
     /// Extract a meaningful filename from document content
     fn extract_filename_from_content(&self, content: &str, fallback_doc_id: &str) -> String {
         // Try to extract title from first non-empty line
@@ -284,7 +253,7 @@ impl LocalDb {
             .find(|line| !line.trim().is_empty())
             .unwrap_or("")
             .trim();
-        
+
         if !first_line.is_empty() {
             // Clean up the title to make it filename-safe
             let mut filename = first_line
@@ -299,7 +268,7 @@ impl LocalDb {
                 .trim_matches('-')
                 .trim_matches('_')
                 .to_lowercase();
-            
+
             // Remove multiple consecutive dashes/underscores
             while filename.contains("--") {
                 filename = filename.replace("--", "-");
@@ -307,27 +276,15 @@ impl LocalDb {
             while filename.contains("__") {
                 filename = filename.replace("__", "_");
             }
-            
+
             // Ensure filename is not empty after cleaning
             if !filename.is_empty() {
                 return format!("{}.md", filename);
             }
         }
-        
+
         // Fallback to doc_id if no meaningful title found
         format!("{}.md", &fallback_doc_id[..8])
-    }
-
-    /// Get mobile content directory
-    fn get_mobile_content_dir(&self) -> Result<PathBuf> {
-        // For mobile, we'll use a simple documents directory structure
-        // This should be configured per platform but for now we'll use a standard path
-        let home_dir = dirs::home_dir()
-            .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
-        let content_dir = home_dir.join("Documents").join("lst");
-        
-        std::fs::create_dir_all(&content_dir)?;
-        Ok(content_dir)
     }
 
     /// Delete a document by id
@@ -339,7 +296,19 @@ impl LocalDb {
     }
 
     /// List all documents in the local database
-    pub fn list_all_documents(&self) -> Result<Vec<(String, String, String, Vec<u8>, String, Option<String>, Option<String>)>> {
+    pub fn list_all_documents(
+        &self,
+    ) -> Result<
+        Vec<(
+            String,
+            String,
+            String,
+            Vec<u8>,
+            String,
+            Option<String>,
+            Option<String>,
+        )>,
+    > {
         let mut stmt = self.conn.prepare(
             "SELECT doc_id, file_path, doc_type, automerge_state, owner, writers, readers FROM documents",
         )?;

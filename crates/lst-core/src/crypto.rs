@@ -1,27 +1,35 @@
 use anyhow::{anyhow, Context, Result};
-use chacha20poly1305::aead::{Aead, KeyInit};
-use chacha20poly1305::{XChaCha20Poly1305, Key, XNonce};
-use rand::RngCore;
+use argon2::{
+    password_hash::{PasswordHasher, SaltString},
+    Argon2,
+};
 use base64::{engine::general_purpose, Engine as _};
+use chacha20poly1305::aead::{Aead, KeyInit};
+use chacha20poly1305::{XChaCha20Poly1305, XNonce};
+use rand::RngCore;
+use sha2::{Digest, Sha256};
+use std::convert::TryInto;
 use std::fs;
 use std::path::Path;
-use argon2::{Argon2, password_hash::{PasswordHasher, SaltString}};
-use sha2::{Sha256, Digest};
 
 /// Derive secure encryption key from email + password + auth_token using Argon2
 /// This ensures maximum security: user secret + identity + server token
 /// Uses Argon2 for proper key derivation (secure, slow, memory-hard)
-pub fn derive_key_from_credentials(email: &str, password: &str, auth_token: &str) -> Result<[u8; 32]> {
+pub fn derive_key_from_credentials(
+    email: &str,
+    password: &str,
+    auth_token: &str,
+) -> Result<[u8; 32]> {
     // Create deterministic salt from email for consistency across devices
     let mut salt_hasher = Sha256::new();
     salt_hasher.update(b"lst-salt-v2:");
     salt_hasher.update(email.to_lowercase().as_bytes());
     let salt_hash = salt_hasher.finalize();
-    
+
     // Use first 16 bytes as salt for Argon2
     let salt = SaltString::encode_b64(&salt_hash[..16])
         .map_err(|e| anyhow!("Failed to encode salt: {}", e))?;
-    
+
     // Combine all three components for maximum security
     let mut combined_input = Vec::new();
     combined_input.extend_from_slice(password.as_bytes());
@@ -29,28 +37,30 @@ pub fn derive_key_from_credentials(email: &str, password: &str, auth_token: &str
     combined_input.extend_from_slice(email.to_lowercase().as_bytes());
     combined_input.extend_from_slice(b":");
     combined_input.extend_from_slice(auth_token.as_bytes());
-    
+
     // Use Argon2 to derive key from combined input
     let argon2 = Argon2::default();
     let password_hash = argon2
         .hash_password(&combined_input, &salt)
         .map_err(|e| anyhow!("Argon2 key derivation failed: {}", e))?;
-    
+
     // Extract 32 bytes for encryption key
-    let hash_bytes = password_hash.hash.ok_or_else(|| anyhow!("No hash in password result"))?;
+    let hash_bytes = password_hash
+        .hash
+        .ok_or_else(|| anyhow!("No hash in password result"))?;
     if hash_bytes.len() < 32 {
         return Err(anyhow!("Derived hash too short"));
     }
-    
+
     let mut key = [0u8; 32];
     key.copy_from_slice(&hash_bytes.as_bytes()[..32]);
-    
+
     println!("DEBUG: Derived SECURE encryption key using Argon2 (email: {}, password len: {}, token len: {})", 
              email, password.len(), auth_token.len());
-    
+
     // Clear sensitive data from memory
     combined_input.fill(0);
-    
+
     Ok(key)
 }
 
@@ -81,7 +91,10 @@ pub fn load_key(path: &Path) -> Result<[u8; 32]> {
         key.copy_from_slice(&decoded);
         Ok(key)
     } else {
-        return Err(anyhow!("No encryption key found at {}. Please run authentication first.", expanded.display()));
+        return Err(anyhow!(
+            "No encryption key found at {}. Please run authentication first.",
+            expanded.display()
+        ));
     }
 }
 
@@ -93,15 +106,23 @@ pub fn get_master_key_path() -> Result<std::path::PathBuf> {
     // This function provides the default for desktop/CLI
     if let Some(data_dir) = dirs::data_dir() {
         let lst_data_dir = data_dir.join("lst");
-        std::fs::create_dir_all(&lst_data_dir)
-            .with_context(|| format!("Failed to create data directory: {}", lst_data_dir.display()))?;
+        std::fs::create_dir_all(&lst_data_dir).with_context(|| {
+            format!(
+                "Failed to create data directory: {}",
+                lst_data_dir.display()
+            )
+        })?;
         Ok(lst_data_dir.join("lst-master-key"))
     } else {
         // Fallback to home directory if data_dir is not available
         if let Some(home_dir) = dirs::home_dir() {
             let lst_data_dir = home_dir.join(".local").join("share").join("lst");
-            std::fs::create_dir_all(&lst_data_dir)
-                .with_context(|| format!("Failed to create data directory: {}", lst_data_dir.display()))?;
+            std::fs::create_dir_all(&lst_data_dir).with_context(|| {
+                format!(
+                    "Failed to create data directory: {}",
+                    lst_data_dir.display()
+                )
+            })?;
             Ok(lst_data_dir.join("lst-master-key"))
         } else {
             Err(anyhow!("Cannot determine data directory or home directory"))
@@ -114,14 +135,22 @@ pub fn get_master_key_path() -> Result<std::path::PathBuf> {
 pub fn get_mobile_master_key_path() -> Result<std::path::PathBuf> {
     if let Some(data_dir) = dirs::data_dir() {
         let app_data_dir = data_dir.join("lst-mobile");
-        std::fs::create_dir_all(&app_data_dir)
-            .with_context(|| format!("Failed to create app data directory: {}", app_data_dir.display()))?;
+        std::fs::create_dir_all(&app_data_dir).with_context(|| {
+            format!(
+                "Failed to create app data directory: {}",
+                app_data_dir.display()
+            )
+        })?;
         Ok(app_data_dir.join("lst-master-key"))
     } else {
         // Fallback to temp if data_dir fails
         let app_data_dir = std::env::temp_dir().join("lst-mobile");
-        std::fs::create_dir_all(&app_data_dir)
-            .with_context(|| format!("Failed to create temp app data directory: {}", app_data_dir.display()))?;
+        std::fs::create_dir_all(&app_data_dir).with_context(|| {
+            format!(
+                "Failed to create temp app data directory: {}",
+                app_data_dir.display()
+            )
+        })?;
         Ok(app_data_dir.join("lst-master-key"))
     }
 }
@@ -174,14 +203,19 @@ pub fn save_derived_key(path: &Path, key: &[u8; 32]) -> Result<()> {
 /// Encrypt data using XChaCha20-Poly1305.
 /// The returned vector is nonce || ciphertext.
 pub fn encrypt(data: &[u8], key: &[u8; 32]) -> Result<Vec<u8>> {
-    let cipher = XChaCha20Poly1305::new(Key::from_slice(key));
-    let mut nonce = [0u8; 24];
-    rand::thread_rng().fill_bytes(&mut nonce);
+    let cipher =
+        XChaCha20Poly1305::new_from_slice(key).map_err(|e| anyhow!("Invalid key length: {e}"))?;
+
+    let mut nonce_bytes = [0u8; 24];
+    rand::thread_rng().fill_bytes(&mut nonce_bytes);
+    let nonce = XNonce::from(nonce_bytes);
+
     let ciphertext = cipher
-        .encrypt(XNonce::from_slice(&nonce), data)
+        .encrypt(&nonce, data)
         .map_err(|e| anyhow!("Encryption failed: {e}"))?;
+
     let mut out = Vec::with_capacity(24 + ciphertext.len());
-    out.extend_from_slice(&nonce);
+    out.extend_from_slice(&nonce_bytes);
     out.extend_from_slice(&ciphertext);
     Ok(out)
 }
@@ -192,9 +226,16 @@ pub fn decrypt(data: &[u8], key: &[u8; 32]) -> Result<Vec<u8>> {
         return Err(anyhow!("Ciphertext too short"));
     }
     let (nonce, ciphertext) = data.split_at(24);
-    let cipher = XChaCha20Poly1305::new(Key::from_slice(key));
+    let cipher =
+        XChaCha20Poly1305::new_from_slice(key).map_err(|e| anyhow!("Invalid key length: {e}"))?;
+
+    let nonce_bytes: [u8; 24] = nonce
+        .try_into()
+        .map_err(|_| anyhow!("Invalid nonce length"))?;
+    let nonce = XNonce::from(nonce_bytes);
+
     let plaintext = cipher
-        .decrypt(XNonce::from_slice(nonce), ciphertext)
+        .decrypt(&nonce, ciphertext)
         .map_err(|e| anyhow!("Decryption failed: {e}"))?;
     Ok(plaintext)
 }

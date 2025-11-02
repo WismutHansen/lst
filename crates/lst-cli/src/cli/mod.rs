@@ -226,7 +226,6 @@ pub enum UserCommands {
     },
 }
 
-
 #[derive(Subcommand)]
 pub enum GuiCommands {
     /// Switch the list in the desktop app
@@ -504,8 +503,6 @@ pub enum AuthCommands {
         #[clap(long)]
         host: Option<String>,
     },
-
-
 
     /// Show current authentication status
     #[clap(name = "status")]

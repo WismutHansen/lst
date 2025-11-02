@@ -83,7 +83,7 @@ pub struct PathsConfig {
 pub struct ServerConfig {
     /// Host for lst-server daemon (only used when running lst-server)
     pub host: Option<String>,
-    /// Port for lst-server daemon (only used when running lst-server) 
+    /// Port for lst-server daemon (only used when running lst-server)
     pub port: Option<u16>,
     /// Base directory for server databases (only used when running lst-server)
     pub data_dir: Option<PathBuf>,
@@ -137,11 +137,11 @@ pub struct State {
     /// Authentication settings
     #[serde(default)]
     pub auth: AuthState,
-    
+
     /// Device-specific settings
     #[serde(default)]
     pub device: DeviceState,
-    
+
     /// Sync database settings
     #[serde(default)]
     pub sync: SyncState,
@@ -152,13 +152,13 @@ pub struct State {
 pub struct AuthState {
     /// User email address for authentication
     pub email: Option<String>,
-    
+
     /// Authentication token for server (used for refresh and encryption key derivation)
     pub auth_token: Option<String>,
-    
+
     /// JWT token for authentication (stored after successful login)
     pub jwt_token: Option<String>,
-    
+
     /// Expiration timestamp for the JWT token
     #[schemars(with = "String")]
     pub jwt_expires_at: Option<chrono::DateTime<chrono::Utc>>,
@@ -284,9 +284,7 @@ impl Default for AuthState {
 
 impl Default for DeviceState {
     fn default() -> Self {
-        Self {
-            device_id: None,
-        }
+        Self { device_id: None }
     }
 }
 
@@ -441,8 +439,8 @@ impl Config {
     /// Generate JSON schema for the configuration
     pub fn generate_schema() -> Result<String> {
         let schema = schemars::schema_for!(Config);
-        let json_schema = serde_json::to_string_pretty(&schema)
-            .context("Failed to serialize schema to JSON")?;
+        let json_schema =
+            serde_json::to_string_pretty(&schema).context("Failed to serialize schema to JSON")?;
         Ok(json_schema)
     }
 
@@ -450,8 +448,8 @@ impl Config {
     #[cfg(test)]
     pub fn generate_default_config_with_header() -> String {
         let default_config = Self::default();
-        let toml_str = toml::to_string_pretty(&default_config)
-            .expect("Failed to serialize default config");
+        let toml_str =
+            toml::to_string_pretty(&default_config).expect("Failed to serialize default config");
 
         let header = r#"# LST Configuration File
 # Schema: https://json-schema.org/draft-07/schema#
@@ -485,7 +483,7 @@ impl State {
         if let Ok(custom_path) = std::env::var("LST_STATE") {
             return Self::load_from(&PathBuf::from(custom_path));
         }
-        
+
         let state_path = Self::get_state_path()?;
         if !state_path.exists() {
             // Create default state if it doesn't exist
@@ -522,7 +520,11 @@ impl State {
     /// Get the state file path
     pub fn get_state_path() -> Result<PathBuf> {
         let home_dir = dirs::home_dir().context("Could not determine home directory")?;
-        Ok(home_dir.join(".local").join("share").join("lst").join("state.toml"))
+        Ok(home_dir
+            .join(".local")
+            .join("share")
+            .join("lst")
+            .join("state.toml"))
     }
 
     /// Initialize state with defaults

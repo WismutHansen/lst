@@ -1,12 +1,15 @@
+use crate::{
+    sync_bridge::{ListOperation, NoteOperation, SyncBridge},
+    Note,
+};
 use anyhow::{anyhow, Result};
 use chrono::Utc;
-use lst_cli::models::{fuzzy_find, is_valid_anchor, ItemStatus, List, ListItem, Category};
+use lst_cli::models::{fuzzy_find, is_valid_anchor, Category, ItemStatus, List, ListItem};
 use r2d2::{Pool, PooledConnection};
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{params, OptionalExtension};
-use tauri::Manager;
-use crate::{Note, sync_bridge::{SyncBridge, ListOperation, NoteOperation}};
 use std::sync::Arc;
+use tauri::Manager;
 use tokio::sync::Mutex;
 
 pub struct Database {
@@ -20,7 +23,7 @@ impl Database {
             // Fallback for iOS - use app local data directory
             resolver.app_local_data_dir()
         })?;
-        
+
         // Ensure directory exists with proper error handling for iOS
         if let Err(e) = std::fs::create_dir_all(&path) {
             eprintln!("Failed to create app data directory: {}", e);
@@ -28,7 +31,7 @@ impl Database {
             path = resolver.app_local_data_dir()?;
             std::fs::create_dir_all(&path)?;
         }
-        
+
         path.push("lst_mobile.db");
         println!("Database path: {:?}", path);
 
@@ -85,13 +88,22 @@ impl Database {
         // Trigger sync if app handle is provided
         if let Some(app_handle) = app {
             println!("📱 Triggering sync for list creation: {}", title);
-            match self.trigger_list_sync(app_handle, ListOperation::Create { 
-                title: title.to_string(), 
-                list: &list 
-            }).await {
+            match self
+                .trigger_list_sync(
+                    app_handle,
+                    ListOperation::Create {
+                        title: title.to_string(),
+                        list: &list,
+                    },
+                )
+                .await
+            {
                 Ok(()) => println!("📱 ✅ Successfully triggered sync for new list: {}", title),
                 Err(e) => {
-                    eprintln!("📱 ❌ Failed to trigger list sync for new list '{}': {}", title, e);
+                    eprintln!(
+                        "📱 ❌ Failed to trigger list sync for new list '{}': {}",
+                        title, e
+                    );
                     // Don't fail the entire operation if sync fails - data is still saved locally
                 }
             }
@@ -122,23 +134,43 @@ impl Database {
 
         // Trigger sync if app handle is provided
         if let Some(app_handle) = app {
-            println!("📱 Triggering sync for list update: {}", list.metadata.title);
-            match self.trigger_list_sync(app_handle, ListOperation::Update { 
-                title: list.metadata.title.clone(), 
-                list 
-            }).await {
-                Ok(()) => println!("📱 ✅ Successfully triggered sync for list: {}", list.metadata.title),
+            println!(
+                "📱 Triggering sync for list update: {}",
+                list.metadata.title
+            );
+            match self
+                .trigger_list_sync(
+                    app_handle,
+                    ListOperation::Update {
+                        title: list.metadata.title.clone(),
+                        list,
+                    },
+                )
+                .await
+            {
+                Ok(()) => println!(
+                    "📱 ✅ Successfully triggered sync for list: {}",
+                    list.metadata.title
+                ),
                 Err(e) => {
-                    eprintln!("📱 ❌ Failed to trigger list sync for '{}': {}", list.metadata.title, e);
+                    eprintln!(
+                        "📱 ❌ Failed to trigger list sync for '{}': {}",
+                        list.metadata.title, e
+                    );
                     // Don't fail the entire operation if sync fails - data is still saved locally
                 }
             }
         }
-        
+
         Ok(())
     }
 
-    pub async fn add_item(&self, list: &str, text: &str, app: Option<&tauri::AppHandle>) -> Result<List> {
+    pub async fn add_item(
+        &self,
+        list: &str,
+        text: &str,
+        app: Option<&tauri::AppHandle>,
+    ) -> Result<List> {
         let mut l = self.load_list(list)?;
         for item in text.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
             // Check for ##category inline syntax
@@ -149,7 +181,13 @@ impl Database {
         Ok(l)
     }
 
-    pub async fn add_item_to_category(&self, list: &str, text: &str, category: Option<&str>, app: Option<&tauri::AppHandle>) -> Result<List> {
+    pub async fn add_item_to_category(
+        &self,
+        list: &str,
+        text: &str,
+        category: Option<&str>,
+        app: Option<&tauri::AppHandle>,
+    ) -> Result<List> {
         let mut l = self.load_list(list)?;
         for item in text.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
             // Check for ##category inline syntax
@@ -161,7 +199,12 @@ impl Database {
         Ok(l)
     }
 
-    pub async fn toggle_item(&self, list: &str, target: &str, app: Option<&tauri::AppHandle>) -> Result<List> {
+    pub async fn toggle_item(
+        &self,
+        list: &str,
+        target: &str,
+        app: Option<&tauri::AppHandle>,
+    ) -> Result<List> {
         let mut l = self.load_list(list)?;
         if let Some(item) = l.find_item_mut_by_anchor(target) {
             item.status = match item.status {
@@ -176,7 +219,13 @@ impl Database {
         }
     }
 
-    pub async fn edit_item(&self, list: &str, target: &str, text: &str, app: Option<&tauri::AppHandle>) -> Result<List> {
+    pub async fn edit_item(
+        &self,
+        list: &str,
+        target: &str,
+        text: &str,
+        app: Option<&tauri::AppHandle>,
+    ) -> Result<List> {
         if text.trim().is_empty() {
             return Err(anyhow!("New text cannot be empty"));
         }
@@ -191,29 +240,36 @@ impl Database {
         }
     }
 
-    pub async fn remove_item(&self, list: &str, target: &str, app: Option<&tauri::AppHandle>) -> Result<List> {
+    pub async fn remove_item(
+        &self,
+        list: &str,
+        target: &str,
+        app: Option<&tauri::AppHandle>,
+    ) -> Result<List> {
         let mut l = self.load_list(list)?;
-        
+
         // Find and remove item from its location
         let mut found = false;
-        
+
         // Check uncategorized items
-        if let Some(pos) = l.uncategorized_items.iter().position(|item| 
-            item.anchor == target || item.text.to_lowercase() == target.to_lowercase()) {
+        if let Some(pos) = l.uncategorized_items.iter().position(|item| {
+            item.anchor == target || item.text.to_lowercase() == target.to_lowercase()
+        }) {
             l.uncategorized_items.remove(pos);
             found = true;
         } else {
             // Check categorized items
             for category in &mut l.categories {
-                if let Some(pos) = category.items.iter().position(|item| 
-                    item.anchor == target || item.text.to_lowercase() == target.to_lowercase()) {
+                if let Some(pos) = category.items.iter().position(|item| {
+                    item.anchor == target || item.text.to_lowercase() == target.to_lowercase()
+                }) {
                     category.items.remove(pos);
                     found = true;
                     break;
                 }
             }
         }
-        
+
         if found {
             l.metadata.updated = Utc::now();
             self.save_list(&l, app).await?;
@@ -223,27 +279,35 @@ impl Database {
         }
     }
 
-    pub async fn reorder_item(&self, list: &str, target: &str, new_index: usize, app: Option<&tauri::AppHandle>) -> Result<List> {
+    pub async fn reorder_item(
+        &self,
+        list: &str,
+        target: &str,
+        new_index: usize,
+        app: Option<&tauri::AppHandle>,
+    ) -> Result<List> {
         let mut l = self.load_list(list)?;
-        
+
         // Find and remove item from its current location
         let mut item_to_move = None;
-        
+
         // Check uncategorized items
-        if let Some(pos) = l.uncategorized_items.iter().position(|item| 
-            item.anchor == target || item.text.to_lowercase() == target.to_lowercase()) {
+        if let Some(pos) = l.uncategorized_items.iter().position(|item| {
+            item.anchor == target || item.text.to_lowercase() == target.to_lowercase()
+        }) {
             item_to_move = Some(l.uncategorized_items.remove(pos));
         } else {
             // Check categorized items
             for category in &mut l.categories {
-                if let Some(pos) = category.items.iter().position(|item| 
-                    item.anchor == target || item.text.to_lowercase() == target.to_lowercase()) {
+                if let Some(pos) = category.items.iter().position(|item| {
+                    item.anchor == target || item.text.to_lowercase() == target.to_lowercase()
+                }) {
                     item_to_move = Some(category.items.remove(pos));
                     break;
                 }
             }
         }
-        
+
         if let Some(item) = item_to_move {
             // For now, reordering puts items in uncategorized section
             let clamped = new_index.min(l.uncategorized_items.len());
@@ -277,7 +341,7 @@ impl Database {
             created: Some(created.clone()),
             file_path,
         };
-        
+
         let conn = self.conn()?;
         conn.execute(
             "INSERT INTO notes (title, content, created, file_path) VALUES (?1, ?2, ?3, ?4)",
@@ -287,11 +351,20 @@ impl Database {
         // Trigger sync if app handle is provided
         if let Some(app_handle) = app {
             println!("Triggering sync for note creation: {}", title);
-            if let Err(e) = self.trigger_note_sync(app_handle, NoteOperation::Create { 
-                title: title.to_string(), 
-                note: &note 
-            }).await {
-                eprintln!("Failed to trigger note sync for new note '{}': {}", title, e);
+            if let Err(e) = self
+                .trigger_note_sync(
+                    app_handle,
+                    NoteOperation::Create {
+                        title: title.to_string(),
+                        note: &note,
+                    },
+                )
+                .await
+            {
+                eprintln!(
+                    "Failed to trigger note sync for new note '{}': {}",
+                    title, e
+                );
             } else {
                 println!("Successfully triggered sync for new note: {}", title);
             }
@@ -302,19 +375,21 @@ impl Database {
 
     pub fn load_note(&self, title: &str) -> Result<Note> {
         let conn = self.conn()?;
-        let result = conn.query_row(
-            "SELECT title, content, created, file_path FROM notes WHERE title=?1",
-            [title],
-            |row| {
-                Ok(Note {
-                    title: row.get(0)?,
-                    content: row.get(1)?,
-                    created: row.get(2).ok(),
-                    file_path: row.get(3)?,
-                })
-            },
-        ).optional()?;
-        
+        let result = conn
+            .query_row(
+                "SELECT title, content, created, file_path FROM notes WHERE title=?1",
+                [title],
+                |row| {
+                    Ok(Note {
+                        title: row.get(0)?,
+                        content: row.get(1)?,
+                        created: row.get(2).ok(),
+                        file_path: row.get(3)?,
+                    })
+                },
+            )
+            .optional()?;
+
         result.ok_or_else(|| anyhow!("Note '{}' not found", title))
     }
 
@@ -332,13 +407,25 @@ impl Database {
         // Trigger sync if app handle is provided
         if let Some(app_handle) = app {
             println!("Triggering sync for note update: {}", note.title);
-            if let Err(e) = self.trigger_note_sync(app_handle, NoteOperation::Update { 
-                title: note.title.clone(), 
-                note 
-            }).await {
-                eprintln!("Failed to trigger note sync for updated note '{}': {}", note.title, e);
+            if let Err(e) = self
+                .trigger_note_sync(
+                    app_handle,
+                    NoteOperation::Update {
+                        title: note.title.clone(),
+                        note,
+                    },
+                )
+                .await
+            {
+                eprintln!(
+                    "Failed to trigger note sync for updated note '{}': {}",
+                    note.title, e
+                );
             } else {
-                println!("Successfully triggered sync for note update: {}", note.title);
+                println!(
+                    "Successfully triggered sync for note update: {}",
+                    note.title
+                );
             }
         }
 
@@ -354,9 +441,15 @@ impl Database {
 
         // Trigger sync if app handle is provided
         if let Some(app_handle) = app {
-            if let Err(e) = self.trigger_note_sync(app_handle, NoteOperation::Delete { 
-                title: title.to_string()
-            }).await {
+            if let Err(e) = self
+                .trigger_note_sync(
+                    app_handle,
+                    NoteOperation::Delete {
+                        title: title.to_string(),
+                    },
+                )
+                .await
+            {
                 eprintln!("Failed to trigger note sync: {}", e);
             }
         }
@@ -365,46 +458,66 @@ impl Database {
     }
 
     // Category management methods
-    pub async fn create_category(&self, list_name: &str, category_name: &str, app: Option<&tauri::AppHandle>) -> Result<List> {
+    pub async fn create_category(
+        &self,
+        list_name: &str,
+        category_name: &str,
+        app: Option<&tauri::AppHandle>,
+    ) -> Result<List> {
         let mut list = self.load_list(list_name)?;
-        
+
         // Check if category already exists
         if list.categories.iter().any(|c| c.name == category_name) {
             return Err(anyhow!("Category '{}' already exists", category_name));
         }
-        
+
         // Add new empty category
         list.categories.push(Category {
             name: category_name.to_string(),
             items: Vec::new(),
         });
-        
+
         list.metadata.updated = Utc::now();
         self.save_list(&list, app).await?;
         Ok(list)
     }
 
-    pub async fn move_item_to_category(&self, list_name: &str, item_anchor: &str, category_name: Option<&str>, app: Option<&tauri::AppHandle>) -> Result<List> {
+    pub async fn move_item_to_category(
+        &self,
+        list_name: &str,
+        item_anchor: &str,
+        category_name: Option<&str>,
+        app: Option<&tauri::AppHandle>,
+    ) -> Result<List> {
         let mut list = self.load_list(list_name)?;
-        
+
         // Find and remove the item from its current location
         let mut item_to_move = None;
-        
+
         // Check uncategorized items
-        if let Some(pos) = list.uncategorized_items.iter().position(|item| item.anchor == item_anchor) {
+        if let Some(pos) = list
+            .uncategorized_items
+            .iter()
+            .position(|item| item.anchor == item_anchor)
+        {
             item_to_move = Some(list.uncategorized_items.remove(pos));
         } else {
             // Check categorized items
             for category in &mut list.categories {
-                if let Some(pos) = category.items.iter().position(|item| item.anchor == item_anchor) {
+                if let Some(pos) = category
+                    .items
+                    .iter()
+                    .position(|item| item.anchor == item_anchor)
+                {
                     item_to_move = Some(category.items.remove(pos));
                     break;
                 }
             }
         }
-        
-        let item = item_to_move.ok_or_else(|| anyhow!("Item with anchor '{}' not found", item_anchor))?;
-        
+
+        let item =
+            item_to_move.ok_or_else(|| anyhow!("Item with anchor '{}' not found", item_anchor))?;
+
         // Add item to new location
         match category_name {
             Some(cat_name) => {
@@ -424,20 +537,25 @@ impl Database {
                 list.uncategorized_items.push(item);
             }
         }
-        
+
         list.metadata.updated = Utc::now();
         self.save_list(&list, app).await?;
         Ok(list)
     }
 
-    pub async fn delete_category(&self, list_name: &str, category_name: &str, app: Option<&tauri::AppHandle>) -> Result<List> {
+    pub async fn delete_category(
+        &self,
+        list_name: &str,
+        category_name: &str,
+        app: Option<&tauri::AppHandle>,
+    ) -> Result<List> {
         let mut list = self.load_list(list_name)?;
-        
+
         // Find category and move its items to uncategorized
         if let Some(pos) = list.categories.iter().position(|c| c.name == category_name) {
             let category = list.categories.remove(pos);
             list.uncategorized_items.extend(category.items);
-            
+
             list.metadata.updated = Utc::now();
             self.save_list(&list, app).await?;
             Ok(list)
@@ -451,14 +569,20 @@ impl Database {
         Ok(list.categories.iter().map(|c| c.name.clone()).collect())
     }
 
-    pub async fn rename_category(&self, list_name: &str, old_name: &str, new_name: &str, app: Option<&tauri::AppHandle>) -> Result<List> {
+    pub async fn rename_category(
+        &self,
+        list_name: &str,
+        old_name: &str,
+        new_name: &str,
+        app: Option<&tauri::AppHandle>,
+    ) -> Result<List> {
         let mut list = self.load_list(list_name)?;
-        
+
         // Check if new name already exists
         if list.categories.iter().any(|c| c.name == new_name) {
             return Err(anyhow!("Category '{}' already exists", new_name));
         }
-        
+
         // Find and rename category
         if let Some(category) = list.categories.iter_mut().find(|c| c.name == old_name) {
             category.name = new_name.to_string();
@@ -485,9 +609,11 @@ impl Database {
     pub fn load_sync_config(&self, key: &str) -> Result<Option<String>> {
         let conn = self.conn()?;
         let result = conn
-            .query_row("SELECT value FROM sync_config WHERE key = ?1", params![key], |row| {
-                row.get::<_, String>(0)
-            })
+            .query_row(
+                "SELECT value FROM sync_config WHERE key = ?1",
+                params![key],
+                |row| row.get::<_, String>(0),
+            )
             .optional()?;
         Ok(result)
     }
@@ -499,7 +625,7 @@ impl Database {
         let rows = stmt.query_map([], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         })?;
-        
+
         let mut config = std::collections::HashMap::new();
         for row in rows {
             let (key, value) = row?;
@@ -509,15 +635,25 @@ impl Database {
     }
 
     /// Helper method to trigger list sync operation
-    async fn trigger_list_sync(&self, app: &tauri::AppHandle, operation: ListOperation<'_>) -> Result<()> {
+    async fn trigger_list_sync(
+        &self,
+        app: &tauri::AppHandle,
+        operation: ListOperation<'_>,
+    ) -> Result<()> {
         let bridge_state: tauri::State<Arc<Mutex<Option<SyncBridge>>>> = app.state();
-        
+
         // Try to ensure sync bridge is initialized
-        if let Err(e) = self.ensure_sync_bridge_initialized(app, &bridge_state).await {
-            println!("Warning: Could not initialize sync bridge, sync disabled: {}", e);
+        if let Err(e) = self
+            .ensure_sync_bridge_initialized(app, &bridge_state)
+            .await
+        {
+            println!(
+                "Warning: Could not initialize sync bridge, sync disabled: {}",
+                e
+            );
             return Err(anyhow!("Failed to initialize sync bridge: {}", e));
         }
-        
+
         let mut bridge_guard = bridge_state.lock().await;
         if let Some(ref mut bridge) = *bridge_guard {
             println!("Executing list sync operation...");
@@ -538,15 +674,25 @@ impl Database {
     }
 
     /// Helper method to trigger note sync operation  
-    async fn trigger_note_sync(&self, app: &tauri::AppHandle, operation: NoteOperation<'_>) -> Result<()> {
+    async fn trigger_note_sync(
+        &self,
+        app: &tauri::AppHandle,
+        operation: NoteOperation<'_>,
+    ) -> Result<()> {
         let bridge_state: tauri::State<Arc<Mutex<Option<SyncBridge>>>> = app.state();
-        
+
         // Try to ensure sync bridge is initialized
-        if let Err(e) = self.ensure_sync_bridge_initialized(app, &bridge_state).await {
-            println!("Warning: Could not initialize sync bridge, sync disabled: {}", e);
+        if let Err(e) = self
+            .ensure_sync_bridge_initialized(app, &bridge_state)
+            .await
+        {
+            println!(
+                "Warning: Could not initialize sync bridge, sync disabled: {}",
+                e
+            );
             return Err(anyhow!("Failed to initialize sync bridge: {}", e));
         }
-        
+
         let mut bridge_guard = bridge_state.lock().await;
         if let Some(ref mut bridge) = *bridge_guard {
             println!("Executing note sync operation...");
@@ -569,20 +715,22 @@ impl Database {
     /// Initialize sync bridge with current config
     pub async fn ensure_sync_bridge_initialized(
         &self,
-        _app: &tauri::AppHandle, 
-        bridge_state: &Arc<Mutex<Option<SyncBridge>>>
+        _app: &tauri::AppHandle,
+        bridge_state: &Arc<Mutex<Option<SyncBridge>>>,
     ) -> Result<()> {
         let mut bridge_guard = bridge_state.lock().await;
-        
+
         if bridge_guard.is_none() {
             println!("Initializing sync bridge...");
             let config = crate::mobile_config::get_current_config();
-            
+
             // Check if sync is properly configured
             if !config.is_jwt_valid() {
-                return Err(anyhow!("Sync not configured - JWT token invalid or missing"));
+                return Err(anyhow!(
+                    "Sync not configured - JWT token invalid or missing"
+                ));
             }
-            
+
             match SyncBridge::new().await {
                 Ok(bridge) => {
                     println!("Sync bridge initialized successfully");

@@ -158,13 +158,15 @@ impl List {
 
     /// Get all items across all categories
     pub fn all_items(&self) -> impl Iterator<Item = &ListItem> {
-        self.uncategorized_items.iter()
+        self.uncategorized_items
+            .iter()
             .chain(self.categories.iter().flat_map(|c| c.items.iter()))
     }
 
     /// Get all items across all categories (mutable)
     pub fn all_items_mut(&mut self) -> impl Iterator<Item = &mut ListItem> {
-        self.uncategorized_items.iter_mut()
+        self.uncategorized_items
+            .iter_mut()
             .chain(self.categories.iter_mut().flat_map(|c| c.items.iter_mut()))
     }
 
@@ -187,17 +189,21 @@ impl List {
     /// Find an item by anchor and return mutable reference with location info
     pub fn find_item_mut_by_anchor(&mut self, anchor: &str) -> Option<&mut ListItem> {
         // Check uncategorized items first
-        if let Some(item) = self.uncategorized_items.iter_mut().find(|item| item.anchor == anchor) {
+        if let Some(item) = self
+            .uncategorized_items
+            .iter_mut()
+            .find(|item| item.anchor == anchor)
+        {
             return Some(item);
         }
-        
+
         // Check categorized items
         for category in &mut self.categories {
             if let Some(item) = category.items.iter_mut().find(|item| item.anchor == anchor) {
                 return Some(item);
             }
         }
-        
+
         None
     }
 
@@ -253,7 +259,8 @@ pub fn fuzzy_find(items: &[ListItem], query: &str, threshold: i64) -> Vec<usize>
 
     // Sort by score (highest first) and return indices
     matches_with_scores.sort_by(|a, b| b.1.cmp(&a.1));
-    matches_with_scores.into_iter().map(|(idx, _)| idx).collect()
+    matches_with_scores
+        .into_iter()
+        .map(|(idx, _)| idx)
+        .collect()
 }
-
-

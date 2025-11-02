@@ -1,14 +1,14 @@
 mod config;
+mod database;
 mod sync;
 mod watcher;
-mod database;
 
 use anyhow::Result;
 use clap::Parser;
-use std::path::PathBuf;
 use lst_cli::storage;
+use std::path::PathBuf;
 
-use crate::config::{load_syncd_config};
+use crate::config::load_syncd_config;
 use crate::sync::SyncManager;
 use crate::watcher::FileWatcher;
 
@@ -44,15 +44,15 @@ async fn main() -> Result<()> {
 
     if args.verbose {
         println!("lst-syncd starting with config: {}", config_path.display());
-        
+
         // Get content directory with proper path expansion
         eprintln!("DEBUG: About to call storage::get_content_dir()");
         let content_dir = storage::get_content_dir()?;
-        eprintln!("DEBUG: storage::get_content_dir() returned: {}", content_dir.display());
-        println!(
-            "Watching content directory: {}",
+        eprintln!(
+            "DEBUG: storage::get_content_dir() returned: {}",
             content_dir.display()
         );
+        println!("Watching content directory: {}", content_dir.display());
         if let Some(ref sync) = config.sync {
             if let Some(ref server_url) = sync.server_url {
                 println!("Syncing to server: {}", server_url);
@@ -67,7 +67,10 @@ async fn main() -> Result<()> {
     // Initialize file watcher
     eprintln!("DEBUG: About to call storage::get_content_dir() for watcher");
     let content_dir = storage::get_content_dir()?;
-    eprintln!("DEBUG: storage::get_content_dir() for watcher returned: {}", content_dir.display());
+    eprintln!(
+        "DEBUG: storage::get_content_dir() for watcher returned: {}",
+        content_dir.display()
+    );
     let mut watcher = FileWatcher::new(&content_dir)?;
 
     // Initialize sync manager
@@ -109,4 +112,3 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
-

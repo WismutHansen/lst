@@ -1,4 +1,5 @@
 use anyhow::Result;
+use chrono;
 use lst_cli::config::{get_config, UiConfig};
 use lst_cli::models::{fuzzy_find, is_valid_anchor, ItemStatus, List, ListItem};
 use lst_cli::storage::{
@@ -6,7 +7,6 @@ use lst_cli::storage::{
     markdown::{self, load_list},
     notes::{create_note, delete_note, load_note},
 };
-use chrono;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use specta_typescript::Typescript;
@@ -59,14 +59,15 @@ fn add_item(list: String, text: String, category: Option<String>) -> Result<List
     if load_list(&list).is_err() {
         markdown::create_list(&list).map_err(|e| e.to_string())?;
     }
-    
+
     for item in text.split(',').map(|s| s.trim()) {
         if !item.is_empty() {
             // Check for ##category inline syntax
             let (parsed_category, parsed_text) = parse_item_input(item);
             let final_category = parsed_category.or(category.as_deref());
-            
-            markdown::add_item_to_category(&list, parsed_text, final_category).map_err(|e| e.to_string())?;
+
+            markdown::add_item_to_category(&list, parsed_text, final_category)
+                .map_err(|e| e.to_string())?;
         }
     }
     load_list(&list).map_err(|e| e.to_string())
@@ -121,10 +122,12 @@ fn toggle_item(list: String, target: String) -> Result<List, String> {
         drop(current);
         match status {
             ItemStatus::Todo => {
-                markdown::mark_done(&list, &target, config.fuzzy.threshold).map_err(|e| e.to_string())?;
+                markdown::mark_done(&list, &target, config.fuzzy.threshold)
+                    .map_err(|e| e.to_string())?;
             }
             ItemStatus::Done => {
-                markdown::mark_undone(&list, &target, config.fuzzy.threshold).map_err(|e| e.to_string())?;
+                markdown::mark_undone(&list, &target, config.fuzzy.threshold)
+                    .map_err(|e| e.to_string())?;
             }
         }
         load_list(&list).map_err(|e| e.to_string())
@@ -153,10 +156,10 @@ fn remove_item(list: String, target: String) -> Result<List, String> {
 fn get_note(name: String) -> Result<Note, String> {
     let path = load_note(&name).map_err(|e| e.to_string())?;
     let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    
+
     // Parse frontmatter to extract title and created date
     let (title, created, content_without_frontmatter) = parse_note_frontmatter(&content, &name);
-    
+
     Ok(Note {
         title,
         content: content_without_frontmatter,
@@ -170,9 +173,10 @@ fn get_note(name: String) -> Result<Note, String> {
 fn create_note_cmd(title: String) -> Result<Note, String> {
     let path = create_note(&title).map_err(|e| e.to_string())?;
     let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    
-    let (parsed_title, created, content_without_frontmatter) = parse_note_frontmatter(&content, &title);
-    
+
+    let (parsed_title, created, content_without_frontmatter) =
+        parse_note_frontmatter(&content, &title);
+
     Ok(Note {
         title: parsed_title,
         content: content_without_frontmatter,
@@ -185,17 +189,20 @@ fn create_note_cmd(title: String) -> Result<Note, String> {
 #[specta::specta]
 fn save_note(note: Note) -> Result<(), String> {
     let path = std::path::Path::new(&note.file_path);
-    
+
     // Build content with frontmatter
     let frontmatter = if let Some(created) = &note.created {
-        format!("---\ntitle: \"{}\"\ncreated: {}\n---\n\n", note.title, created)
+        format!(
+            "---\ntitle: \"{}\"\ncreated: {}\n---\n\n",
+            note.title, created
+        )
     } else {
         format!("---\ntitle: \"{}\"\n---\n\n", note.title)
     };
-    
+
     let full_content = format!("{}{}", frontmatter, note.content);
     fs::write(path, full_content).map_err(|e| e.to_string())?;
-    
+
     Ok(())
 }
 
@@ -207,11 +214,11 @@ fn delete_note_cmd(name: String) -> Result<(), String> {
 
 fn parse_note_frontmatter(content: &str, fallback_title: &str) -> (String, Option<String>, String) {
     let lines: Vec<&str> = content.lines().collect();
-    
+
     if lines.is_empty() || lines[0] != "---" {
         return (fallback_title.to_string(), None, content.to_string());
     }
-    
+
     let mut frontmatter_end = None;
     for (i, line) in lines.iter().enumerate().skip(1) {
         if *line == "---" {
@@ -219,14 +226,14 @@ fn parse_note_frontmatter(content: &str, fallback_title: &str) -> (String, Optio
             break;
         }
     }
-    
+
     let Some(end_idx) = frontmatter_end else {
         return (fallback_title.to_string(), None, content.to_string());
     };
-    
+
     let mut title = fallback_title.to_string();
     let mut created = None;
-    
+
     // Parse frontmatter
     for line in &lines[1..end_idx] {
         if let Some(title_value) = line.strip_prefix("title: ") {
@@ -235,16 +242,16 @@ fn parse_note_frontmatter(content: &str, fallback_title: &str) -> (String, Optio
             created = Some(created_value.to_string());
         }
     }
-    
+
     // Get content after frontmatter
     let content_lines = if end_idx + 1 < lines.len() {
         &lines[end_idx + 1..]
     } else {
         &[]
     };
-    
+
     let content_without_frontmatter = content_lines.join("\n").trim_start().to_string();
-    
+
     (title, created, content_without_frontmatter)
 }
 
@@ -265,7 +272,8 @@ fn edit_item(list: String, target: String, text: String) -> Result<List, String>
 #[specta::specta]
 fn reorder_item(list: String, target: String, new_index: u32) -> Result<List, String> {
     let config = get_config();
-    markdown::reorder_item(&list, &target, new_index as usize, config.fuzzy.threshold).map_err(|e| e.to_string())?;
+    markdown::reorder_item(&list, &target, new_index as usize, config.fuzzy.threshold)
+        .map_err(|e| e.to_string())?;
     load_list(&list).map_err(|e| e.to_string())
 }
 
@@ -279,18 +287,18 @@ fn save_list(list: List) -> Result<(), String> {
 #[specta::specta]
 fn create_category(list_name: String, category_name: String) -> Result<List, String> {
     let mut list = load_list(&list_name).map_err(|e| e.to_string())?;
-    
+
     // Check if category already exists
     if list.categories.iter().any(|c| c.name == category_name) {
         return Err(format!("Category '{}' already exists", category_name));
     }
-    
+
     // Add new empty category
     list.categories.push(lst_cli::models::Category {
         name: category_name,
         items: Vec::new(),
     });
-    
+
     list.metadata.updated = chrono::Utc::now();
     markdown::save_list_with_path(&list, &list_name).map_err(|e| e.to_string())?;
     Ok(list)
@@ -298,14 +306,20 @@ fn create_category(list_name: String, category_name: String) -> Result<List, Str
 
 #[tauri::command]
 #[specta::specta]
-fn move_item_to_category(list_name: String, item_anchor: String, category_name: Option<String>) -> Result<List, String> {
+fn move_item_to_category(
+    list_name: String,
+    item_anchor: String,
+    category_name: Option<String>,
+) -> Result<List, String> {
     let config = get_config();
     let mut list = load_list(&list_name).map_err(|e| e.to_string())?;
 
     // Find and remove the item from its current location
-    let item_location = markdown::find_item_for_removal(&list, &item_anchor, config.fuzzy.threshold).map_err(|e| e.to_string())?;
+    let item_location =
+        markdown::find_item_for_removal(&list, &item_anchor, config.fuzzy.threshold)
+            .map_err(|e| e.to_string())?;
     let item = markdown::remove_item_at_location(&mut list, item_location);
-    
+
     // Add item to new location
     match category_name {
         Some(cat_name) => {
@@ -325,7 +339,7 @@ fn move_item_to_category(list_name: String, item_anchor: String, category_name: 
             list.uncategorized_items.push(item);
         }
     }
-    
+
     list.metadata.updated = chrono::Utc::now();
     markdown::save_list_with_path(&list, &list_name).map_err(|e| e.to_string())?;
     Ok(list)
@@ -335,12 +349,12 @@ fn move_item_to_category(list_name: String, item_anchor: String, category_name: 
 #[specta::specta]
 fn delete_category(list_name: String, category_name: String) -> Result<List, String> {
     let mut list = load_list(&list_name).map_err(|e| e.to_string())?;
-    
+
     // Find category and move its items to uncategorized
     if let Some(pos) = list.categories.iter().position(|c| c.name == category_name) {
         let category = list.categories.remove(pos);
         list.uncategorized_items.extend(category.items);
-        
+
         list.metadata.updated = chrono::Utc::now();
         markdown::save_list_with_path(&list, &list_name).map_err(|e| e.to_string())?;
         Ok(list)
@@ -360,12 +374,12 @@ fn get_categories(list_name: String) -> Result<Vec<String>, String> {
 #[specta::specta]
 fn rename_category(list_name: String, old_name: String, new_name: String) -> Result<List, String> {
     let mut list = load_list(&list_name).map_err(|e| e.to_string())?;
-    
+
     // Check if new name already exists
     if list.categories.iter().any(|c| c.name == new_name) {
         return Err(format!("Category '{}' already exists", new_name));
     }
-    
+
     // Find and rename category
     if let Some(category) = list.categories.iter_mut().find(|c| c.name == old_name) {
         category.name = new_name;

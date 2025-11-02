@@ -72,8 +72,6 @@ pub fn get_notes_dir() -> Result<PathBuf> {
     Ok(notes_dir)
 }
 
-
-
 /// Recursively list all files in a directory tree with a specific extension
 pub fn list_files_recursive(dir: &Path, extension: &str) -> Result<Vec<PathBuf>> {
     let mut files = Vec::new();
@@ -88,7 +86,7 @@ fn list_files_recursive_impl(dir: &Path, extension: &str, files: &mut Vec<PathBu
     for entry in entries {
         let entry = entry?;
         let path = entry.path();
-        
+
         if path.is_file() && path.extension().map_or(false, |ext| ext == extension) {
             files.push(path);
         } else if path.is_dir() {
@@ -107,9 +105,9 @@ fn list_files_recursive_impl(dir: &Path, extension: &str, files: &mut Vec<PathBu
 /// Represents a file with its filename and relative path from the base directory
 #[derive(Debug, Clone)]
 pub struct FileEntry {
-    pub name: String,      // filename without extension (e.g., "pharmacy")
-    pub relative_path: String,  // relative path from base dir (e.g., "groceries/pharmacy")
-    pub full_path: PathBuf,     // full filesystem path
+    pub name: String,          // filename without extension (e.g., "pharmacy")
+    pub relative_path: String, // relative path from base dir (e.g., "groceries/pharmacy")
+    pub full_path: PathBuf,    // full filesystem path
 }
 
 /// List all available lists with directory structure support
@@ -147,7 +145,7 @@ pub fn list_lists_with_info() -> Result<Vec<FileEntry>> {
                 let name = relative.file_stem()?.to_string_lossy().to_string();
                 // Get relative path without extension
                 let relative_path = relative.with_extension("").to_string_lossy().to_string();
-                
+
                 return Some(FileEntry {
                     name,
                     relative_path,
@@ -196,7 +194,7 @@ pub fn list_notes_with_info() -> Result<Vec<FileEntry>> {
                 let name = relative.file_stem()?.to_string_lossy().to_string();
                 // Get relative path without extension
                 let relative_path = relative.with_extension("").to_string_lossy().to_string();
-                
+
                 return Some(FileEntry {
                     name,
                     relative_path,

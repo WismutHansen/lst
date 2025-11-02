@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
-use std::path::PathBuf;
 use std::fs;
+use std::path::PathBuf;
 
 /// Simple slugify: lowercase, replace non-alphanumeric with '-', trim hyphens
 fn slugify(title: &str) -> String {
@@ -24,7 +24,7 @@ fn slugify(title: &str) -> String {
 /// Return the path for a note with given title (supports directory paths)
 pub fn get_note_path(title: &str) -> Result<PathBuf> {
     let notes_dir = super::get_notes_dir()?;
-    
+
     // If title contains path separators, treat as directory path
     if title.contains('/') || title.contains('\\') {
         let filename = format!("{}.md", title);
@@ -34,7 +34,7 @@ pub fn get_note_path(title: &str) -> Result<PathBuf> {
         if let Ok(resolved_path) = resolve_note_path(title) {
             return Ok(resolved_path);
         }
-        
+
         // Fallback to creating in root notes directory
         let filename = format!("{}.md", slugify(title));
         Ok(notes_dir.join(filename))
@@ -44,25 +44,26 @@ pub fn get_note_path(title: &str) -> Result<PathBuf> {
 /// Resolve a note by title using fuzzy search (filename only)
 pub fn resolve_note_path(title: &str) -> Result<PathBuf> {
     let entries = super::list_notes_with_info()?;
-    
+
     // First try exact filename match
     for entry in &entries {
         if entry.name == title {
             return Ok(entry.full_path.clone());
         }
     }
-    
+
     // Then try fuzzy match by filename
     let matches: Vec<&super::FileEntry> = entries
         .iter()
         .filter(|entry| entry.name.contains(title))
         .collect();
-    
+
     match matches.len() {
         0 => anyhow::bail!("Note '{}' does not exist", title),
         1 => Ok(matches[0].full_path.clone()),
         _ => {
-            let match_names: Vec<String> = matches.iter().map(|e| e.relative_path.clone()).collect();
+            let match_names: Vec<String> =
+                matches.iter().map(|e| e.relative_path.clone()).collect();
             anyhow::bail!("Multiple notes match '{}': {:?}", title, match_names);
         }
     }
@@ -87,11 +88,11 @@ pub fn create_note(title: &str) -> Result<PathBuf> {
     let notes_dir = super::get_notes_dir()?;
     let filename = format!("{}.md", title);
     let path = notes_dir.join(&filename);
-    
+
     if path.exists() {
         return Err(anyhow!("Note '{}' already exists", title));
     }
-    
+
     // Create parent directories if they don't exist
     if let Some(parent) = path.parent() {
         if !parent.exists() {
@@ -99,7 +100,7 @@ pub fn create_note(title: &str) -> Result<PathBuf> {
                 .with_context(|| format!("Failed to create directory: {}", parent.display()))?;
         }
     }
-    
+
     // Extract just the filename for the note title (not the full path)
     let note_title = if title.contains('/') || title.contains('\\') {
         std::path::Path::new(title)
@@ -110,7 +111,7 @@ pub fn create_note(title: &str) -> Result<PathBuf> {
     } else {
         title.to_string()
     };
-    
+
     // Build frontmatter
     let now = Utc::now().to_rfc3339();
     let content = format!("---\ntitle: \"{}\"\ncreated: {}\n---\n\n", note_title, now);
@@ -131,7 +132,7 @@ pub fn load_note(title: &str) -> Result<PathBuf> {
         }
         return Err(anyhow!("Note '{}' does not exist", title));
     }
-    
+
     // Use fuzzy resolution for simple names
     resolve_note_path(title)
 }

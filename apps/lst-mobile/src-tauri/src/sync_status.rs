@@ -31,17 +31,17 @@ pub fn update_sync_status(
 ) -> Result<()> {
     let mut status = SYNC_STATUS.lock().unwrap();
     let mut last_update = LAST_STATUS_UPDATE.lock().unwrap();
-    
+
     status.connected = connected;
     status.pending_changes = pending_changes;
     status.error = error;
-    
+
     if connected {
         status.last_sync = Some(chrono::Utc::now().to_rfc3339());
     }
-    
+
     *last_update = Instant::now();
-    
+
     Ok(())
 }
 
@@ -49,10 +49,10 @@ pub fn update_sync_status(
 pub fn get_sync_status() -> Result<SyncStatusInfo> {
     let config = crate::mobile_config::get_current_config();
     let status = SYNC_STATUS.lock().unwrap();
-    
+
     // Check if sync is enabled
     let sync_enabled = config.is_jwt_valid();
-    
+
     if !sync_enabled {
         return Ok(SyncStatusInfo {
             connected: false,
@@ -61,11 +61,11 @@ pub fn get_sync_status() -> Result<SyncStatusInfo> {
             error: Some("Sync not configured".to_string()),
         });
     }
-    
+
     // Check if status is stale (older than 2 minutes)
     let last_update = LAST_STATUS_UPDATE.lock().unwrap();
     let is_stale = last_update.elapsed() > Duration::from_secs(120);
-    
+
     if is_stale {
         return Ok(SyncStatusInfo {
             connected: false,
@@ -74,7 +74,7 @@ pub fn get_sync_status() -> Result<SyncStatusInfo> {
             error: Some("Status outdated".to_string()),
         });
     }
-    
+
     Ok(status.clone())
 }
 
@@ -94,6 +94,6 @@ pub fn update_pending_changes(count: u32) -> Result<()> {
     let connected = status.connected;
     let error = status.error.clone();
     drop(status);
-    
+
     update_sync_status(connected, count, error)
 }

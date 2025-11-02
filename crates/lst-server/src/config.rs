@@ -149,8 +149,6 @@ impl Settings {
         }
         Ok(settings)
     }
-
-    
 }
 
 impl DatabaseSettings {

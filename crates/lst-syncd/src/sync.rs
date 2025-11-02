@@ -1,87 +1,25 @@
 use crate::config::Config;
-use lst_core::crypto;
 use crate::database::LocalDb;
 use anyhow::{Context, Result};
-use automerge::{
-    transaction::Transactable as _, Automerge, Change, ObjType, ReadDoc, ScalarValue, Value,
-};
+use automerge::{Automerge, Change};
 use base64::engine::general_purpose;
 use base64::Engine;
 use futures_util::{SinkExt, StreamExt};
 use lst_core::config::State;
+use lst_core::crypto;
+use lst_core::sync::{
+    canonical_path_with_id, canonicalize_doc_path, extract_automerge_content, update_automerge_doc,
+    CanonicalDocPath, DocumentKind,
+};
 use notify::Event;
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::time::{timeout, Instant};
+use tokio_tungstenite::tungstenite::{client::IntoClientRequest, http::header::AUTHORIZATION};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use uuid::Uuid;
-
-fn detect_doc_type(path: &std::path::Path) -> &str {
-    // Get the content directory to resolve relative paths
-    if let Ok(content_dir) = lst_core::storage::get_content_dir() {
-        // Try to get the relative path from content directory
-        if let Ok(relative_path) = path.strip_prefix(&content_dir) {
-            let relative_str = relative_path.to_string_lossy();
-            
-            // Check if it starts with lists/ (strict directory-based detection)
-            if relative_str.starts_with("lists/") || relative_str.starts_with("lists\\") {
-                return "list";
-            }
-            // Check if it starts with notes/ (strict directory-based detection)
-            else if relative_str.starts_with("notes/") || relative_str.starts_with("notes\\") {
-                return "note";
-            }
-        }
-    }
-    
-    // Fallback: check the full path (for backward compatibility)
-    let s = path.to_string_lossy();
-    if s.contains("/lists/") || s.contains("\\lists\\") {
-        "list"
-    } else if s.contains("/notes/") || s.contains("\\notes\\") {
-        "note"
-    } else {
-        "note" // default
-    }
-}
-
-fn update_note_doc(doc: &mut Automerge, content: &str) -> Result<()> {
-    // Ensure we have a Text object at key "content"
-    let maybe_id = if let Some((Value::Object(_), id)) = doc.get(automerge::ROOT, "content")? {
-        Some(id)
-    } else {
-        None
-    };
-    let mut tx = doc.transaction();
-    let content_id = match maybe_id {
-        Some(id) => id,
-        None => tx.put_object(&automerge::ROOT, "content", ObjType::Text)?,
-    };
-    tx.update_text(&content_id, content)?;
-    tx.commit();
-    Ok(())
-}
-
-fn update_list_doc(doc: &mut Automerge, content: &str) -> Result<()> {
-    let mut tx = doc.transaction();
-
-    // Create or recreate the list
-    tx.delete(&automerge::ROOT, "items").ok(); // Ignore error if doesn't exist
-    let items_id = tx.put_object(&automerge::ROOT, "items", ObjType::List)?;
-
-    let mut list_idx = 0;
-    for line in content.lines() {
-        let line = line.trim();
-        if !line.is_empty() {
-            tx.insert(&items_id, list_idx, ScalarValue::Str(line.into()))?;
-            list_idx += 1;
-        }
-    }
-
-    tx.commit();
-    Ok(())
-}
 
 pub struct SyncManager {
     config: Config,
@@ -133,7 +71,7 @@ impl SyncManager {
             .as_ref()
             .and_then(|s| s.encryption_key_ref.as_ref())
             .expect("encryption_key_ref must be set in sync config");
-        
+
         // Use the key file that was saved during 'lst auth login'
         // The login command already derived the secure key using credentials and saved it
         let (email, auth_token) = state.get_credentials();
@@ -142,7 +80,9 @@ impl SyncManager {
             let resolved_key_path = crypto::resolve_key_path(key_path)?;
             match crypto::load_key(&resolved_key_path) {
                 Ok(key) => {
-                    println!("DEBUG: Sync daemon using encryption key from file (derived during login)");
+                    println!(
+                        "DEBUG: Sync daemon using encryption key from file (derived during login)"
+                    );
                     key
                 }
                 Err(e) => {
@@ -154,7 +94,9 @@ impl SyncManager {
         } else {
             eprintln!("ERROR: No authentication credentials found");
             eprintln!("       Please run 'lst auth register <email>' followed by 'lst auth login <email> <auth-token>'");
-            return Err(anyhow::anyhow!("Authentication required: no stored credentials found"));
+            return Err(anyhow::anyhow!(
+                "Authentication required: no stored credentials found"
+            ));
         };
 
         Ok(Self {
@@ -171,33 +113,55 @@ impl SyncManager {
     }
 
     pub async fn handle_file_event(&mut self, event: Event) -> Result<()> {
-        for path in event.paths {
+        for original_path in event.paths {
+            let (canonical, derived_doc_id) = match canonical_path_with_id(&original_path) {
+                Ok(result) => result,
+                Err(e) => {
+                    eprintln!(
+                        "DEBUG: Skipping path {}: failed to canonicalize ({})",
+                        original_path.display(),
+                        e
+                    );
+                    continue;
+                }
+            };
+
             // Skip files we just created via sync
-            if self.recently_synced_files.contains(&path) {
-                println!("DEBUG: Skipping recently synced file: {}", path.display());
-                self.recently_synced_files.remove(&path); // Remove after use
+            if self.recently_synced_files.contains(&canonical.full_path) {
+                println!(
+                    "DEBUG: Skipping recently synced file: {}",
+                    canonical.full_path.display()
+                );
+                self.recently_synced_files.remove(&canonical.full_path);
                 continue;
             }
 
+            let path_str = canonical.full_path.to_string_lossy();
+
             // Skip cloud storage directories and files
-            let path_str = path.to_string_lossy();
-            if path_str.contains("OneDrive") 
-                || path_str.contains("GoogleDrive") 
+            if path_str.contains("OneDrive")
+                || path_str.contains("GoogleDrive")
                 || path_str.contains("Dropbox")
                 || path_str.contains("iCloud")
                 || path_str.contains(".cloud")
             {
-                println!("DEBUG: Skipping cloud storage path: {}", path.display());
+                println!(
+                    "DEBUG: Skipping cloud storage path: {}",
+                    canonical.full_path.display()
+                );
                 continue;
             }
 
             // Skip directories - only process files
-            if path.is_dir() {
-                println!("DEBUG: Skipping directory: {}", path.display());
+            if canonical.full_path.is_dir() {
+                println!(
+                    "DEBUG: Skipping directory: {}",
+                    canonical.full_path.display()
+                );
                 continue;
             }
 
-            if let Some(filename) = path.file_name() {
+            if let Some(filename) = canonical.full_path.file_name() {
                 if let Some(filename_str) = filename.to_str() {
                     if filename_str.starts_with('.')
                         || filename_str.ends_with(".tmp")
@@ -208,26 +172,31 @@ impl SyncManager {
                 }
             }
 
-            // Prefer existing mapping by file_path
+            // Skip files we just created via sync
+            let file_path_str = canonical.full_path.to_string_lossy().to_string();
+
+            // Prefer existing mapping by file_path (absolute)
             let existing_doc_id = self
                 .db
-                .get_doc_id_by_file_path(&path.to_string_lossy())
+                .get_doc_id_by_file_path(&file_path_str)
                 .ok()
-                .flatten();
+                .flatten()
+                .or_else(|| {
+                    self.db
+                        .get_doc_id_by_file_path(&canonical.relative_path)
+                        .ok()
+                        .flatten()
+                });
+
             let doc_id = if let Some(id) = existing_doc_id {
                 id
             } else {
-                // Use normalized relative path for stable identity across devices
-                let rel = lst_core::storage::get_content_dir()
-                    .ok()
-                    .and_then(|root| path.strip_prefix(&root).ok().map(|p| p.to_string_lossy().replace('\\', "/")))
-                    .unwrap_or_else(|| path.to_string_lossy().replace('\\', "/"));
-                uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, rel.as_bytes()).to_string()
+                derived_doc_id.clone()
             };
 
             println!(
                 "DEBUG: Processing file {} -> doc_id: {}",
-                path.display(),
+                canonical.full_path.display(),
                 doc_id
             );
 
@@ -237,7 +206,9 @@ impl SyncManager {
                 continue;
             }
 
-            let data = tokio::fs::read(&path).await.unwrap_or_default();
+            let data = tokio::fs::read(&canonical.full_path)
+                .await
+                .unwrap_or_default();
 
             if let Some(sync) = &self.config.sync {
                 if data.len() as u64 > sync.max_file_size {
@@ -249,7 +220,8 @@ impl SyncManager {
             hasher.update(&data);
             let hash = hex::encode(hasher.finalize());
 
-            let doc_type = detect_doc_type(&path);
+            let doc_kind = canonical.kind;
+            let doc_type = doc_kind.as_str();
 
             let owner = self
                 .state
@@ -261,9 +233,17 @@ impl SyncManager {
 
             let new_content = String::from_utf8_lossy(&data);
 
-            if let Some((_, _, last_hash, state, existing_owner, writers, readers)) =
-                self.db.get_document(&doc_id)?
+            if let Some((
+                _,
+                existing_doc_type,
+                last_hash,
+                state,
+                existing_owner,
+                writers,
+                readers,
+            )) = self.db.get_document(&doc_id)?
             {
+                let existing_kind = DocumentKind::from_str(&existing_doc_type);
                 if last_hash == hash {
                     continue;
                 }
@@ -271,11 +251,7 @@ impl SyncManager {
                 let mut doc = Automerge::load(&state)?;
                 let old_heads = doc.get_heads().into_iter().collect::<Vec<_>>();
 
-                if doc_type == "list" {
-                    update_list_doc(&mut doc, &new_content)?;
-                } else {
-                    update_note_doc(&mut doc, &new_content)?;
-                }
+                update_automerge_doc(&mut doc, existing_kind, &new_content)?;
 
                 let new_state = doc.save();
 
@@ -286,8 +262,8 @@ impl SyncManager {
                 );
                 self.db.upsert_document(
                     &doc_id,
-                    &path.to_string_lossy(),
-                    doc_type,
+                    &file_path_str,
+                    &existing_doc_type,
                     &hash,
                     &new_state,
                     &existing_owner,
@@ -310,11 +286,7 @@ impl SyncManager {
                 let mut doc = Automerge::new();
                 let old_heads = doc.get_heads().into_iter().collect::<Vec<_>>();
 
-                if doc_type == "list" {
-                    update_list_doc(&mut doc, &new_content)?;
-                } else {
-                    update_note_doc(&mut doc, &new_content)?;
-                }
+                update_automerge_doc(&mut doc, doc_kind, &new_content)?;
 
                 let new_state = doc.save();
 
@@ -325,7 +297,7 @@ impl SyncManager {
                 );
                 self.db.upsert_document(
                     &doc_id,
-                    &path.to_string_lossy(),
+                    &file_path_str,
                     doc_type,
                     &hash,
                     &new_state,
@@ -360,20 +332,28 @@ impl SyncManager {
         if let Some((file_path, doc_type, _last_hash, state, owner, writers, readers)) =
             self.db.get_document(doc_id)?
         {
+            let doc_kind = DocumentKind::from_str(&doc_type);
+            let canonical =
+                canonicalize_doc_path(Path::new(&file_path)).unwrap_or_else(|_| CanonicalDocPath {
+                    full_path: PathBuf::from(&file_path),
+                    relative_path: file_path.clone(),
+                    kind: doc_kind,
+                });
             let mut doc = Automerge::load(&state)?;
 
             let mut change_objs = Vec::new();
             for (i, raw) in changes.iter().enumerate() {
                 match crypto::decrypt(raw, &self.encryption_key) {
-                    Ok(decrypted) => {
-                        match Change::from_bytes(decrypted) {
-                            Ok(change) => change_objs.push(change),
-                            Err(e) => {
-                                eprintln!("WARNING: Failed to parse change {} for doc {}: {}", i, doc_id, e);
-                                continue;
-                            }
+                    Ok(decrypted) => match Change::from_bytes(decrypted) {
+                        Ok(change) => change_objs.push(change),
+                        Err(e) => {
+                            eprintln!(
+                                "WARNING: Failed to parse change {} for doc {}: {}",
+                                i, doc_id, e
+                            );
+                            continue;
                         }
-                    }
+                    },
                     Err(e) => {
                         eprintln!("WARNING: Failed to decrypt change {} for doc {} - likely different encryption key: {}", i, doc_id, e);
                         eprintln!("  This typically happens when different devices use different encryption keys");
@@ -382,9 +362,12 @@ impl SyncManager {
                     }
                 }
             }
-            
+
             if change_objs.is_empty() {
-                eprintln!("WARNING: No valid changes could be decrypted for doc {}, skipping", doc_id);
+                eprintln!(
+                    "WARNING: No valid changes could be decrypted for doc {}, skipping",
+                    doc_id
+                );
                 return Ok(());
             }
 
@@ -392,66 +375,30 @@ impl SyncManager {
 
             let new_state = doc.save();
 
-            let content = if doc_type == "list" {
-                if let Some((items_val, items_id)) = doc.get(automerge::ROOT, "items")? {
-                    if let Value::Object(_) = items_val {
-                        let mut lines = Vec::new();
-                        let len = doc.length(&items_id);
-                        for i in 0..len {
-                            if let Some((val, _)) = doc.get(&items_id, i)? {
-                                match val {
-                                    Value::Scalar(s) => {
-                                        if let ScalarValue::Str(text) = s.as_ref() {
-                                            lines.push(text.to_string());
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                            }
-                        }
-                        lines.join("\n")
-                    } else {
-                        String::new()
-                    }
-                } else {
-                    String::new()
-                }
-            } else {
-                // For text content, try to get it as text object first, then as scalar
-                if let Some((content_val, content_id)) = doc.get(automerge::ROOT, "content")? {
-                    match content_val {
-                        Value::Object(_) => {
-                            // Try to get as text first
-                            doc.text(&content_id).unwrap_or_default()
-                        }
-                        Value::Scalar(s) => {
-                            if let ScalarValue::Str(text) = s.as_ref() {
-                                text.to_string()
-                            } else {
-                                String::new()
-                            }
-                        }
-                        _ => String::new(),
-                    }
-                } else {
-                    String::new()
-                }
-            };
+            let content = extract_automerge_content(&doc, doc_kind)?;
 
             // Avoid feedback loop: mark as recently synced before writing
-            self.recently_synced_files.insert(std::path::PathBuf::from(&file_path));
+            self.recently_synced_files
+                .insert(canonical.full_path.clone());
 
-            tokio::fs::write(&file_path, &content)
+            tokio::fs::write(&canonical.full_path, &content)
                 .await
-                .with_context(|| format!("Failed to write updated file: {}", file_path))?;
+                .with_context(|| {
+                    format!(
+                        "Failed to write updated file: {}",
+                        canonical.full_path.display()
+                    )
+                })?;
 
             let mut hasher = Sha256::new();
             hasher.update(content.as_bytes());
             let new_hash = hex::encode(hasher.finalize());
 
+            let canonical_path_str = canonical.full_path.to_string_lossy().to_string();
+
             self.db.upsert_document(
                 doc_id,
-                &file_path,
+                &canonical_path_str,
                 &doc_type,
                 &new_hash,
                 &new_state,
@@ -479,7 +426,11 @@ impl SyncManager {
 
         // Parse server URL to get host and port
         let url_parts: Vec<&str> = server_url.split("://").collect();
-        let host_port = if url_parts.len() > 1 { url_parts[1] } else { url_parts[0] };
+        let host_port = if url_parts.len() > 1 {
+            url_parts[1]
+        } else {
+            url_parts[0]
+        };
         let host_port_parts: Vec<&str> = host_port.split(':').collect();
         let host = host_port_parts[0];
         let port: u16 = if host_port_parts.len() > 1 {
@@ -616,12 +567,10 @@ impl SyncManager {
             .unwrap_or_else(|| "unknown".to_string());
 
         // Connect to WebSocket with Authorization header
-        use tokio_tungstenite::tungstenite::http::Request;
-        let ws_request = Request::builder()
-            .method("GET")
-            .uri(&url)
-            .header("Authorization", format!("Bearer {}", token))
-            .body(())?;
+        let mut ws_request = url.as_str().into_client_request()?;
+        ws_request
+            .headers_mut()
+            .insert(AUTHORIZATION, format!("Bearer {}", token).parse()?);
 
         let (ws, _) = connect_async(ws_request).await?;
         let (mut write, mut read) = ws.split();
@@ -951,22 +900,20 @@ impl SyncManager {
         file_path: &std::path::Path,
         files_added: &mut usize,
     ) -> Result<()> {
-        // Reuse existing mapping if present
+        let (canonical, derived_doc_id) = canonical_path_with_id(file_path)?;
+        let file_path_str = canonical.full_path.to_string_lossy().to_string();
         let existing_doc_id = self
             .db
-            .get_doc_id_by_file_path(&file_path.to_string_lossy())
+            .get_doc_id_by_file_path(&file_path_str)
             .ok()
-            .flatten();
-        let doc_id = if let Some(id) = existing_doc_id {
-            id
-        } else {
-            // Generate doc_id from normalized relative path (stable across devices)
-            let rel = lst_core::storage::get_content_dir()
-                .ok()
-                .and_then(|root| file_path.strip_prefix(&root).ok().map(|p| p.to_string_lossy().replace('\\', "/")))
-                .unwrap_or_else(|| file_path.to_string_lossy().replace('\\', "/"));
-            uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, rel.as_bytes()).to_string()
-        };
+            .flatten()
+            .or_else(|| {
+                self.db
+                    .get_doc_id_by_file_path(&canonical.relative_path)
+                    .ok()
+                    .flatten()
+            });
+        let doc_id = existing_doc_id.unwrap_or_else(|| derived_doc_id.clone());
 
         // Check if already in database
         if self.db.get_document(&doc_id)?.is_some() {
@@ -996,7 +943,7 @@ impl SyncManager {
         hasher.update(&data);
         let hash = hex::encode(hasher.finalize());
 
-        let doc_type = detect_doc_type(file_path);
+        let doc_kind = canonical.kind;
         let owner = self
             .state
             .device
@@ -1010,19 +957,15 @@ impl SyncManager {
         let mut doc = Automerge::new();
         let old_heads = doc.get_heads().into_iter().collect::<Vec<_>>();
 
-        if doc_type == "list" {
-            update_list_doc(&mut doc, &new_content)?;
-        } else {
-            update_note_doc(&mut doc, &new_content)?;
-        }
+        update_automerge_doc(&mut doc, doc_kind, &new_content)?;
 
         let new_state = doc.save();
 
         // Store in database
         self.db.upsert_document(
             &doc_id,
-            &file_path.to_string_lossy(),
-            doc_type,
+            &file_path_str,
+            doc_kind.as_str(),
             &hash,
             &new_state,
             owner,

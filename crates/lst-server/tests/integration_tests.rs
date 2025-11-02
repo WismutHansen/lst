@@ -1,5 +1,5 @@
+use argon2::{password_hash::SaltString, Algorithm, Argon2, Params, PasswordHasher, Version};
 use serde_json::json;
-use argon2::{password_hash::SaltString, Argon2, Algorithm, Params, PasswordHasher, Version};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -28,7 +28,10 @@ async fn test_auth_request_endpoint() {
     let params = Params::new(128 * 1024, 3, 2, None).unwrap();
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
     let salt = SaltString::encode_b64(b"clientstatic").unwrap();
-    let hash = argon2.hash_password(b"hunter42", &salt).unwrap().to_string();
+    let hash = argon2
+        .hash_password(b"hunter42", &salt)
+        .unwrap()
+        .to_string();
 
     let payload = json!({
         "email": "test@example.com",
@@ -68,7 +71,10 @@ async fn test_full_auth_flow() {
     let params = Params::new(128 * 1024, 3, 2, None).unwrap();
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
     let salt = SaltString::encode_b64(b"clientstatic").unwrap();
-    let hash = argon2.hash_password(b"hunter42", &salt).unwrap().to_string();
+    let hash = argon2
+        .hash_password(b"hunter42", &salt)
+        .unwrap()
+        .to_string();
 
     let payload = json!({
         "email": "test@example.com",

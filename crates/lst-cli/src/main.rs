@@ -5,7 +5,10 @@ use lst_cli::{config, models, storage};
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{AuthCommands, CategoryCommands, Cli, Commands, GuiCommands, ImageCommands, NoteCommands, ServerCommands, ThemeCommands, UserCommands};
+use cli::{
+    AuthCommands, CategoryCommands, Cli, Commands, GuiCommands, ImageCommands, NoteCommands,
+    ServerCommands, ThemeCommands, UserCommands,
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -26,7 +29,11 @@ async fn main() -> Result<()> {
         Commands::New { list } => {
             cli::commands::new_list(list)?;
         }
-        Commands::Add { list, text, category } => {
+        Commands::Add {
+            list,
+            text,
+            category,
+        } => {
             cli::commands::add_item(list, text, category.as_deref(), cli.json).await?;
         }
         Commands::Open { list } => {
@@ -148,7 +155,11 @@ async fn main() -> Result<()> {
             CategoryCommands::Add { list, name } => {
                 cli::commands::category_add(list, name, cli.json).await?;
             }
-            CategoryCommands::Move { list, item, category } => {
+            CategoryCommands::Move {
+                list,
+                item,
+                category,
+            } => {
                 cli::commands::category_move(list, item, category, cli.json).await?;
             }
             CategoryCommands::List { list } => {
@@ -225,7 +236,11 @@ async fn main() -> Result<()> {
             UserCommands::Delete { email, force } => {
                 cli::commands::user_delete(email, *force, cli.json).await?;
             }
-            UserCommands::Update { email, name, enabled } => {
+            UserCommands::Update {
+                email,
+                name,
+                enabled,
+            } => {
                 cli::commands::user_update(email, name.as_deref(), *enabled, cli.json).await?;
             }
             UserCommands::Info { email } => {
@@ -236,7 +251,7 @@ async fn main() -> Result<()> {
             use lst_core::config::Config;
             let schema = Config::generate_schema()?;
             println!("{}", schema);
-        },
+        }
     }
 
     Ok(())

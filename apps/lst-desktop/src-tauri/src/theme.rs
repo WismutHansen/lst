@@ -1,4 +1,3 @@
-
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, Emitter};
@@ -18,7 +17,7 @@ pub fn get_current_theme() -> Result<ThemeData, String> {
     // Reload config from disk to get latest theme changes from CLI
     let config = lst_cli::config::Config::load().map_err(|e| e.to_string())?;
     let theme = config.get_theme().map_err(|e| e.to_string())?;
-    
+
     Ok(ThemeData {
         css_variables: theme.generate_css_variables(),
         scheme: theme.scheme.clone(),
@@ -32,11 +31,13 @@ pub fn get_current_theme() -> Result<ThemeData, String> {
 #[specta::specta]
 pub fn apply_theme(theme_name: String) -> Result<ThemeData, String> {
     let mut config = lst_cli::config::Config::load().map_err(|e| e.to_string())?;
-    let theme = config.load_theme_by_name(&theme_name).map_err(|e| e.to_string())?;
-    
+    let theme = config
+        .load_theme_by_name(&theme_name)
+        .map_err(|e| e.to_string())?;
+
     config.set_theme(theme.clone());
     config.save().map_err(|e| e.to_string())?;
-    
+
     Ok(ThemeData {
         css_variables: theme.generate_css_variables(),
         scheme: theme.scheme.clone(),
