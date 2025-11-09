@@ -9,7 +9,7 @@ use lst_cli::storage;
 use std::path::PathBuf;
 
 use crate::config::load_syncd_config;
-use crate::sync::SyncManager;
+use crate::sync::{run_migrations, SyncManager};
 use crate::watcher::FileWatcher;
 
 #[derive(Parser)]
@@ -26,6 +26,10 @@ struct Args {
     /// Verbose logging
     #[arg(short, long)]
     verbose: bool,
+
+    /// Run database migrations and exit
+    #[arg(long)]
+    migrate_only: bool,
 }
 
 #[tokio::main]
@@ -41,6 +45,12 @@ async fn main() -> Result<()> {
 
     // Load configuration
     let config = load_syncd_config(&config_path)?;
+
+    if args.migrate_only {
+        run_migrations()?;
+        println!("lst-syncd migrations completed");
+        return Ok(());
+    }
 
     if args.verbose {
         println!("lst-syncd starting with config: {}", config_path.display());

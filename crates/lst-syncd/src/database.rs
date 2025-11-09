@@ -1,10 +1,12 @@
 use anyhow::{Context, Result};
 use automerge::{Automerge, ObjType, ReadDoc, Value};
+use lst_core::storage;
 use lst_core::sync::{
-    extract_automerge_content, path_from_relative, path_from_server_filename, write_document,
-    CanonicalDocPath, DocumentKind,
+    canonicalize_doc_path, extract_automerge_content, path_from_relative, path_from_server_filename,
+    write_document, CanonicalDocPath, DocumentKind,
 };
 use rusqlite::{params, Connection};
+use std::collections::HashSet;
 use std::path::Path;
 
 /// Local SQLite database used by lst-syncd
@@ -126,6 +128,17 @@ impl LocalDb {
         }
     }
 
+    fn normalize_file_path_for_storage(path: &str) -> String {
+        if path.is_empty() {
+            return path.to_string();
+        }
+        let path_obj = Path::new(path);
+        match canonicalize_doc_path(path_obj) {
+            Ok(canonical) if !canonical.relative_path.is_empty() => canonical.relative_path,
+            _ => path.to_string(),
+        }
+    }
+
     /// Insert or update a document row
     pub fn upsert_document(
         &self,
@@ -138,8 +151,11 @@ impl LocalDb {
         writers: Option<&str>,
         readers: Option<&str>,
     ) -> Result<()> {
+        // Normalize to canonical relative path whenever possible
+        let normalized_path = Self::normalize_file_path_for_storage(file_path);
+
         // Fix incomplete file paths
-        let fixed_file_path = Self::fix_incomplete_file_path(file_path, doc_type);
+        let fixed_file_path = Self::fix_incomplete_file_path(&normalized_path, doc_type);
 
         // Validate that this is actually a file path, not a directory
         if let Err(e) = Self::validate_file_path(&fixed_file_path) {
@@ -205,16 +221,37 @@ impl LocalDb {
 
     /// Look up a document id by full file path
     pub fn get_doc_id_by_file_path(&self, file_path: &str) -> Result<Option<String>> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT doc_id FROM documents WHERE file_path = ?1 LIMIT 1")?;
-        let mut rows = stmt.query(params![file_path])?;
-        if let Some(row) = rows.next()? {
-            let id: String = row.get(0)?;
-            Ok(Some(id))
-        } else {
-            Ok(None)
+        let mut candidates = Vec::new();
+        let normalized = Self::normalize_file_path_for_storage(file_path);
+        candidates.push(normalized);
+
+        if !file_path.is_empty() {
+            if !candidates.contains(&file_path.to_string()) {
+                candidates.push(file_path.to_string());
+            }
+
+            let path_obj = Path::new(file_path);
+            if path_obj.is_relative() {
+                if let Ok(content_dir) = storage::get_content_dir() {
+                    let absolute_candidate = content_dir.join(path_obj).to_string_lossy().to_string();
+                    if !candidates.contains(&absolute_candidate) {
+                        candidates.push(absolute_candidate);
+                    }
+                }
+            }
         }
+
+        for candidate in candidates {
+            let mut stmt = self
+                .conn
+                .prepare("SELECT doc_id FROM documents WHERE file_path = ?1 LIMIT 1")?;
+            let mut rows = stmt.query(params![candidate])?;
+            if let Some(row) = rows.next()? {
+                let id: String = row.get(0)?;
+                return Ok(Some(id));
+            }
+        }
+        Ok(None)
     }
 
     /// Delete a document by id
@@ -276,7 +313,7 @@ impl LocalDb {
              VALUES (?1, ?2, ?3, '', ?4, '', NULL, NULL)",
             params![
                 doc_id,
-                canonical.full_path.to_string_lossy().to_string(),
+                canonical.relative_path,
                 doc_kind.as_str(),
                 snapshot
             ],
@@ -308,7 +345,7 @@ impl LocalDb {
              VALUES (?1, ?2, ?3, '', ?4, '', NULL, NULL)",
             params![
                 doc_id,
-                canonical.full_path.to_string_lossy().to_string(),
+                canonical.relative_path,
                 doc_kind.as_str(),
                 snapshot
             ],
@@ -418,5 +455,49 @@ impl LocalDb {
             ));
         }
         Ok(out)
+    }
+
+    /// Run pending database migrations
+    pub fn run_migrations(&self) -> Result<()> {
+        self.migrate_paths_to_relative()
+    }
+
+    fn migrate_paths_to_relative(&self) -> Result<()> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT doc_id, file_path FROM documents")?;
+        let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
+        let mut updates = Vec::new();
+        for row in rows {
+            let (doc_id, current_path) = row?;
+            let normalized = Self::normalize_file_path_for_storage(&current_path);
+            if normalized != current_path {
+                updates.push((doc_id, normalized));
+            }
+        }
+
+        if updates.is_empty() {
+            return Ok(());
+        }
+
+        let mut updated_count = 0;
+        let mut seen_paths: HashSet<String> = HashSet::new();
+        for (doc_id, normalized) in updates {
+            if !seen_paths.insert(normalized.clone()) {
+                // Another document already claimed this path, skip to avoid UNIQUE violation
+                continue;
+            }
+            self.conn.execute(
+                "UPDATE documents SET file_path = ?1 WHERE doc_id = ?2",
+                params![normalized, doc_id],
+            )?;
+            updated_count += 1;
+        }
+
+        println!(
+            "DEBUG: Migrated {} document paths to canonical relative form",
+            updated_count
+        );
+        Ok(())
     }
 }

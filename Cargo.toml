@@ -68,3 +68,7 @@ futures-util = "0.3"
 [profile.dist]
 inherits = "release"
 lto = "thin"
+
+[patch.crates-io]
+# Backport upstream fix for VariantStrIter pointer handling until gtk-rs publishes 0.18.6+
+glib = { path = "third_party/glib-0.18.5-patched" }

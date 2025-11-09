@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::database::LocalDb;
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use automerge::{Automerge, Change};
 use base64::engine::general_purpose;
 use base64::Engine;
@@ -59,12 +59,19 @@ impl SyncManager {
                 })?;
         }
 
-        let state = State::load()?;
+        let mut state = State::load()?;
+        if state.get_sync_database_path().is_none() {
+            state.init()?;
+            state.save()?;
+        }
+
         let db_path = state
             .get_sync_database_path()
+            .cloned()
             .expect("sync database path must be set in state");
 
-        let db = LocalDb::new(db_path)?;
+        let db = LocalDb::new(&db_path)?;
+        db.run_migrations()?;
 
         let key_path = config
             .sync
@@ -174,6 +181,7 @@ impl SyncManager {
 
             // Skip files we just created via sync
             let file_path_str = canonical.full_path.to_string_lossy().to_string();
+            let relative_path = canonical.relative_path.clone();
 
             // Prefer existing mapping by file_path (absolute)
             let existing_doc_id = self
@@ -262,7 +270,7 @@ impl SyncManager {
                 );
                 self.db.upsert_document(
                     &doc_id,
-                    &file_path_str,
+                    &relative_path,
                     &existing_doc_type,
                     &hash,
                     &new_state,
@@ -297,7 +305,7 @@ impl SyncManager {
                 );
                 self.db.upsert_document(
                     &doc_id,
-                    &file_path_str,
+                    &relative_path,
                     doc_type,
                     &hash,
                     &new_state,
@@ -394,11 +402,11 @@ impl SyncManager {
             hasher.update(content.as_bytes());
             let new_hash = hex::encode(hasher.finalize());
 
-            let canonical_path_str = canonical.full_path.to_string_lossy().to_string();
+            let relative_path = canonical.relative_path.clone();
 
             self.db.upsert_document(
                 doc_id,
-                &canonical_path_str,
+                &relative_path,
                 &doc_type,
                 &new_hash,
                 &new_state,
@@ -709,11 +717,15 @@ impl SyncManager {
                                             // Extract relative path from content directory to preserve structure
                                             let content_dir = lst_core::storage::get_content_dir()
                                                 .unwrap_or_else(|_| std::path::PathBuf::from("."));
-                                            let relative_path = std::path::Path::new(&path)
-                                                .strip_prefix(&content_dir)
-                                                .unwrap_or(std::path::Path::new("unknown.md"))
-                                                .to_string_lossy()
-                                                .to_string();
+                                            let relative_path = if Path::new(&path).is_absolute() {
+                                                Path::new(&path)
+                                                    .strip_prefix(&content_dir)
+                                                    .unwrap_or(Path::new("unknown.md"))
+                                                    .to_string_lossy()
+                                                    .to_string()
+                                            } else {
+                                                path.clone()
+                                            };
 
                                             // Encrypt relative path before sending
                                             let encrypted_filename = crypto::encrypt(
@@ -978,7 +990,7 @@ impl SyncManager {
         // Store in database
         self.db.upsert_document(
             &doc_id,
-            &file_path_str,
+            &canonical.relative_path,
             doc_kind.as_str(),
             &hash,
             &new_state,
@@ -1080,4 +1092,21 @@ impl SyncManager {
 
         Ok(())
     }
+}
+
+pub fn run_migrations() -> Result<()> {
+    let mut state = State::load()?;
+    if state.get_sync_database_path().is_none() {
+        state.init()?;
+        state.save()?;
+    }
+
+    let db_path = state
+        .get_sync_database_path()
+        .cloned()
+        .ok_or_else(|| anyhow!("sync database path must be set in state"))?;
+
+    let db = LocalDb::new(&db_path)?;
+    db.run_migrations()?;
+    Ok(())
 }
