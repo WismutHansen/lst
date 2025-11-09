@@ -483,7 +483,8 @@ impl SyncManager {
     }
 
     /// Connect to the sync server and exchange changes
-    async fn sync_with_server(&mut self, encrypted: HashMap<String, Vec<Vec<u8>>>) -> Result<()> {
+    /// Returns Ok(true) if sync succeeded, Ok(false) if connection failed (non-fatal)
+    async fn sync_with_server(&mut self, encrypted: HashMap<String, Vec<Vec<u8>>>) -> Result<bool> {
         println!(
             "DEBUG: sync_with_server called with {} documents containing changes",
             encrypted.len()
@@ -516,7 +517,7 @@ impl SyncManager {
             }
             None => {
                 println!("DEBUG: No sync config found");
-                return Ok(());
+                return Ok(true);
             }
         };
 
@@ -539,7 +540,7 @@ impl SyncManager {
             }
             None => {
                 println!("DEBUG: No server URL found");
-                return Ok(());
+                return Ok(true);
             }
         };
 
@@ -566,13 +567,26 @@ impl SyncManager {
             .clone()
             .unwrap_or_else(|| "unknown".to_string());
 
-        // Connect to WebSocket with Authorization header
+        // Connect to WebSocket with Authorization header and timeout
         let mut ws_request = url.as_str().into_client_request()?;
         ws_request
             .headers_mut()
             .insert(AUTHORIZATION, format!("Bearer {}", token).parse()?);
 
-        let (ws, _) = connect_async(ws_request).await?;
+        let connection_result = timeout(Duration::from_secs(10), connect_async(ws_request)).await;
+        let (ws, _) = match connection_result {
+            Ok(Ok(ws)) => ws,
+            Ok(Err(e)) => {
+                eprintln!("Failed to connect to sync server: {}", e);
+                eprintln!("The server may be unreachable. Will retry on next sync interval.");
+                return Ok(false); // Return false to indicate connection failure
+            }
+            Err(_) => {
+                eprintln!("Connection to sync server timed out after 10 seconds");
+                eprintln!("Will retry on next sync interval.");
+                return Ok(false); // Return false to indicate connection failure
+            }
+        };
         let (mut write, mut read) = ws.split();
         println!("WebSocket connection established with HTTP header auth");
 
@@ -833,7 +847,7 @@ impl SyncManager {
 
         // ignore errors closing
         let _ = write.close().await;
-        Ok(())
+        Ok(true) // Sync succeeded
     }
 
     /// Scan all existing files in content directory and add them to sync
@@ -1015,6 +1029,9 @@ impl SyncManager {
             if !self.pending_changes.is_empty() {
                 let mut encrypted_total = 0;
                 let mut encrypted: HashMap<String, Vec<Vec<u8>>> = HashMap::new();
+                // Keep a backup of pending changes in case sync fails
+                let pending_backup = self.pending_changes.clone();
+                
                 println!(
                     "DEBUG: Draining {} documents from pending_changes",
                     self.pending_changes.len()
@@ -1037,10 +1054,25 @@ impl SyncManager {
                 }
 
                 println!("Syncing {encrypted_total} encrypted changes");
-                self.sync_with_server(encrypted).await?;
+                match self.sync_with_server(encrypted).await {
+                    Ok(true) => {
+                        // Sync succeeded, changes were sent
+                        println!("DEBUG: Sync completed successfully");
+                    }
+                    Ok(false) => {
+                        // Connection failed, restore pending changes for next sync
+                        println!("DEBUG: Sync connection failed, restoring pending changes for retry");
+                        self.pending_changes = pending_backup;
+                    }
+                    Err(e) => {
+                        // Other error, restore pending changes and propagate error
+                        self.pending_changes = pending_backup;
+                        return Err(e);
+                    }
+                }
             } else {
                 // still poll server for new changes
-                self.sync_with_server(HashMap::new()).await?;
+                let _ = self.sync_with_server(HashMap::new()).await;
             }
         }
 
