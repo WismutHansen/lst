@@ -137,10 +137,12 @@ fn update_list_doc(doc: &mut Automerge, content: &str) -> Result<()> {
     tx.delete(&automerge::ROOT, "items").ok();
     let items_id = tx.put_object(&automerge::ROOT, "items", ObjType::List)?;
 
-    for (idx, line) in content.lines().enumerate() {
+    let mut insert_index = 0;
+    for line in content.lines() {
         let trimmed = line.trim();
         if !trimmed.is_empty() {
-            tx.insert(&items_id, idx, ScalarValue::Str(trimmed.into()))?;
+            tx.insert(&items_id, insert_index, ScalarValue::Str(trimmed.into()))?;
+            insert_index += 1;
         }
     }
 
