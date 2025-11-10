@@ -243,7 +243,7 @@ impl SyncBridge {
     /// Trigger a full sync
     pub async fn trigger_full_sync(&mut self) -> Result<()> {
         if let Some(ref mut manager) = self.sync_manager {
-            manager.periodic_sync().await?;
+            manager.sync_now(true).await?;
         } else {
             println!("📱 Mobile sync: No sync manager available for full sync");
         }

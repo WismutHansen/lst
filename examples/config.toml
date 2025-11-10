@@ -99,24 +99,6 @@ content_db = "content.db" # Content storage
 sync_db = "sync.db"       # CRDT sync data
 
 # =============================================================================
-# Email Configuration (lst-server only)
-# =============================================================================
-[email]
-# SMTP server hostname
-smtp_host = "smtp.gmail.com"
-
-# SMTP username
-smtp_user = "your-email@gmail.com"
-
-# SMTP password (can use environment variable)
-smtp_pass = "${SMTP_PASSWORD}" # reads from environment variable
-# Alternative: direct password (not recommended for production)
-# smtp_pass = "your-app-password"
-
-# From address for sent emails
-sender = "lst-server@yourdomain.com"
-
-# =============================================================================
 # Client Sync Configuration (lst CLI, lst-syncd, apps)
 # =============================================================================
 # Note: Only user-configurable settings belong here. Runtime state and secrets
@@ -128,7 +110,7 @@ server_url = "192.168.1.25:5673"
 # Alternative: full WebSocket URL
 # server_url = "ws://192.168.1.25:5673/api/sync"
 
-# How often to check for changes (in seconds)
+# How often to check for changes (fallback interval if push channel is unavailable)
 interval_seconds = 30
 
 # Maximum file size to sync (in bytes, 10MB default)
@@ -179,12 +161,6 @@ max_snapshots = 100
 # content_db = "content.db"
 # sync_db = "sync.db"
 #
-# [email]
-# smtp_host = "smtp.sendgrid.net"
-# smtp_user = "apikey"
-# smtp_pass = "${SENDGRID_API_KEY}"
-# sender = "noreply@yourdomain.com"
-#
 # [paths]
 # content_dir = "/var/lib/lst/content"
 # media_dir = "media"
@@ -210,4 +186,3 @@ max_snapshots = 100
 # [sync]
 # server_url = "ws://localhost:5673/api/sync"
 # interval_seconds = 5  # More frequent sync for development
-

@@ -39,7 +39,6 @@ urlencoding = { workspace = true }
 qrcode = { workspace = true }
 image = { workspace = true }
 rand = { workspace = true }
-lettre = { workspace = true }
 dirs = { workspace = true }
 sha2 = { workspace = true }
 argon2 = { workspace = true }

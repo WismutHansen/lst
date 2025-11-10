@@ -97,7 +97,7 @@ cargo install --path crates/lst-server
 
 1. Create a configuration file at `~/.config/lst/config.toml` (see [examples/config.toml](examples/config.toml) for reference):
 
-   **💡 Pro tip**: LST automatically includes schema references in generated config files for LSP validation. See [CONFIG_SCHEMA.md](CONFIG_SCHEMA.md) for editor setup instructions.
+   **Pro tip**: LST automatically includes schema references in generated config files for LSP validation. See [CONFIG_SCHEMA.md](CONFIG_SCHEMA.md) for editor setup instructions.
 
    Generate the schema yourself:
 
@@ -113,20 +113,9 @@ port = 5673
 [database]
 # Directory for server databases (tokens.db, content.db, sync.db)
 data_dir = "~/.config/lst/lst_server_data"
-
-[email]
-# Optional: SMTP settings for login tokens (if omitted, tokens are logged to stdout)
-smtp_host = "smtp.gmail.com"
-smtp_user = "your-email@gmail.com"
-smtp_pass = "${SMTP_PASSWORD}"  # Environment variable
-sender = "noreply@yourdomain.com"
 ```
 
-2. Set up environment variables (if using email):
-
-```bash
-export SMTP_PASSWORD="your-app-password"
-```
+The server always prints authentication tokens, deep links, and QR codes to stdout so you can deliver them to users through any secure channel you prefer.
 
 #### Running the Server
 
@@ -146,7 +135,7 @@ The server will:
 - Listen on the configured host:port (default: `127.0.0.1:5673`)
 - Create SQLite databases in the configured data directory
 - Provide REST API endpoints at `/api/*`
-- Send login tokens via email (if configured) or log them to stdout
+- Print login tokens, deep links, and QR codes to stdout for manual delivery
 
 #### API Usage
 
@@ -179,7 +168,7 @@ For complete API documentation, see [SPEC.md](SPEC.md).
 
 #### CLI Authentication Workflow
 
-The CLI provides a streamlined authentication flow that integrates with the server's email-based token system:
+The CLI provides a streamlined authentication flow that works with the server's log-based token system:
 
 1. **Configure server URL** (if not done already):
 
@@ -193,7 +182,7 @@ lst sync setup --server http://localhost:5673/api
 lst auth request user@example.com
 ```
 
-This sends a token to your email address.
+Watch the server logs or terminal output to copy the generated token (or scan the QR code).
 
 3. **Verify and store JWT**:
 
@@ -201,7 +190,7 @@ This sends a token to your email address.
 lst auth verify user@example.com YOUR-TOKEN-HERE
 ```
 
-This exchanges the email token for a JWT that's stored locally for future requests.
+This exchanges the token for a JWT that's stored locally for future requests.
 
 4. **Use authenticated commands**:
 
@@ -535,13 +524,8 @@ The `lst-server` uses specific sections from `config.toml`:
 # determines where the 'lst_server_data' subdirectory is created,
 # which in turn stores its SQLite database files (e.g., tokens.db, content.db).
 
-[email]
-# SMTP relay settings (optional - if missing, login links logged to stdout)
-# Used by lst-server to send login tokens.
-smtp_host = "smtp.example.com"
-smtp_user = "your-smtp-user"
-smtp_pass = "${SMTP_PASSWORD}"  # Can be an environment variable like ${MY_SMTP_PASS}
-sender = "noreply@example.com"
+# Login tokens are always printed to stdout along with QR codes, so no additional
+# server-only configuration is required for authentication delivery.
 
 # The [content] block (with 'root', 'kinds', 'media_dir') previously used for
 # file system layout is no longer directly applicable to how lst-server serves
@@ -563,6 +547,10 @@ exclude_patterns = [".*", "*.tmp", "*.swp"]
 crdt_dir = "~/.config/lst/crdt"
 max_snapshots = 100
 ```
+
+`lst-syncd` keeps a persistent WebSocket connection to the server and reacts to filesystem
+events immediately; the `interval_seconds` value now acts only as a safety fallback when
+the daemon cannot maintain a push channel (for example, when the server is offline).
 
 ## Example Configuration
 
@@ -687,7 +675,7 @@ The `lst-server` provides an HTTP API for managing authentication and content.
 
 1. **Token Request**: `POST /api/auth/request`
     - Client sends: `{ "email": "user@example.com", "host": "client.host.name" }`
-    - Server emails a one-time token to `user@example.com`. This token is stored temporarily in its `tokens.db` SQLite database.
+    - Server prints a one-time token (plus deep link and QR code) to stdout and stores the hashed token in `tokens.db`.
 2. **Token Verification & JWT**: `POST /api/auth/verify`
     - Client sends: `{ "email": "user@example.com", "token": "RECEIVED_TOKEN" }`
     - Server verifies the token against `tokens.db`. If valid, it's consumed, and a JWT is issued.
@@ -720,7 +708,7 @@ Content (like notes or lists) is stored in the server's `content.db` SQLite data
       http://your.server.com:3000/api/auth/request
     ```
 
-    (Server sends token to `user@example.com`. Assume token is `ABCD-1234`)
+    (Copy the token from the server logs; assume token is `ABCD-1234`)
 
 2. Verify token and get JWT:
 

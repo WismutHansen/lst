@@ -1,6 +1,7 @@
 mod config;
 mod database;
 mod sync;
+mod trigger;
 mod watcher;
 
 use anyhow::Result;
@@ -9,7 +10,8 @@ use lst_cli::storage;
 use std::path::PathBuf;
 
 use crate::config::load_syncd_config;
-use crate::sync::{run_migrations, SyncManager};
+use crate::sync::{run_migrations, SyncManager, SyncReason};
+use crate::trigger::{ServerTrigger, TriggerEvent};
 use crate::watcher::FileWatcher;
 
 #[derive(Parser)]
@@ -85,6 +87,11 @@ async fn main() -> Result<()> {
 
     // Initialize sync manager
     let mut sync_manager = SyncManager::new(config.clone()).await?;
+    if sync_manager.has_server() {
+        sync_manager.sync_now(SyncReason::Startup).await?;
+    }
+
+    let mut trigger = ServerTrigger::spawn(&config, &sync_manager.state_snapshot());
 
     if !args.foreground {
         println!("lst-syncd daemon started");
@@ -101,15 +108,30 @@ async fn main() -> Result<()> {
                         println!("File event: {:?}", event);
                     }
                     sync_manager.handle_file_event(event).await?;
+                    sync_manager.sync_now(SyncReason::LocalChange).await?;
                 }
             }
 
-            // Periodic sync check (every 30 seconds)
-            _ = tokio::time::sleep(tokio::time::Duration::from_secs(30)) => {
-                if args.verbose {
-                    println!("Performing periodic sync check");
+            trigger_event = async {
+                match trigger.as_mut() {
+                    Some(t) => t.recv().await,
+                    None => None,
                 }
-                sync_manager.periodic_sync().await?;
+            }, if trigger.is_some() => {
+                match trigger_event {
+                    Some(TriggerEvent::RemoteChange) => {
+                        if args.verbose {
+                            println!("Remote change trigger received");
+                        }
+                        if let Err(e) = sync_manager.sync_now(SyncReason::RemoteTrigger).await {
+                            eprintln!("Remote-triggered sync failed: {e}");
+                        }
+                    }
+                    None => {
+                        // Channel closed; attempt to respawn the trigger listener
+                        trigger = ServerTrigger::spawn(&config, &sync_manager.state_snapshot());
+                    }
+                }
             }
 
             // Handle shutdown signals

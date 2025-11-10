@@ -8,6 +8,7 @@ mod auth;
 mod database;
 mod mobile_config;
 mod mobile_sync;
+mod server_trigger;
 mod sync_bridge;
 mod sync_db;
 mod sync_status;
@@ -622,6 +623,7 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 println!("🔄 Starting mobile sync service loop...");
                 let mut sync_manager: Option<mobile_sync::MobileSyncManager> = None;
+                let mut trigger: Option<server_trigger::MobileServerTrigger> = None;
 
                 loop {
                     println!("🔄 Mobile sync loop iteration starting...");
@@ -629,12 +631,10 @@ pub fn run() {
                     // Get the current config (which may have been updated with JWT)
                     let config = auth::get_current_mobile_config();
 
-                    // Only try to sync if we have sync configuration
                     if config.has_syncd() && config.is_jwt_valid() {
-                        // Create sync manager if we don't have one, or if config changed
                         if sync_manager.is_none() {
                             println!("🔄 Mobile config valid, creating new mobile sync manager...");
-                            match mobile_sync::MobileSyncManager::new(config).await {
+                            match mobile_sync::MobileSyncManager::new(config.clone()).await {
                                 Ok(mgr) => {
                                     println!("🔄 ✅ Mobile sync manager created successfully");
                                     sync_manager = Some(mgr);
@@ -654,18 +654,49 @@ pub fn run() {
                             }
                         }
 
-                        // Run periodic sync if we have a manager
+                        if trigger.is_none() {
+                            trigger = server_trigger::MobileServerTrigger::spawn(&config);
+                        }
+
                         if let Some(ref mut mgr) = sync_manager {
-                            println!("🔄 Running periodic sync with mobile sync manager...");
-                            if let Err(e) = mgr.periodic_sync().await {
-                                eprintln!("🔄 ❌ Mobile sync error: {e}");
-                                sync_status::mark_sync_disconnected(e.to_string()).ok();
-                                // Reset sync manager on error so it gets recreated
-                                sync_manager = None;
-                            } else {
-                                println!("🔄 ✅ Mobile periodic sync completed successfully");
-                                sync_status::mark_sync_connected().ok();
+                            tokio::select! {
+                                trigger_evt = async {
+                                    match trigger.as_mut() {
+                                        Some(t) => t.recv().await,
+                                        None => None,
+                                    }
+                                }, if trigger.is_some() => {
+                                    match trigger_evt {
+                                        Some(server_trigger::MobileTriggerEvent::RemoteChange) => {
+                                            println!("🔄 Remote trigger received on mobile");
+                                            if let Err(e) = mgr.sync_now(true).await {
+                                                eprintln!("🔄 ❌ Mobile sync error: {e}");
+                                                sync_status::mark_sync_disconnected(e.to_string()).ok();
+                                                sync_manager = None;
+                                                trigger = None;
+                                            } else {
+                                                sync_status::mark_sync_connected().ok();
+                                            }
+                                        }
+                                        None => {
+                                            println!("🔄 Mobile trigger channel closed, respawning listener");
+                                            trigger = server_trigger::MobileServerTrigger::spawn(&config);
+                                        }
+                                    }
+                                }
+                                _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
+                                    println!("🔄 Mobile sync: fallback periodic sync");
+                                    if let Err(e) = mgr.periodic_sync().await {
+                                        eprintln!("🔄 ❌ Mobile sync error: {e}");
+                                        sync_status::mark_sync_disconnected(e.to_string()).ok();
+                                        sync_manager = None;
+                                        trigger = None;
+                                    } else {
+                                        sync_status::mark_sync_connected().ok();
+                                    }
+                                }
                             }
+                            continue;
                         }
                     } else {
                         println!("🔄 ⚠️ Mobile sync not configured or JWT expired");
@@ -673,11 +704,11 @@ pub fn run() {
                             "Mobile sync not configured or JWT expired".to_string(),
                         )
                         .ok();
-                        sync_manager = None; // Reset manager if config is invalid
+                        sync_manager = None;
+                        trigger = None;
                     }
 
-                    println!("🔄 Mobile sync sleeping for 30 seconds...");
-                    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 }
             });
 

@@ -1,7 +1,7 @@
 use anyhow::Context;
 use serde::Deserialize;
 use std::{
-    env, fs,
+    fs,
     path::{Path, PathBuf},
 };
 
@@ -10,8 +10,6 @@ use std::{
 pub struct Settings {
     #[serde(default)]
     pub server: ServerSettings,
-    /// SMTP/email settings; if absent, login links are logged to stdout
-    pub email: Option<EmailSettings>,
     #[serde(default)]
     pub paths: PathsSettings,
     #[serde(default)]
@@ -35,15 +33,6 @@ fn default_host() -> String {
 
 fn default_port() -> u16 {
     5673
-}
-
-/// SMTP relay settings for sending login emails
-#[derive(Debug, Deserialize, Clone)]
-pub struct EmailSettings {
-    pub smtp_host: String,
-    pub smtp_user: String,
-    pub smtp_pass: String,
-    pub sender: String,
 }
 
 /// Path settings shared with CLI
@@ -125,7 +114,6 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             server: ServerSettings::default(),
-            email: None,
             paths: PathsSettings::default(),
             database: DatabaseSettings::default(),
         }
@@ -137,16 +125,8 @@ impl Settings {
     pub fn from_file(path: &Path) -> anyhow::Result<Self> {
         let data = fs::read_to_string(path)
             .with_context(|| format!("failed to read config file {}", path.display()))?;
-        let mut settings: Settings = toml::from_str(&data)
+        let settings: Settings = toml::from_str(&data)
             .with_context(|| format!("failed to parse config file {}", path.display()))?;
-        // Expand SMTP password from environment variable if in ${VAR} form
-        if let Some(ref mut email) = settings.email {
-            if email.smtp_pass.starts_with("${") && email.smtp_pass.ends_with('}') {
-                let var = &email.smtp_pass[2..email.smtp_pass.len() - 1];
-                email.smtp_pass = env::var(var)
-                    .with_context(|| format!("missing environment var {} for smtp_pass", var))?;
-            }
-        }
         Ok(settings)
     }
 }

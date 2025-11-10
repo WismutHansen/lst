@@ -2,8 +2,8 @@ use anyhow::{Context, Result};
 use automerge::{Automerge, ObjType, ReadDoc, Value};
 use lst_core::storage;
 use lst_core::sync::{
-    canonicalize_doc_path, extract_automerge_content, path_from_relative, path_from_server_filename,
-    write_document, CanonicalDocPath, DocumentKind,
+    canonicalize_doc_path, extract_automerge_content, path_from_relative,
+    path_from_server_filename, write_document, CanonicalDocPath, DocumentKind,
 };
 use rusqlite::{params, Connection};
 use std::collections::HashSet;
@@ -233,7 +233,8 @@ impl LocalDb {
             let path_obj = Path::new(file_path);
             if path_obj.is_relative() {
                 if let Ok(content_dir) = storage::get_content_dir() {
-                    let absolute_candidate = content_dir.join(path_obj).to_string_lossy().to_string();
+                    let absolute_candidate =
+                        content_dir.join(path_obj).to_string_lossy().to_string();
                     if !candidates.contains(&absolute_candidate) {
                         candidates.push(absolute_candidate);
                     }
@@ -466,7 +467,9 @@ impl LocalDb {
         let mut stmt = self
             .conn
             .prepare("SELECT doc_id, file_path FROM documents")?;
-        let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
         let mut updates = Vec::new();
         for row in rows {
             let (doc_id, current_path) = row?;

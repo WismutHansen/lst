@@ -48,11 +48,6 @@ image = "0.25.6"
 base64 = "0.22.1"
 jsonwebtoken = "9.3.1"
 urlencoding = "2.1.3"
-lettre = { version = "0.11.6", features = [
-  "tokio1",
-  "tokio1-native-tls",
-  "smtp-transport",
-] }
 reqwest = { version = "0.11", features = ["json"] }
 notify = "6.1.1"
 automerge = { version = "0.6" }
@@ -68,7 +63,3 @@ futures-util = "0.3"
 [profile.dist]
 inherits = "release"
 lto = "thin"
-
-[patch.crates-io]
-# Backport upstream fix for VariantStrIter pointer handling until gtk-rs publishes 0.18.6+
-glib = { path = "third_party/glib-0.18.5-patched" }

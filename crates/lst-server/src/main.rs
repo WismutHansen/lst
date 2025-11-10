@@ -22,10 +22,6 @@ use config::Settings;
 use futures_util::{SinkExt, StreamExt};
 use hex;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
-use lettre::transport::smtp::authentication::Credentials;
-use lettre::{
-    message::Message as EmailMessage, AsyncSmtpTransport, AsyncTransport, Tokio1Executor,
-};
 use lst_core::config::Config as CliConfig;
 use qrcode::render::unicode;
 use qrcode::QrCode;
@@ -722,8 +718,7 @@ async fn start_server(config_file_path: PathBuf) {
                 "/auth/request",
                 post({
                     let ts = token_store.clone();
-                    let s = settings.clone();
-                    move |j| auth_request_handler(j, ts, s)
+                    move |j| auth_request_handler(j, ts)
                 }),
             )
             .route(
@@ -766,7 +761,6 @@ async fn health_handler() -> &'static str {
 async fn auth_request_handler(
     Json(req): Json<AuthRequest>,
     token_store: TokenStore,
-    settings: Arc<Settings>,
 ) -> Result<Json<AuthResponse>, (StatusCode, String)> {
     // verify or create user
     let params = Params::new(128 * 1024, 3, 2, None).expect("invalid params");
@@ -831,53 +825,10 @@ async fn auth_request_handler(
     );
     let code = QrCode::new(login_url.as_bytes()).unwrap();
     let qr_string = code.render::<unicode::Dense1x2>().build();
-    if let Some(email_cfg) = &settings.email {
-        let email_message = EmailMessage::builder()
-            .from(email_cfg.sender.parse().map_err(|e| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("invalid sender address: {}", e),
-                )
-            })?)
-            .to(req.email.parse().map_err(|e| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("invalid recipient address: {}", e),
-                )
-            })?)
-            .subject("Your lst login link")
-            .body(format!(
-                "Click to login: {}\nOr use code: {}",
-                login_url, token
-            ))
-            .map_err(|e| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("failed to build email: {}", e),
-                )
-            })?;
-        let creds = Credentials::new(email_cfg.smtp_user.clone(), email_cfg.smtp_pass.clone());
-        let mailer = AsyncSmtpTransport::<Tokio1Executor>::relay(&email_cfg.smtp_host)
-            .map_err(|e| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("failed to create SMTP transport: {}", e),
-                )
-            })?
-            .credentials(creds)
-            .build();
-        mailer.send(email_message).await.map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("failed to send email: {}", e),
-            )
-        })?;
-    } else {
-        println!("Authentication token for {}: {}", req.email, token);
-        println!("Login link: {}", login_url);
-        println!("\nScan the following QR code to log in:");
-        println!("{}", qr_string);
-    }
+    println!("Authentication token for {}: {}", req.email, token);
+    println!("Login link: {}", login_url);
+    println!("\nScan the following QR code to log in:");
+    println!("{}", qr_string);
     Ok(Json(AuthResponse {
         status: "ok".to_string(),
     }))

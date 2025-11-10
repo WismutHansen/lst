@@ -16,10 +16,23 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use tokio::time::{timeout, Instant};
+use tokio::time::timeout;
 use tokio_tungstenite::tungstenite::{client::IntoClientRequest, http::header::AUTHORIZATION};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use uuid::Uuid;
+
+#[derive(Debug, Clone, Copy)]
+pub enum SyncReason {
+    Startup,
+    LocalChange,
+    RemoteTrigger,
+}
+
+impl SyncReason {
+    fn force(self) -> bool {
+        matches!(self, SyncReason::Startup | SyncReason::RemoteTrigger)
+    }
+}
 
 pub struct SyncManager {
     config: Config,
@@ -27,11 +40,12 @@ pub struct SyncManager {
     client: Option<reqwest::Client>,
     db: LocalDb,
     encryption_key: [u8; 32],
-    last_sync: Instant,
     pending_changes: HashMap<String, Vec<Vec<u8>>>,
     initial_sync_done: bool,
     /// Tracks files recently created by sync to avoid processing them as local changes
     recently_synced_files: HashSet<std::path::PathBuf>,
+    sync_in_progress: bool,
+    force_sync_after_current: bool,
 }
 
 impl SyncManager {
@@ -112,11 +126,20 @@ impl SyncManager {
             client,
             db,
             encryption_key,
-            last_sync: Instant::now(),
             pending_changes: HashMap::new(),
             initial_sync_done: false,
             recently_synced_files: HashSet::new(),
+            sync_in_progress: false,
+            force_sync_after_current: false,
         })
+    }
+
+    pub fn state_snapshot(&self) -> State {
+        self.state.clone()
+    }
+
+    pub fn has_server(&self) -> bool {
+        self.client.is_some()
     }
 
     pub async fn handle_file_event(&mut self, event: Event) -> Result<()> {
@@ -1019,77 +1042,91 @@ impl SyncManager {
         Ok(())
     }
 
-    pub async fn periodic_sync(&mut self) -> Result<()> {
-        let interval = self
-            .config
-            .sync
-            .as_ref()
-            .map(|s| s.interval_seconds)
-            .unwrap_or(30);
-
-        if self.last_sync.elapsed().as_secs() < interval {
+    pub async fn sync_now(&mut self, reason: SyncReason) -> Result<()> {
+        if self.client.is_none() {
             return Ok(());
         }
 
-        // Do initial sync on first run
-        if !self.initial_sync_done {
-            self.ensure_initial_sync().await?;
-            self.initial_sync_done = true;
-        }
-
-        if self.client.is_some() {
-            if !self.pending_changes.is_empty() {
-                let mut encrypted_total = 0;
-                let mut encrypted: HashMap<String, Vec<Vec<u8>>> = HashMap::new();
-                // Keep a backup of pending changes in case sync fails
-                let pending_backup = self.pending_changes.clone();
-                
-                println!(
-                    "DEBUG: Draining {} documents from pending_changes",
-                    self.pending_changes.len()
-                );
-                for (doc, changes) in self.pending_changes.drain() {
-                    println!(
-                        "DEBUG: Processing {} changes for doc {} during drain",
-                        changes.len(),
-                        doc
-                    );
-                    let mut enc = Vec::new();
-                    for c in changes {
-                        let e = crypto::encrypt(&c, &self.encryption_key)?;
-                        encrypted_total += 1;
-                        enc.push(e);
-                    }
-                    let enc_len = enc.len();
-                    encrypted.insert(doc.clone(), enc);
-                    println!("DEBUG: Added {enc_len} encrypted changes for doc {doc}");
-                }
-
-                println!("Syncing {encrypted_total} encrypted changes");
-                match self.sync_with_server(encrypted).await {
-                    Ok(true) => {
-                        // Sync succeeded, changes were sent
-                        println!("DEBUG: Sync completed successfully");
-                    }
-                    Ok(false) => {
-                        // Connection failed, restore pending changes for next sync
-                        println!("DEBUG: Sync connection failed, restoring pending changes for retry");
-                        self.pending_changes = pending_backup;
-                    }
-                    Err(e) => {
-                        // Other error, restore pending changes and propagate error
-                        self.pending_changes = pending_backup;
-                        return Err(e);
-                    }
-                }
-            } else {
-                // still poll server for new changes
-                let _ = self.sync_with_server(HashMap::new()).await;
+        if self.sync_in_progress {
+            if reason.force() {
+                self.force_sync_after_current = true;
             }
+            return Ok(());
         }
 
-        self.last_sync = Instant::now();
+        self.sync_in_progress = true;
 
+        let mut reason_to_process = reason;
+        loop {
+            if !self.initial_sync_done {
+                self.ensure_initial_sync().await?;
+                self.initial_sync_done = true;
+            }
+
+            let mut encrypted_total = 0;
+            let mut encrypted: HashMap<String, Vec<Vec<u8>>> = HashMap::new();
+
+            let pending = std::mem::take(&mut self.pending_changes);
+            if !pending.is_empty() {
+                println!(
+                    "DEBUG: Preparing {} documents with pending changes",
+                    pending.len()
+                );
+                for (doc, changes) in pending.iter() {
+                    let mut enc = Vec::new();
+                    for change in changes {
+                        let encrypted_change = crypto::encrypt(change, &self.encryption_key)?;
+                        encrypted_total += 1;
+                        enc.push(encrypted_change);
+                    }
+                    encrypted.insert(doc.clone(), enc);
+                }
+            }
+
+            if encrypted.is_empty() && !reason_to_process.force() {
+                // Nothing to send and not forced; restore pending map and exit
+                self.pending_changes = pending;
+                self.sync_in_progress = false;
+                return Ok(());
+            }
+
+            if encrypted_total > 0 {
+                println!("DEBUG: Syncing {encrypted_total} encrypted changes");
+            } else if reason_to_process.force() {
+                println!(
+                    "DEBUG: Forcing sync due to {:?} despite no local changes",
+                    reason_to_process
+                );
+            }
+
+            match self.sync_with_server(encrypted).await {
+                Ok(true) => {
+                    println!(
+                        "DEBUG: Sync completed successfully for {:?}",
+                        reason_to_process
+                    );
+                }
+                Ok(false) => {
+                    println!("DEBUG: Sync connection failed, restoring pending changes");
+                    self.pending_changes = pending;
+                }
+                Err(e) => {
+                    self.pending_changes = pending;
+                    self.sync_in_progress = false;
+                    return Err(e);
+                }
+            }
+
+            if self.force_sync_after_current {
+                self.force_sync_after_current = false;
+                reason_to_process = SyncReason::RemoteTrigger;
+                continue;
+            }
+
+            break;
+        }
+
+        self.sync_in_progress = false;
         Ok(())
     }
 }

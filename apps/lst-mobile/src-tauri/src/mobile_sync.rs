@@ -32,6 +32,8 @@ pub struct MobileSyncManager {
     last_sync: Instant,
     pending_changes: HashMap<String, Vec<Vec<u8>>>,
     initial_sync_done: bool,
+    sync_in_progress: bool,
+    force_sync_after_current: bool,
 }
 
 impl MobileSyncManager {
@@ -120,6 +122,8 @@ impl MobileSyncManager {
             last_sync: Instant::now(),
             pending_changes: HashMap::new(),
             initial_sync_done: false,
+            sync_in_progress: false,
+            force_sync_after_current: false,
         })
     }
 
@@ -302,6 +306,7 @@ impl MobileSyncManager {
             }
         }
 
+        self.sync_now(false).await?;
         Ok(())
     }
 
@@ -691,35 +696,7 @@ impl MobileSyncManager {
             return Ok(());
         }
 
-        // Update pending changes count in status
-        let pending_count = self
-            .pending_changes
-            .values()
-            .map(|v| v.len())
-            .sum::<usize>() as u32;
-        sync_status::update_pending_changes(pending_count)?;
-        println!("📱 Mobile sync: Current pending changes: {}", pending_count);
-
-        if self.client.is_some() {
-            println!("📱 Mobile sync: Client available, performing sync...");
-            match self.perform_sync().await {
-                Ok(()) => {
-                    println!("📱 Mobile sync: ✅ perform_sync completed successfully");
-                    sync_status::mark_sync_connected()?;
-                }
-                Err(e) => {
-                    println!("📱 Mobile sync: ❌ perform_sync failed: {}", e);
-                    sync_status::mark_sync_disconnected(e.to_string())?;
-                    return Err(e);
-                }
-            }
-        } else {
-            println!("📱 Mobile sync: ⚠️ No client available - sync not configured");
-            sync_status::mark_sync_disconnected("Sync not configured".to_string())?;
-        }
-
-        self.last_sync = Instant::now();
-        Ok(())
+        self.sync_now(true).await
     }
 
     /// Ensure existing documents are added to pending changes for initial sync
@@ -790,36 +767,102 @@ impl MobileSyncManager {
         Ok(())
     }
 
-    async fn perform_sync(&mut self) -> Result<()> {
-        // Only do initial sync once
-        if !self.initial_sync_done {
-            self.ensure_initial_sync().await?;
-            self.initial_sync_done = true;
+    pub async fn sync_now(&mut self, force_remote: bool) -> Result<()> {
+        if self.client.is_none() {
+            println!("📱 Mobile sync: ⚠️ No client available - sync not configured");
+            sync_status::mark_sync_disconnected("Sync not configured".to_string())?;
+            return Ok(());
         }
 
-        if !self.pending_changes.is_empty() {
-            let mut encrypted_total = 0;
-            let mut encrypted: HashMap<String, Vec<Vec<u8>>> = HashMap::new();
-            for (doc, changes) in self.pending_changes.drain() {
-                let mut enc = Vec::new();
-                for c in changes {
-                    let e = crypto::encrypt(&c, &self.encryption_key)?;
-                    encrypted_total += 1;
-                    enc.push(e);
-                }
-                encrypted.insert(doc, enc);
+        if self.sync_in_progress {
+            if force_remote {
+                println!("📱 Mobile sync: queueing forced sync after current run");
+                self.force_sync_after_current = true;
+            } else {
+                println!("📱 Mobile sync: sync already in progress, skipping immediate run");
+            }
+            return Ok(());
+        }
+
+        self.sync_in_progress = true;
+        let mut force = force_remote;
+
+        loop {
+            if !self.initial_sync_done {
+                self.ensure_initial_sync().await?;
+                self.initial_sync_done = true;
             }
 
-            println!(
-                "📱 Mobile sync: Syncing {} encrypted changes",
-                encrypted_total
-            );
-            self.sync_with_server(encrypted).await?;
-        } else {
-            // still poll server for new changes
-            println!("📱 Mobile sync: No pending changes, polling for remote changes");
-            self.sync_with_server(HashMap::new()).await?;
+            let pending_count = self
+                .pending_changes
+                .values()
+                .map(|v| v.len())
+                .sum::<usize>() as u32;
+            sync_status::update_pending_changes(pending_count)?;
+            println!("📱 Mobile sync: Current pending changes: {}", pending_count);
+
+            let pending = std::mem::take(&mut self.pending_changes);
+            let mut encrypted_total = 0;
+            let mut encrypted: HashMap<String, Vec<Vec<u8>>> = HashMap::new();
+
+            if !pending.is_empty() {
+                for (doc, changes) in pending.iter() {
+                    let mut enc = Vec::new();
+                    for c in changes {
+                        let e = crypto::encrypt(c, &self.encryption_key)?;
+                        encrypted_total += 1;
+                        enc.push(e);
+                    }
+                    encrypted.insert(doc.clone(), enc);
+                }
+
+                println!(
+                    "📱 Mobile sync: Syncing {} encrypted changes",
+                    encrypted_total
+                );
+            } else {
+                println!(
+                    "📱 Mobile sync: No pending changes{}",
+                    if force {
+                        ", requesting remote updates"
+                    } else {
+                        ", skipping remote sync"
+                    }
+                );
+            }
+
+            if encrypted.is_empty() && !force {
+                self.pending_changes = pending;
+                self.sync_in_progress = false;
+                return Ok(());
+            }
+
+            match self.sync_with_server(encrypted).await {
+                Ok(()) => {
+                    println!("📱 Mobile sync: ✅ sync_with_server completed successfully");
+                    sync_status::mark_sync_connected()?;
+                }
+                Err(e) => {
+                    println!("📱 Mobile sync: ❌ sync_with_server failed: {}", e);
+                    sync_status::mark_sync_disconnected(e.to_string())?;
+                    self.pending_changes = pending;
+                    self.sync_in_progress = false;
+                    return Err(e);
+                }
+            }
+
+            if self.force_sync_after_current {
+                println!("📱 Mobile sync: Running forced follow-up sync");
+                self.force_sync_after_current = false;
+                force = true;
+                continue;
+            }
+
+            break;
         }
+
+        self.last_sync = Instant::now();
+        self.sync_in_progress = false;
         Ok(())
     }
 }
