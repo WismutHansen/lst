@@ -1,6 +1,6 @@
 [package]
 name = "lst-desktop"
-version = "0.2.0"
+version = "0.3.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -33,9 +33,9 @@ tower-http = { version = "0.5.2", features = ["cors"] }
 chrono = { workspace = true }
 
 # Internal dependencies
-lst-proto = { path = "../../../crates/lst-proto", version = "0.2.0" }
-lst-cli = { path = "../../../crates/lst-cli/", version = "0.2.0" }
-lst-core = { path = "../../../crates/lst-core", version = "0.2.0" }
+lst-proto = { path = "../../../crates/lst-proto", version = "0.3.0" }
+lst-cli = { path = "../../../crates/lst-cli/", version = "0.3.0" }
+lst-core = { path = "../../../crates/lst-core", version = "0.3.0" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # Wayland support

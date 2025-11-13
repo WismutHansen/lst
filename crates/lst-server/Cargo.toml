@@ -1,6 +1,6 @@
 [package]
 name = "lst-server"
-version = "0.2.0"
+version = "0.3.0"
 description = "Personal lists & notes app server"
 authors = ["Tommy Falkowski"]
 edition = "2021"
@@ -45,8 +45,8 @@ argon2 = { workspace = true }
 hex = { workspace = true }
 
 # Internal dependencies
-lst-core = { path = "../lst-core", version = "0.2.0" }
-lst-proto = { path = "../lst-proto", version = "0.2.0" }
+lst-core = { path = "../lst-core", version = "0.3.0" }
+lst-proto = { path = "../lst-proto", version = "0.3.0" }
 sqlx = { version = "0.8.6", features = [
   "sqlite",
   "runtime-tokio-rustls",

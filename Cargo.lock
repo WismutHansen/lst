@@ -3080,7 +3080,7 @@ dependencies = [
 
 [[package]]
 name = "lst-cli"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "argon2",
@@ -3107,7 +3107,7 @@ dependencies = [
 
 [[package]]
 name = "lst-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "argon2",
@@ -3135,7 +3135,7 @@ dependencies = [
 
 [[package]]
 name = "lst-desktop"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -3160,7 +3160,7 @@ dependencies = [
 
 [[package]]
 name = "lst-mcp"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3179,7 +3179,7 @@ dependencies = [
 
 [[package]]
 name = "lst-mobile"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "argon2",
@@ -3222,7 +3222,7 @@ dependencies = [
 
 [[package]]
 name = "lst-proto"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "lst-cli",
@@ -3233,7 +3233,7 @@ dependencies = [
 
 [[package]]
 name = "lst-server"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "argon2",
@@ -3265,7 +3265,7 @@ dependencies = [
 
 [[package]]
 name = "lst-syncd"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "argon2",

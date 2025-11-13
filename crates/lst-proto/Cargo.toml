@@ -1,6 +1,6 @@
 [package]
 name = "lst-proto"
-version = "0.2.0"
+version = "0.3.0"
 description = "Shared types and protocol definitions for lst"
 authors = ["Tommy Falkowski"]
 edition = "2021"
@@ -16,4 +16,4 @@ serde_json = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 
-lst-cli = { path = "../lst-cli", version = "0.2.0" }
+lst-cli = { path = "../lst-cli", version = "0.3.0" }
