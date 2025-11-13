@@ -6,6 +6,7 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::sync::Mutex;
+use lst_core::crypto;
 
 lazy_static! {
     static ref MOBILE_CONFIG: Mutex<MobileConfig> = Mutex::new(MobileConfig::default());
@@ -293,12 +294,22 @@ impl MobileSyncdConfig {
             // Fallback to temp if data_dir fails
             std::env::temp_dir().join("lst-mobile")
         };
+        let encryption_key_path = match crypto::get_mobile_master_key_path() {
+            Ok(path) => path,
+            Err(err) => {
+                eprintln!(
+                    "Warning: Falling back to legacy mobile key path after error resolving default: {}",
+                    err
+                );
+                app_data_dir.join("sync.key")
+            }
+        };
 
         MobileSyncdConfig {
             url: Some(server_url),
             device_id: Some(device_id),
             database_path: Some(app_data_dir.join("sync.db")),
-            encryption_key_path: Some(app_data_dir.join("sync.key")),
+            encryption_key_path: Some(encryption_key_path),
         }
     }
 }

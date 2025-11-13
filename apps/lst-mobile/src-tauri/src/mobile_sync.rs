@@ -37,6 +37,36 @@ pub struct MobileSyncManager {
 }
 
 impl MobileSyncManager {
+    fn load_encryption_key(primary: &Path, fallback: Option<&Path>) -> Result<[u8; 32]> {
+        match crypto::load_key(primary) {
+            Ok(key) => Ok(key),
+            Err(primary_err) => {
+                if let Some(fallback_path) = fallback {
+                    if fallback_path != primary {
+                        match crypto::load_key(fallback_path) {
+                            Ok(key) => {
+                                println!(
+                                    "Mobile sync: using fallback encryption key at {} (primary was {})",
+                                    fallback_path.display(),
+                                    primary.display()
+                                );
+                                return Ok(key);
+                            }
+                            Err(fallback_err) => {
+                                return Err(primary_err.context(format!(
+                                    "Fallback key at {} also failed: {}",
+                                    fallback_path.display(),
+                                    fallback_err
+                                )));
+                            }
+                        }
+                    }
+                }
+                Err(primary_err)
+            }
+        }
+    }
+
     pub async fn new(config: MobileConfig) -> Result<Self> {
         // Validate that we have the necessary sync configuration
         let syncd = config
@@ -85,13 +115,25 @@ impl MobileSyncManager {
             tokio::fs::create_dir_all(parent).await?;
         }
 
+        let fallback_key_path = match lst_core::crypto::get_mobile_master_key_path() {
+            Ok(path) => Some(path),
+            Err(err) => {
+                eprintln!(
+                    "Warning: Unable to resolve default mobile key path for fallback: {}",
+                    err
+                );
+                None
+            }
+        };
+
         // Use secure credential-based key derivation
         // Get stored credentials from mobile config
         let email = config.sync.get_email();
         let auth_token = config.sync.get_auth_token();
         let encryption_key = if let (Some(_email), Some(_auth_token)) = (email, auth_token) {
             // Try to load the key that was saved during login
-            match crypto::load_key(key_path) {
+            let configured_key_path = key_path.clone();
+            match Self::load_encryption_key(&configured_key_path, fallback_key_path.as_deref()) {
                 Ok(key) => {
                     println!(
                         "DEBUG: Mobile sync using encryption key from file (derived during login)"
@@ -99,8 +141,13 @@ impl MobileSyncManager {
                     key
                 }
                 Err(e) => {
-                    eprintln!("ERROR: No encryption key file found: {}", e);
-                    eprintln!("       Please complete authentication in the mobile app to derive and save the key");
+                    eprintln!(
+                        "ERROR: Unable to load encryption key. Last attempt: {}",
+                        e
+                    );
+                    eprintln!(
+                        "       Please complete authentication in the mobile app to derive and save the key"
+                    );
                     return Err(anyhow::anyhow!(
                         "Authentication required: no encryption key available"
                     ));
