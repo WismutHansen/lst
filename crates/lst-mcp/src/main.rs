@@ -1,6 +1,9 @@
 mod handler;
 mod tools;
 
+#[cfg(test)]
+mod tests;
+
 use handler::MyServerHandler;
 use rust_mcp_sdk::schema::{
     Implementation, InitializeResult, ServerCapabilities, ServerCapabilitiesTools,
@@ -12,15 +15,29 @@ use rust_mcp_sdk::{
     mcp_server::{server_runtime, ServerRuntime},
     McpServer, StdioTransport, TransportOptions,
 };
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> SdkResult<()> {
+    // Initialize logging - IMPORTANT: Write to stderr, not stdout
+    // MCP uses stdout for JSON-RPC communication, so all logs must go to stderr
+    tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::from_default_env()
+                .add_directive(tracing::Level::WARN.into()),
+        )
+        .init();
+
+    tracing::info!("Starting lst-mcp server v{}", env!("CARGO_PKG_VERSION"));
+
     // STEP 1: Define server details and capabilities
     let server_details = InitializeResult {
         // server name and version
         server_info: Implementation {
-            name: "lst MCP server".to_string(),
-            version: "0.1.0".to_string(),
+            name: "lst-mcp".to_string(),
+            title: Some("lst MCP Server".to_string()),
+            version: "0.2.0".to_string(),
         },
         capabilities: ServerCapabilities {
             // indicates that server support mcp tools
@@ -39,7 +56,7 @@ async fn main() -> SdkResult<()> {
     let handler = MyServerHandler {};
 
     // STEP 4: create a MCP server
-    let server: ServerRuntime = server_runtime::create_server(server_details, transport, handler);
+    let server: Arc<ServerRuntime> = server_runtime::create_server(server_details, transport, handler);
 
     // STEP 5: Start the server
     if let Err(start_error) = server.start().await {

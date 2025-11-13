@@ -4,6 +4,7 @@ use rust_mcp_sdk::schema::{
     ListToolsResult, RpcError,
 };
 use rust_mcp_sdk::{mcp_server::ServerHandler, McpServer};
+use std::sync::Arc;
 
 use crate::tools::LstTools;
 
@@ -20,8 +21,9 @@ impl ServerHandler for MyServerHandler {
     async fn handle_list_tools_request(
         &self,
         request: ListToolsRequest,
-        runtime: &dyn McpServer,
+        runtime: Arc<dyn McpServer>,
     ) -> std::result::Result<ListToolsResult, RpcError> {
+        tracing::debug!("Handling list_tools request");
         Ok(ListToolsResult {
             meta: None,
             next_cursor: None,
@@ -33,11 +35,15 @@ impl ServerHandler for MyServerHandler {
     async fn handle_call_tool_request(
         &self,
         request: CallToolRequest,
-        runtime: &dyn McpServer,
+        runtime: Arc<dyn McpServer>,
     ) -> std::result::Result<CallToolResult, CallToolError> {
-        // Attempt to convert request parameters into GreetingTools enum
+        tracing::debug!("Handling call_tool request: {:?}", request.params.name);
+        // Attempt to convert request parameters into LstTools enum
         let tool_params: LstTools =
-            LstTools::try_from(request.params).map_err(CallToolError::new)?;
+            LstTools::try_from(request.params).map_err(|e| {
+                tracing::error!("Failed to parse tool parameters: {:?}", e);
+                CallToolError::new(e)
+            })?;
 
         // Match the tool variant and execute its corresponding logic
         match tool_params {

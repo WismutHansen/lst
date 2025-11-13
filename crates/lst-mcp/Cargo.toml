@@ -10,12 +10,11 @@ homepage = "https://github.com/WismutHansen/lst"
 dist = true
 
 [dependencies]
-rust-mcp-sdk = { version = "0.4", default-features = false, features = [
+rust-mcp-sdk = { version = "0.7", default-features = false, features = [
   "server",
   "macros",
-  "hyper-server",
-  "ssl",
-  "2025_03_26",
+  "stdio",
+  "2025_06_18",
 ] }
 
 anyhow = { workspace = true }
@@ -28,3 +27,8 @@ tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 lst-core = { path = "../lst-core", version = "0.2.0" }
+
+[dev-dependencies]
+tempfile = "3.8"
+mockito = "1.2"
+rstest = "0.18"
