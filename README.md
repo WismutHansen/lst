@@ -2,7 +2,7 @@
 
 # lst - Personal Lists & Notes App
 
-`lst` is a personal lists, notes, and blog posts management application with a focus on plain-text storage, offline-first functionality, and multi-device synchronization.
+`lst` is a personal lists and notes management application with a focus on plain-text storage, offline-first functionality, and multi-device synchronization.
 
 ## Installation
 
@@ -15,8 +15,6 @@ The `lst-cli` supports optional features to reduce compilation time and dependen
 - **`gui`** (default): Enables desktop app integration and live updates
 - **`lists`** (default): Core list functionality
 - **`notes`**: Note management features
-- **`posts`**: Blog post features
-- **`media`**: Image and media handling
 
 #### Installation Options
 
@@ -240,11 +238,11 @@ lst server delete notes "example.md"
 - Stores data locally as plain Markdown files (CLI); `lst-server` uses SQLite databases for centralized data management via its API.
 - Work offline, sync when connected
 - Fuzzy matching for item targeting
-- Supports multiple document types: lists, notes, and blog posts
+- Supports multiple document types: lists and notes
 - **Directory structure support**: Organize files in nested directories while maintaining fuzzy search by filename
 - **Daily workflows**: Automatic organization of daily lists and notes in dedicated subdirectories
 - **Edit & reorder**: Change item text or move items within a list
-- **Image management**: Attach or paste images into notes and lists
+
 - **Share documents**: Grant read or write access to specific devices
 - **Sync daemon control**: `lst sync` commands to configure and monitor background sync
 - **Tauri apps**: Optional desktop and mobile front‑ends built with Tauri
@@ -312,22 +310,6 @@ lst note ls
 # Directory structure support for notes
 lst note new "projects/rust/lst"         # Creates projects/rust/lst.md automatically
 lst note open "lst"                      # Fuzzy matches to projects/rust/lst.md
-```
-
-### Images
-
-```bash
-# Add an image to a document
-lst img add path/to/pic.jpg --to notes/travel.md --caption "Mountains"
-
-# Paste an image from the clipboard
-lst img paste --to lists/groceries.md
-
-# List images referenced in a document
-lst img list notes/travel.md
-
-# Remove an image
-lst img rm notes/travel.md <hash>
 ```
 
 ### Daily Commands
@@ -499,16 +481,13 @@ max_suggestions = 7
 
 ```toml
 [paths]
-# Base directory for all content (lists, notes, posts, media) when used by the CLI directly.
+# Base directory for all content (lists, notes) when used by the CLI directly.
 # For `lst-server`, this directory (or the directory containing config.toml if content_dir is not set,
 # which then determines the location of a 'lst_server_data' subdirectory)
 # is where SQLite database files (e.g., tokens.db, content.db) are stored.
 content_dir = "~/Documents/lst"
 
-# Override the media directory location (relative to content_dir)
-# Default: "$content_dir/media"
-# Note: Media handling via server API is not yet specified.
-media_dir = "~/Documents/lst/media"
+
 ```
 
 #### Server-Only Configuration
@@ -527,7 +506,7 @@ The `lst-server` uses specific sections from `config.toml`:
 # Login tokens are always printed to stdout along with QR codes, so no additional
 # server-only configuration is required for authentication delivery.
 
-# The [content] block (with 'root', 'kinds', 'media_dir') previously used for
+# The [content] block (with 'root', 'kinds') previously used for
 # file system layout is no longer directly applicable to how lst-server serves
 # content via its API, as content is now stored in an SQLite database.
 # 'Kind' is now a dynamic part of the data schema within the database.
@@ -577,11 +556,7 @@ content/
 │   │       └─ lst.md
 │   └─ daily_notes/         # automatically organized daily notes
 │       └─ 20250524_daily_note.md
-├─ posts/                    # blog, Zola-compatible
-│   └─ 2025-04-22-first-ride.md
-└─ media/                    # images & binary files
-    ├─ 6fc9e6e2b4d3.jpg      # originals
-    └─ 6fc9e6e2b4d3@512.webp # thumbnails
+
 ```
 
 ### File Format Examples
