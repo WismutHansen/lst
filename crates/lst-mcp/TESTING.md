@@ -138,6 +138,11 @@ The test suite covers:
 - Verify server is using stdio transport (not HTTP)
 - Check that requests/responses are newline-delimited JSON
 
+### "Cannot start a runtime from within a runtime" error
+- This was fixed in the latest version by making tool methods async
+- If you see this error, ensure you're using `.await` on tool calls
+- Tools should NOT create new tokio runtimes or use `block_on`
+
 ## Debugging Tips
 
 1. Run with debug logging to see all requests/responses

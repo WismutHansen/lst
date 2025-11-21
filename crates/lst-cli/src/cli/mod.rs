@@ -85,6 +85,16 @@ pub enum Commands {
         target: String,
     },
 
+    /// Delete a list file
+    #[clap(name = "delete")]
+    Delete {
+        /// Name of the list to delete
+        list: String,
+        /// Do not ask for confirmation
+        #[clap(short, long)]
+        force: bool,
+    },
+
     /// Delete all entries from a list
     #[clap(name = "wipe")]
     Wipe {
@@ -270,8 +280,11 @@ pub enum NoteCommands {
     /// Delete a note
     #[clap(name = "rm")]
     Remove {
-        /// Name of the list
+        /// Name of the note
         title: String,
+        /// Do not ask for confirmation
+        #[clap(short, long)]
+        force: bool,
     },
 
     /// List all notes

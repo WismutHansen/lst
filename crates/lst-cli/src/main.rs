@@ -51,6 +51,9 @@ async fn main() -> Result<()> {
         Commands::Rm { list, target } => {
             cli::commands::remove_item(list, target, cli.json).await?;
         }
+        Commands::Delete { list, force } => {
+            cli::commands::delete_list(list, *force, cli.json)?;
+        }
         Commands::Wipe { list, force } => {
             cli::commands::wipe_list(list, *force, cli.json)?;
         }
@@ -63,7 +66,9 @@ async fn main() -> Result<()> {
                 cli::commands::note_add(title, text).await?;
             }
             NoteCommands::Open { title } => cli::commands::note_open(title)?,
-            NoteCommands::Remove { title } => cli::commands::note_delete(title).await?,
+            NoteCommands::Remove { title, force } => {
+                cli::commands::note_delete(title, *force).await?
+            }
             NoteCommands::ListNotes {} => {
                 cli::commands::list_notes(cli.json)?;
             }

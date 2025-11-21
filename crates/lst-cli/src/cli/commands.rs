@@ -184,11 +184,29 @@ pub async fn note_add(title: &str, text: &str) -> Result<()> {
 }
 
 /// Delete a note
-pub async fn note_delete(title: &str) -> Result<()> {
+pub async fn note_delete(title: &str, force: bool) -> Result<()> {
     // Determine the note file path
     // Resolve note to delete
     let key = title.trim_end_matches(".md");
     let note = resolve_note(key)?;
+    
+    // Check if confirmation is needed
+    let config = get_config();
+    let need_confirm = config.ui.confirm_delete && !force;
+    
+    if need_confirm {
+        use dialoguer::Confirm;
+        let prompt = format!("Delete note '{}.md'?", note);
+        let proceed = Confirm::new()
+            .with_prompt(prompt)
+            .default(false)
+            .interact()?;
+        if !proceed {
+            println!("Aborted");
+            return Ok(());
+        }
+    }
+    
     let result = delete_note(&note);
 
     // Notify desktop app that a note was updated (deleted)
@@ -966,6 +984,42 @@ pub fn wipe_list(list: &str, force: bool, json: bool) -> Result<()> {
         println!("{{\"deleted\": {}}}", removed);
     } else {
         println!("Deleted {} item(s) from {}", removed, list_name.cyan());
+    }
+
+    Ok(())
+}
+
+/// Handle the 'delete' command to delete a list file
+pub fn delete_list(list: &str, force: bool, json: bool) -> Result<()> {
+    let list_name = normalize_list(list)?;
+    
+    // Check if confirmation is needed
+    let config = get_config();
+    let need_confirm = config.ui.confirm_delete && !force;
+    
+    if need_confirm {
+        use dialoguer::Confirm;
+        let prompt = format!("Delete list file '{}.md'?", list_name);
+        let proceed = Confirm::new()
+            .with_prompt(prompt)
+            .default(false)
+            .interact()?;
+        if !proceed {
+            if json {
+                println!("{{\"deleted\": false, \"message\": \"Aborted\"}}");
+            } else {
+                println!("Aborted");
+            }
+            return Ok(());
+        }
+    }
+
+    storage::markdown::delete_list(&list_name)?;
+
+    if json {
+        println!("{{\"deleted\": true, \"list\": \"{}\"}}", list_name);
+    } else {
+        println!("Deleted list: {}", list_name.cyan());
     }
 
     Ok(())

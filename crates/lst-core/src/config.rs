@@ -54,6 +54,10 @@ pub struct UiConfig {
     #[serde(default = "default_leader_key")]
     pub leader_key: String,
 
+    /// Ask for confirmation before deleting lists or notes
+    #[serde(default = "default_confirm_delete")]
+    pub confirm_delete: bool,
+
     // Legacy theme config for backwards compatibility
     #[serde(default)]
     pub theme: LegacyThemeConfig,
@@ -197,6 +201,7 @@ impl Default for Config {
                 resolution_order: default_resolution_order(),
                 vim_mode: false,
                 leader_key: default_leader_key(),
+                confirm_delete: default_confirm_delete(),
                 theme: LegacyThemeConfig::default(),
             },
             fuzzy: FuzzyConfig {
@@ -223,6 +228,7 @@ impl Default for UiConfig {
             resolution_order: default_resolution_order(),
             vim_mode: false,
             leader_key: default_leader_key(),
+            confirm_delete: default_confirm_delete(),
             theme: LegacyThemeConfig::default(),
         }
     }
@@ -316,6 +322,10 @@ fn default_max_suggestions() -> usize {
 
 fn default_leader_key() -> String {
     " ".to_string()
+}
+
+fn default_confirm_delete() -> bool {
+    true
 }
 
 impl Config {

@@ -713,3 +713,19 @@ pub fn wipe_list(list_name: &str) -> Result<usize> {
     save_list_with_path(&list, list_name)?;
     Ok(removed)
 }
+
+/// Delete a list file completely
+pub fn delete_list(list_name: &str) -> Result<()> {
+    let lists_dir = super::get_lists_dir()?;
+    let filename = format!("{}.md", list_name);
+    let path = lists_dir.join(&filename);
+
+    if !path.exists() {
+        anyhow::bail!("List '{}' does not exist", list_name);
+    }
+
+    fs::remove_file(&path)
+        .with_context(|| format!("Failed to delete list file: {}", path.display()))?;
+
+    Ok(())
+}

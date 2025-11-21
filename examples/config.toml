@@ -28,6 +28,10 @@ vim_mode = false
 # Leader key for command sequences (defaults to space)
 leader_key = " "
 
+# Ask for confirmation before deleting lists or notes (defaults to true)
+# Set to false to skip confirmation prompts, or use --force flag
+confirm_delete = true
+
 # Optional theme overrides. Keys correspond to CSS variables defined by the app.
 # When omitted, the built-in theme is used.
 [ui.theme.vars]

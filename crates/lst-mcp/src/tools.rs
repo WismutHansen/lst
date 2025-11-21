@@ -75,16 +75,10 @@ pub struct AddToListTool {
     pub item: String,
 }
 impl AddToListTool {
-    pub fn call_tool(&self) -> Result<CallToolResult, CallToolError> {
+    pub async fn call_tool(&self) -> Result<CallToolResult, CallToolError> {
         tracing::debug!("AddToListTool: Adding '{}' to list '{}'", self.item, self.list);
-        let rt = tokio::runtime::Runtime::new().map_err(|e| {
-            CallToolError::new(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to create runtime: {}", e),
-            ))
-        })?;
 
-        match rt.block_on(commands::add_item(&self.list, &self.item, false)) {
+        match commands::add_item(&self.list, &self.item, false).await {
             Ok(_) => {
                 tracing::info!("AddToListTool: Successfully added '{}' to list '{}'", self.item, self.list);
                 Ok(CallToolResult::text_content(vec![TextContent::new(
@@ -124,16 +118,10 @@ pub struct MarkDoneTool {
 }
 
 impl MarkDoneTool {
-    pub fn call_tool(&self) -> Result<CallToolResult, CallToolError> {
+    pub async fn call_tool(&self) -> Result<CallToolResult, CallToolError> {
         tracing::debug!("MarkDoneTool: Marking '{}' as done in list '{}'", self.target, self.list);
-        let rt = tokio::runtime::Runtime::new().map_err(|e| {
-            CallToolError::new(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to create runtime: {}", e),
-            ))
-        })?;
 
-        match rt.block_on(commands::mark_done(&self.list, &self.target, false)) {
+        match commands::mark_done(&self.list, &self.target, false).await {
             Ok(_) => {
                 tracing::info!("MarkDoneTool: Successfully marked '{}' as done in list '{}'", self.target, self.list);
                 Ok(CallToolResult::text_content(vec![TextContent::new(
@@ -173,16 +161,10 @@ pub struct MarkUndoneTool {
 }
 
 impl MarkUndoneTool {
-    pub fn call_tool(&self) -> Result<CallToolResult, CallToolError> {
+    pub async fn call_tool(&self) -> Result<CallToolResult, CallToolError> {
         tracing::debug!("MarkUndoneTool: Marking '{}' as undone in list '{}'", self.target, self.list);
-        let rt = tokio::runtime::Runtime::new().map_err(|e| {
-            CallToolError::new(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to create runtime: {}", e),
-            ))
-        })?;
 
-        match rt.block_on(commands::mark_undone(&self.list, &self.target, false)) {
+        match commands::mark_undone(&self.list, &self.target, false).await {
             Ok(_) => {
                 tracing::info!("MarkUndoneTool: Successfully marked '{}' as undone in list '{}'", self.target, self.list);
                 Ok(CallToolResult::text_content(vec![TextContent::new(

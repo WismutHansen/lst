@@ -42,14 +42,14 @@ mod tests {
         let _ = fs::remove_file(lists_dir.join("test_mcp_todo_list.md"));
     }
 
-    #[test]
-    fn test_add_to_list_new_list() {
+    #[tokio::test]
+    async fn test_add_to_list_new_list() {
         let tool = AddToListTool {
             list: "test_mcp_shopping".to_string(),
             item: "apples".to_string(),
         };
 
-        let result = tool.call_tool();
+        let result = tool.call_tool().await;
         assert!(result.is_ok(), "Failed to add item: {:?}", result.err());
 
         // Clean up
@@ -57,8 +57,8 @@ mod tests {
         let _ = fs::remove_file(lists_dir.join("test_mcp_shopping.md"));
     }
 
-    #[test]
-    fn test_add_to_list_existing_list() {
+    #[tokio::test]
+    async fn test_add_to_list_existing_list() {
         let lists_dir = get_test_lists_dir();
         
         fs::write(lists_dir.join("test_mcp_groceries2.md"), "- [ ] milk\n").unwrap();
@@ -68,21 +68,21 @@ mod tests {
             item: "bread".to_string(),
         };
 
-        let result = tool.call_tool();
+        let result = tool.call_tool().await;
         assert!(result.is_ok(), "Failed to add item: {:?}", result.err());
 
         // Clean up
         let _ = fs::remove_file(lists_dir.join("test_mcp_groceries2.md"));
     }
 
-    #[test]
-    fn test_add_multiple_items() {
+    #[tokio::test]
+    async fn test_add_multiple_items() {
         let tool = AddToListTool {
             list: "test_mcp_shopping2".to_string(),
             item: "apples, oranges, bananas".to_string(),
         };
 
-        let result = tool.call_tool();
+        let result = tool.call_tool().await;
         assert!(result.is_ok(), "Failed to add items: {:?}", result.err());
 
         // Clean up
@@ -90,8 +90,8 @@ mod tests {
         let _ = fs::remove_file(lists_dir.join("test_mcp_shopping2.md"));
     }
 
-    #[test]
-    fn test_mark_done() {
+    #[tokio::test]
+    async fn test_mark_done() {
         let lists_dir = get_test_lists_dir();
         
         fs::write(lists_dir.join("test_mcp_todo_mark.md"), "- [ ] task1\n- [ ] task2\n").unwrap();
@@ -101,15 +101,15 @@ mod tests {
             target: "task1".to_string(),
         };
 
-        let result = tool.call_tool();
+        let result = tool.call_tool().await;
         assert!(result.is_ok(), "Failed to mark done: {:?}", result.err());
 
         // Clean up
         let _ = fs::remove_file(lists_dir.join("test_mcp_todo_mark.md"));
     }
 
-    #[test]
-    fn test_mark_undone() {
+    #[tokio::test]
+    async fn test_mark_undone() {
         let lists_dir = get_test_lists_dir();
 
         let list_path = lists_dir.join("test_mcp_todo_unmark.md");
@@ -120,26 +120,26 @@ mod tests {
             target: "task1".to_string(),
         };
 
-        let result = tool.call_tool();
+        let result = tool.call_tool().await;
         assert!(result.is_ok(), "Failed to mark undone: {:?}", result.err());
 
         // Clean up
         let _ = fs::remove_file(&list_path);
     }
 
-    #[test]
-    fn test_mark_done_nonexistent_list() {
+    #[tokio::test]
+    async fn test_mark_done_nonexistent_list() {
         let tool = MarkDoneTool {
             list: "test_mcp_nonexistent_list_12345".to_string(),
             target: "task1".to_string(),
         };
 
-        let result = tool.call_tool();
+        let result = tool.call_tool().await;
         assert!(result.is_err(), "Should fail for nonexistent list");
     }
 
-    #[test]
-    fn test_mark_done_nonexistent_item() {
+    #[tokio::test]
+    async fn test_mark_done_nonexistent_item() {
         let lists_dir = get_test_lists_dir();
         
         fs::write(lists_dir.join("test_mcp_todo_missing.md"), "- [ ] task1\n- [ ] task2\n").unwrap();
@@ -149,21 +149,21 @@ mod tests {
             target: "nonexistent_item_xyz".to_string(),
         };
 
-        let result = tool.call_tool();
+        let result = tool.call_tool().await;
         assert!(result.is_err(), "Should fail for nonexistent item");
         
         // Clean up
         let _ = fs::remove_file(lists_dir.join("test_mcp_todo_missing.md"));
     }
 
-    #[test]
-    fn test_add_to_list_with_special_characters() {
+    #[tokio::test]
+    async fn test_add_to_list_with_special_characters() {
         let tool = AddToListTool {
             list: "test_mcp_notes".to_string(),
             item: "Buy @item with #tag".to_string(),
         };
 
-        let result = tool.call_tool();
+        let result = tool.call_tool().await;
         assert!(result.is_ok(), "Failed to add item with special chars: {:?}", result.err());
 
         // Clean up
